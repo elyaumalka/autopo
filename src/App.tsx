@@ -25,6 +25,11 @@ import Incomes from "@/pages/Incomes";
 import Expenses from "@/pages/Expenses";
 import CashFlow from "@/pages/CashFlow";
 import VehicleFinancials from "@/pages/VehicleFinancials";
+import MaintenanceTasks from "@/pages/MaintenanceTasks";
+import CollectionTasks from "@/pages/CollectionTasks";
+import GeneralTasks from "@/pages/GeneralTasks";
+import TrafficTickets from "@/pages/TrafficTickets";
+import Accidents from "@/pages/Accidents";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +74,11 @@ const App = () => (
             <Route path="/expenses" element={<ProtectedRoute requireRole><MainLayout><Expenses /></MainLayout></ProtectedRoute>} />
             <Route path="/cash-flow" element={<ProtectedRoute requireRole><MainLayout><CashFlow /></MainLayout></ProtectedRoute>} />
             <Route path="/vehicle-financials" element={<ProtectedRoute requireRole><MainLayout><VehicleFinancials /></MainLayout></ProtectedRoute>} />
+            <Route path="/maintenance-tasks" element={<ProtectedRoute requireRole><MainLayout><MaintenanceTasks /></MainLayout></ProtectedRoute>} />
+            <Route path="/collection-tasks" element={<ProtectedRoute requireRole><MainLayout><CollectionTasks /></MainLayout></ProtectedRoute>} />
+            <Route path="/general-tasks" element={<ProtectedRoute requireRole><MainLayout><GeneralTasks /></MainLayout></ProtectedRoute>} />
+            <Route path="/traffic-tickets" element={<ProtectedRoute requireRole><MainLayout><TrafficTickets /></MainLayout></ProtectedRoute>} />
+            <Route path="/accidents" element={<ProtectedRoute requireRole><MainLayout><Accidents /></MainLayout></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

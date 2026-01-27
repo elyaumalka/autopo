@@ -228,11 +228,11 @@ export default function GeneralTasks() {
         }
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חיפוש..."
                 value={searchQuery}
@@ -267,10 +267,11 @@ export default function GeneralTasks() {
               </SelectContent>
             </Select>
           </div>
-
+        </div>
+        <div className="p-6">
           {!filteredTasks?.length ? (
             <EmptyState
-              icon={<ClipboardList className="h-8 w-8 text-muted-foreground" />}
+              icon={<ClipboardList className="h-8 w-8 text-gray-300" />}
               title="אין משימות"
               description="לא נמצאו משימות כלליות במערכת"
             />
@@ -289,18 +290,22 @@ export default function GeneralTasks() {
                 </TableHeader>
                 <TableBody>
                   {filteredTasks.map((task) => (
-                    <TableRow key={task.id}>
+                    <TableRow key={task.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">
                         <div>
                           <div>{task.title}</div>
                           {task.description && (
-                            <div className="text-sm text-muted-foreground truncate max-w-xs">
+                            <div className="text-sm text-gray-500 truncate max-w-xs">
                               {task.description}
                             </div>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{task.type}</TableCell>
+                      <TableCell>
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
+                          {task.type}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <div className={`flex items-center gap-1 ${getPriorityColor(task.priority)}`}>
                           <Flag className="h-4 w-4" />
@@ -308,8 +313,8 @@ export default function GeneralTasks() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-1 text-gray-600">
+                          <Calendar className="h-4 w-4" />
                           {format(new Date(task.due_date), "dd/MM/yyyy", {
                             locale: he,
                           })}
@@ -343,8 +348,8 @@ export default function GeneralTasks() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">

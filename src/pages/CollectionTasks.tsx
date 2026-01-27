@@ -226,11 +226,11 @@ export default function CollectionTasks() {
         }
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חיפוש..."
                 value={searchQuery}
@@ -252,10 +252,11 @@ export default function CollectionTasks() {
               </SelectContent>
             </Select>
           </div>
-
+        </div>
+        <div className="p-6">
           {!filteredTasks?.length ? (
             <EmptyState
-              icon={<Banknote className="h-8 w-8 text-muted-foreground" />}
+              icon={<Banknote className="h-8 w-8 text-gray-300" />}
               title="אין משימות גבייה"
               description="לא נמצאו משימות גבייה במערכת"
             />
@@ -276,20 +277,20 @@ export default function CollectionTasks() {
                 </TableHeader>
                 <TableBody>
                   {filteredTasks.map((task) => (
-                    <TableRow key={task.id}>
+                    <TableRow key={task.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
+                          <User className="h-4 w-4 text-red-500" />
                           {task.customer_name || "-"}
                         </div>
                       </TableCell>
-                      <TableCell className="text-destructive font-semibold">
+                      <TableCell className="text-red-600 font-semibold">
                         ₪{task.amount.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-green-600">
+                      <TableCell className="text-green-600 font-medium">
                         ₪{(task.paid_amount || 0).toLocaleString()}
                       </TableCell>
-                      <TableCell className="font-semibold">
+                      <TableCell className="font-bold text-red-600">
                         ₪{getRemainingAmount(task).toLocaleString()}
                       </TableCell>
                       <TableCell>
@@ -327,8 +328,8 @@ export default function CollectionTasks() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">

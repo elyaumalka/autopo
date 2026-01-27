@@ -263,11 +263,11 @@ export default function Accidents() {
         }
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חיפוש..."
                 value={searchQuery}
@@ -289,10 +289,11 @@ export default function Accidents() {
               </SelectContent>
             </Select>
           </div>
-
+        </div>
+        <div className="p-6">
           {!filteredAccidents?.length ? (
             <EmptyState
-              icon={<AlertTriangle className="h-8 w-8 text-muted-foreground" />}
+              icon={<AlertTriangle className="h-8 w-8 text-gray-300" />}
               title="אין תאונות"
               description="לא נמצאו תאונות במערכת"
             />
@@ -313,7 +314,7 @@ export default function Accidents() {
                 </TableHeader>
                 <TableBody>
                   {filteredAccidents.map((accident) => (
-                    <TableRow key={accident.id}>
+                    <TableRow key={accident.id} className="hover:bg-gray-50">
                       <TableCell>
                         {format(new Date(accident.date), "dd/MM/yyyy", {
                           locale: he,
@@ -321,25 +322,29 @@ export default function Accidents() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Car className="h-4 w-4 text-muted-foreground" />
+                          <Car className="h-4 w-4 text-red-500" />
                           {accident.vehicle_details || "-"}
                         </div>
                       </TableCell>
                       <TableCell>
                         {accident.customer_name && (
                           <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
+                            <User className="h-4 w-4 text-gray-400" />
                             {accident.customer_name}
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>{accident.type}</TableCell>
                       <TableCell>
+                        <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+                          {accident.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
                         {accident.insurance_claim_number || "-"}
                       </TableCell>
                       <TableCell>
                         {accident.estimated_cost
-                          ? `₪${accident.estimated_cost.toLocaleString()}`
+                          ? <span className="font-medium text-orange-600">₪{accident.estimated_cost.toLocaleString()}</span>
                           : "-"}
                       </TableCell>
                       <TableCell>
@@ -369,8 +374,8 @@ export default function Accidents() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

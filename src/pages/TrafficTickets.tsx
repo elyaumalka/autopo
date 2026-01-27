@@ -250,11 +250,11 @@ export default function TrafficTickets() {
         }
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חיפוש..."
                 value={searchQuery}
@@ -276,10 +276,11 @@ export default function TrafficTickets() {
               </SelectContent>
             </Select>
           </div>
-
+        </div>
+        <div className="p-6">
           {!filteredTickets?.length ? (
             <EmptyState
-              icon={<Receipt className="h-8 w-8 text-muted-foreground" />}
+              icon={<Receipt className="h-8 w-8 text-gray-300" />}
               title="אין דוחות תנועה"
               description="לא נמצאו דוחות תנועה במערכת"
             />
@@ -300,8 +301,8 @@ export default function TrafficTickets() {
                 </TableHeader>
                 <TableBody>
                   {filteredTickets.map((ticket) => (
-                    <TableRow key={ticket.id}>
-                      <TableCell className="font-medium">
+                    <TableRow key={ticket.id} className="hover:bg-gray-50">
+                      <TableCell className="font-mono font-medium">
                         {ticket.ticket_number}
                       </TableCell>
                       <TableCell>
@@ -309,20 +310,20 @@ export default function TrafficTickets() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Car className="h-4 w-4 text-muted-foreground" />
+                          <Car className="h-4 w-4 text-purple-500" />
                           {ticket.vehicle_details || "-"}
                         </div>
                       </TableCell>
                       <TableCell>{ticket.customer_name || "-"}</TableCell>
                       <TableCell>
                         {ticket.location && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-1 text-gray-600">
+                            <MapPin className="h-4 w-4" />
                             {ticket.location}
                           </div>
                         )}
                       </TableCell>
-                      <TableCell className="font-semibold text-destructive">
+                      <TableCell className="font-bold text-red-600">
                         ₪{ticket.amount.toLocaleString()}
                       </TableCell>
                       <TableCell>
@@ -352,8 +353,8 @@ export default function TrafficTickets() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">

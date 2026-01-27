@@ -219,11 +219,11 @@ export default function MaintenanceTasks() {
         }
       />
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="חיפוש..."
                 value={searchQuery}
@@ -245,10 +245,11 @@ export default function MaintenanceTasks() {
               </SelectContent>
             </Select>
           </div>
-
+        </div>
+        <div className="p-6">
           {!filteredTasks?.length ? (
             <EmptyState
-              icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
+              icon={<Wrench className="h-8 w-8 text-gray-300" />}
               title="אין משימות טיפול"
               description="לא נמצאו משימות טיפול במערכת"
             />
@@ -268,14 +269,18 @@ export default function MaintenanceTasks() {
                 </TableHeader>
                 <TableBody>
                   {filteredTasks.map((task) => (
-                    <TableRow key={task.id}>
+                    <TableRow key={task.id} className="hover:bg-gray-50">
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
-                          <Car className="h-4 w-4 text-muted-foreground" />
+                          <Car className="h-4 w-4 text-orange-500" />
                           {task.vehicle_details || "-"}
                         </div>
                       </TableCell>
-                      <TableCell>{task.type}</TableCell>
+                      <TableCell>
+                        <span className="rounded-full bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800">
+                          {task.type}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         {task.due_date
                           ? format(new Date(task.due_date), "dd/MM/yyyy", { locale: he })
@@ -314,8 +319,8 @@ export default function MaintenanceTasks() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-2xl">

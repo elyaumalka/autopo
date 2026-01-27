@@ -44,9 +44,9 @@ interface BookingData {
   vehicle_id: string;
   vehicle_details: string;
   start_date: string;
-  start_time: string;
+  start_time: string | null;
   end_date: string;
-  end_time: string;
+  end_time: string | null;
   rental_type: string;
   rental_cost: number;
   status: string;
@@ -107,6 +107,9 @@ export default function QuickBookingDialog({
       ? customers.find(c => c.id === customerId)
       : null;
 
+    // Calculate end time - use start time for standard rentals, custom for custom dates
+    const endTime = rentalType === "עד תאריך" ? customEndTime : startTime;
+
     return {
       customer_id: customerId || null,
       customer_name: customerType === "existing" 
@@ -115,9 +118,9 @@ export default function QuickBookingDialog({
       vehicle_id: vehicle?.id || "",
       vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : "",
       start_date: date,
-      start_time: startTime,
+      start_time: startTime || null,
       end_date: calculateEndDate(),
-      end_time: rentalType === "עד תאריך" ? customEndTime : "",
+      end_time: endTime || null,
       rental_type: rentalType,
       rental_cost: rentalCost ? parseFloat(rentalCost) : 0,
       status: "מאושר"

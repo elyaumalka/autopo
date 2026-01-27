@@ -2,215 +2,269 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { StatCard } from "@/components/shared/StatCard";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TrendingUp, TrendingDown, DollarSign } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  CreditCard,
+  Banknote,
+  Receipt,
+} from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
-import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
-import { he } from "date-fns/locale";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 
 export default function CashFlow() {
-  const [monthsBack, setMonthsBack] = useState("6");
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
 
-  const { data: cashFlowData, isLoading } = useQuery({
-    queryKey: ["cashFlow", monthsBack],
+  const monthStart = startOfMonth(new Date(selectedMonth));
+  const monthEnd = endOfMonth(new Date(selectedMonth));
+
+  const { data: incomes = [], isLoading: loadingIncomes } = useQuery({
+    queryKey: ["incomes", selectedMonth],
     queryFn: async () => {
-      const months = parseInt(monthsBack);
-      const data = [];
-
-      for (let i = months - 1; i >= 0; i--) {
-        const monthDate = subMonths(new Date(), i);
-        const start = format(startOfMonth(monthDate), "yyyy-MM-dd");
-        const end = format(endOfMonth(monthDate), "yyyy-MM-dd");
-
-        // Get incomes
-        const { data: incomes } = await supabase
-          .from("incomes")
-          .select("amount")
-          .gte("date", start)
-          .lte("date", end);
-
-        // Get expenses
-        const { data: expenses } = await supabase
-          .from("expenses")
-          .select("amount")
-          .gte("date", start)
-          .lte("date", end);
-
-        const totalIncome = incomes?.reduce((sum, i) => sum + (i.amount || 0), 0) || 0;
-        const totalExpenses = expenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0;
-
-        data.push({
-          month: format(monthDate, "MMMM yyyy", { locale: he }),
-          shortMonth: format(monthDate, "MMM", { locale: he }),
-          income: totalIncome,
-          expenses: totalExpenses,
-          profit: totalIncome - totalExpenses,
-        });
-      }
-
+      const { data, error } = await supabase
+        .from("incomes")
+        .select("*")
+        .gte("date", format(monthStart, "yyyy-MM-dd"))
+        .lte("date", format(monthEnd, "yyyy-MM-dd"))
+        .order("date", { ascending: false });
+      if (error) throw error;
       return data;
     },
   });
 
-  const totals = cashFlowData?.reduce(
-    (acc, month) => ({
-      income: acc.income + month.income,
-      expenses: acc.expenses + month.expenses,
-      profit: acc.profit + month.profit,
-    }),
-    { income: 0, expenses: 0, profit: 0 }
-  ) || { income: 0, expenses: 0, profit: 0 };
+  const { data: expenses = [], isLoading: loadingExpenses } = useQuery({
+    queryKey: ["expenses", selectedMonth],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("*")
+        .gte("date", format(monthStart, "yyyy-MM-dd"))
+        .lte("date", format(monthEnd, "yyyy-MM-dd"))
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const isLoading = loadingIncomes || loadingExpenses;
+
+  // Calculate totals by payment method
+  const cashIn = incomes.filter(i => i.payment_method === "מזומן").reduce((sum, i) => sum + (i.amount || 0), 0);
+  const creditIn = incomes.filter(i => i.payment_method === "אשראי").reduce((sum, i) => sum + (i.amount || 0), 0);
+  const otherIn = incomes.filter(i => i.payment_method && !["מזומן", "אשראי"].includes(i.payment_method)).reduce((sum, i) => sum + (i.amount || 0), 0);
+
+  const cashOut = expenses.filter(e => e.payment_method === "מזומן").reduce((sum, e) => sum + (e.amount || 0), 0);
+  const creditOut = expenses.filter(e => e.payment_method === "אשראי").reduce((sum, e) => sum + (e.amount || 0), 0);
+  const otherOut = expenses.filter(e => e.payment_method && !["מזומן", "אשראי"].includes(e.payment_method)).reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const netCash = cashIn - cashOut;
+  const netCredit = creditIn - creditOut;
+  const netOther = otherIn - otherOut;
+  const netTotal = totalIncome - totalExpenses;
+
+  // All transactions sorted by date
+  const allTransactions = [
+    ...incomes.map(i => ({ ...i, transactionType: 'income' as const })),
+    ...expenses.map(e => ({ ...e, transactionType: 'expense' as const }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="תזרים מזומנים"
-        subtitle="סקירת הכנסות, הוצאות ורווחים"
-        action={
-          <Select value={monthsBack} onValueChange={setMonthsBack}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">3 חודשים</SelectItem>
-              <SelectItem value="6">6 חודשים</SelectItem>
-              <SelectItem value="12">12 חודשים</SelectItem>
-            </SelectContent>
-          </Select>
-        }
+        subtitle="מעקב אחר כסף בקופה ומזומנים בפועל"
       />
+
+      {/* Month Selector */}
+      <div className="mb-6">
+        <Label className="text-gray-700">בחר חודש</Label>
+        <Input
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-48 mt-1"
+        />
+      </div>
 
       {isLoading ? (
         <LoadingSpinner />
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="mb-6 grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="py-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">סה"כ הכנסות</p>
-                    <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.income)}</p>
-                  </div>
-                  <TrendingUp className="h-10 w-10 text-green-200" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <StatCard
+              title="הכנסות בפועל"
+              value={formatCurrency(totalIncome)}
+              icon={DollarSign}
+              color="green"
+            />
+            <StatCard
+              title="סה״כ הוצאות"
+              value={formatCurrency(totalExpenses)}
+              icon={TrendingDown}
+              color="red"
+            />
+            <StatCard
+              title="רווח נקי"
+              value={formatCurrency(netTotal)}
+              icon={TrendingUp}
+              color={netTotal >= 0 ? "green" : "red"}
+            />
+            <StatCard
+              title="מזומן בקופה"
+              value={formatCurrency(netCash)}
+              icon={Wallet}
+              color={netCash >= 0 ? "cyan" : "orange"}
+            />
+            <StatCard
+              title="אשראי נטו"
+              value={formatCurrency(netCredit)}
+              icon={CreditCard}
+              color="blue"
+            />
+          </div>
+
+          {/* Payment Method Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            {/* Cash */}
+            <Card className="p-6 border-r-4 border-r-green-500 bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-green-100 rounded-xl">
+                  <Banknote className="w-6 h-6 text-green-600" />
                 </div>
-              </CardContent>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">מזומן</h3>
+                  <p className="text-sm text-gray-500">תנועות במזומן</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">נכנס:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(cashIn)}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">יצא:</span>
+                  <span className="font-bold text-red-600">{formatCurrency(cashOut)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="font-semibold">יתרה:</span>
+                  <span className={`font-bold text-lg ${netCash >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(netCash)}
+                  </span>
+                </div>
+              </div>
             </Card>
-            <Card>
-              <CardContent className="py-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">סה"כ הוצאות</p>
-                    <p className="text-2xl font-bold text-red-600">{formatCurrency(totals.expenses)}</p>
-                  </div>
-                  <TrendingDown className="h-10 w-10 text-red-200" />
+
+            {/* Credit */}
+            <Card className="p-6 border-r-4 border-r-blue-500 bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <CreditCard className="w-6 h-6 text-blue-600" />
                 </div>
-              </CardContent>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">אשראי</h3>
+                  <p className="text-sm text-gray-500">תנועות באשראי</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">נכנס:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(creditIn)}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">יצא:</span>
+                  <span className="font-bold text-red-600">{formatCurrency(creditOut)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="font-semibold">יתרה:</span>
+                  <span className={`font-bold text-lg ${netCredit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(netCredit)}
+                  </span>
+                </div>
+              </div>
             </Card>
-            <Card>
-              <CardContent className="py-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">רווח נקי</p>
-                    <p className={`text-2xl font-bold ${totals.profit >= 0 ? "text-green-600" : "text-red-600"}`}>
-                      {formatCurrency(totals.profit)}
-                    </p>
-                  </div>
-                  <DollarSign className={`h-10 w-10 ${totals.profit >= 0 ? "text-green-200" : "text-red-200"}`} />
+
+            {/* Other */}
+            <Card className="p-6 border-r-4 border-r-purple-500 bg-white">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-purple-100 rounded-xl">
+                  <Receipt className="w-6 h-6 text-purple-600" />
                 </div>
-              </CardContent>
+                <div>
+                  <h3 className="font-semibold text-lg text-gray-900">אחר</h3>
+                  <p className="text-sm text-gray-500">צ'ק / העברה</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">נכנס:</span>
+                  <span className="font-bold text-green-600">{formatCurrency(otherIn)}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b">
+                  <span className="text-gray-600">יצא:</span>
+                  <span className="font-bold text-red-600">{formatCurrency(otherOut)}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className="font-semibold">יתרה:</span>
+                  <span className={`font-bold text-lg ${netOther >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(netOther)}
+                  </span>
+                </div>
+              </div>
             </Card>
           </div>
 
-          {/* Chart */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>מגמת תזרים מזומנים</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={cashFlowData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="shortMonth" />
-                    <YAxis tickFormatter={(value) => `₪${(value / 1000).toFixed(0)}K`} />
-                    <Tooltip
-                      formatter={(value: number) => formatCurrency(value)}
-                      labelFormatter={(label) => cashFlowData?.find((d) => d.shortMonth === label)?.month || label}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="income"
-                      name="הכנסות"
-                      stroke="hsl(var(--success))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="expenses"
-                      name="הוצאות"
-                      stroke="hsl(var(--destructive))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="profit"
-                      name="רווח"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>פירוט חודשי</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>חודש</TableHead>
-                    <TableHead>הכנסות</TableHead>
-                    <TableHead>הוצאות</TableHead>
-                    <TableHead>רווח נקי</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cashFlowData?.map((month) => (
-                    <TableRow key={month.month}>
-                      <TableCell className="font-medium">{month.month}</TableCell>
-                      <TableCell className="text-green-600">{formatCurrency(month.income)}</TableCell>
-                      <TableCell className="text-red-600">{formatCurrency(month.expenses)}</TableCell>
-                      <TableCell className={month.profit >= 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                        {formatCurrency(month.profit)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  <TableRow className="bg-muted/50 font-bold">
-                    <TableCell>סה"כ</TableCell>
-                    <TableCell className="text-green-600">{formatCurrency(totals.income)}</TableCell>
-                    <TableCell className="text-red-600">{formatCurrency(totals.expenses)}</TableCell>
-                    <TableCell className={totals.profit >= 0 ? "text-green-600" : "text-red-600"}>
-                      {formatCurrency(totals.profit)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
+          {/* Recent Transactions */}
+          <Card className="p-6 bg-white">
+            <h3 className="font-semibold mb-4 text-lg text-gray-900">תנועות אחרונות</h3>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {allTransactions.map((transaction, i) => (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className={`p-2 rounded-lg ${transaction.transactionType === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
+                      {transaction.transactionType === 'income' ? (
+                        <TrendingUp className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-red-600" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">
+                        {transaction.transactionType === 'income' ? 'הכנסה' : 'הוצאה'} - {transaction.type}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {transaction.transactionType === 'income' 
+                          ? (transaction.customer_name || '-')
+                          : (transaction.vehicle_details || transaction.description || '-')}
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm text-gray-500">
+                        {format(new Date(transaction.date), "dd/MM/yyyy")}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {transaction.payment_method || '-'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`font-bold text-lg ml-4 ${transaction.transactionType === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                    {transaction.transactionType === 'income' ? '+' : '-'}{formatCurrency(transaction.amount || 0)}
+                  </span>
+                </div>
+              ))}
+              {allTransactions.length === 0 && (
+                <p className="text-center text-gray-500 py-8">אין תנועות בחודש זה</p>
+              )}
+            </div>
           </Card>
         </>
       )}

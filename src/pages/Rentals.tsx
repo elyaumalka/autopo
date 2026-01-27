@@ -74,11 +74,11 @@ export default function Rentals() {
         subtitle="צפייה וניהול כל ההשכרות במערכת"
       />
 
-      <Card>
-        <CardHeader>
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 placeholder="חיפוש לפי לקוח, רכב או מספר חשבונית..."
                 value={searchTerm}
@@ -98,8 +98,8 @@ export default function Rentals() {
               </SelectContent>
             </Select>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-6">
           {isLoading ? (
             <LoadingSpinner />
           ) : filteredRentals && filteredRentals.length > 0 ? (
@@ -158,8 +158,8 @@ export default function Rentals() {
           ) : (
             <EmptyState title="אין השכרות" description="לא נמצאו השכרות במערכת" />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Rental Details Dialog */}
       <Dialog open={!!selectedRental} onOpenChange={(open) => !open && setSelectedRental(null)}>

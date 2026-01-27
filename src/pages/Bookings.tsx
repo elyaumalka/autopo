@@ -141,11 +141,11 @@ export default function Bookings() {
         </TabsList>
 
         <TabsContent value="list">
-          <Card>
-            <CardHeader>
+          <div className="bg-white rounded-2xl border shadow-sm">
+            <div className="p-6 border-b">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="relative flex-1">
-                  <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <Input
                     placeholder="חיפוש לפי שם לקוח או רכב..."
                     value={searchTerm}
@@ -167,8 +167,8 @@ export default function Bookings() {
                   </SelectContent>
                 </Select>
               </div>
-            </CardHeader>
-            <CardContent>
+            </div>
+            <div className="p-6">
               {isLoading ? (
                 <LoadingSpinner />
               ) : filteredBookings && filteredBookings.length > 0 ? (
@@ -186,7 +186,7 @@ export default function Bookings() {
                   </TableHeader>
                   <TableBody>
                     {filteredBookings.map((booking) => (
-                      <TableRow key={booking.id}>
+                      <TableRow key={booking.id} className="hover:bg-gray-50">
                         <TableCell className="font-medium">{booking.customer_name}</TableCell>
                         <TableCell>{booking.vehicle_details}</TableCell>
                         <TableCell>
@@ -209,8 +209,78 @@ export default function Bookings() {
               ) : (
                 <EmptyState title="אין הזמנות" description="לא נמצאו הזמנות במערכת" />
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="calendar">
+          <div className="bg-white rounded-2xl border shadow-sm">
+            <div className="p-6 border-b">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg text-gray-900">לוח הזמנות שבועי</h3>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, -7))}>
+                    שבוע קודם
+                  </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline">
+                        <CalendarIcon className="ml-2 h-4 w-4" />
+                        {format(selectedDate, "MMMM yyyy", { locale: he })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>
+                    שבוע הבא
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-7 gap-1">
+                {weekDays.map((day) => (
+                  <div key={day.toISOString()} className="text-center">
+                    <div className="rounded-t bg-gray-100 p-2 font-medium text-gray-700">
+                      {format(day, "EEEE", { locale: he })}
+                    </div>
+                    <div className={cn("border p-2 text-sm", isSameDay(day, new Date()) && "bg-cyan-50")}>
+                      {format(day, "d/M")}
+                    </div>
+                    <div className="min-h-[100px] space-y-1 border border-t-0 p-1">
+                      {weekBookings
+                        ?.filter((b) => {
+                          const start = parseISO(b.start_date);
+                          const end = parseISO(b.end_date);
+                          return start <= day && end >= day;
+                        })
+                        .map((b) => (
+                          <div
+                            key={b.id}
+                            className={cn(
+                              "rounded p-1 text-xs",
+                              b.status === "מאושר" && "bg-blue-100 text-blue-800",
+                              b.status === "פעיל" && "bg-green-100 text-green-800",
+                              b.status === "בוטל" && "bg-red-100 text-red-800",
+                              b.status === "ממתין" && "bg-yellow-100 text-yellow-800"
+                            )}
+                          >
+                            {b.customer_name}
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="calendar">

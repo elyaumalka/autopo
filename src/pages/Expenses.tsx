@@ -107,23 +107,23 @@ export default function Expenses() {
       />
 
       {/* Summary Card */}
-      <Card className="mb-6">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-5 w-5 text-red-600" />
-              <span className="text-muted-foreground">סה"כ הוצאות (לפי סינון)</span>
+      <div className="mb-6 bg-white rounded-2xl border shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-red-100 rounded-xl">
+              <TrendingDown className="h-6 w-6 text-red-600" />
             </div>
-            <span className="text-2xl font-bold text-red-600">{formatCurrency(totalAmount)}</span>
+            <span className="text-gray-600">סה"כ הוצאות (לפי סינון)</span>
           </div>
-        </CardContent>
-      </Card>
+          <span className="text-2xl font-bold text-red-600">{formatCurrency(totalAmount)}</span>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 placeholder="חיפוש לפי תיאור, רכב או הערות..."
                 value={searchTerm}
@@ -146,8 +146,8 @@ export default function Expenses() {
               </SelectContent>
             </Select>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-6">
           {isLoading ? (
             <LoadingSpinner />
           ) : filteredExpenses && filteredExpenses.length > 0 ? (
@@ -184,8 +184,8 @@ export default function Expenses() {
           ) : (
             <EmptyState title="אין הוצאות" description="לא נמצאו הוצאות במערכת" />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -18,6 +18,20 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/formatters";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { Tables } from "@/integrations/supabase/types";
+
+type Income = Tables<"incomes">;
+type Expense = Tables<"expenses">;
+type Rental = Tables<"rentals">;
+
+interface MissingPayment {
+  customer_name: string;
+  vehicle_details: string;
+  expected: number;
+  paid: number;
+  missing: number;
+  timing: string;
+}
 
 export default function CashFlow() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), "yyyy-MM"));
@@ -35,7 +49,7 @@ export default function CashFlow() {
         .lte("date", format(monthEnd, "yyyy-MM-dd"))
         .order("date", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as Income[];
     },
   });
 
@@ -49,7 +63,16 @@ export default function CashFlow() {
         .lte("date", format(monthEnd, "yyyy-MM-dd"))
         .order("date", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as Expense[];
+    },
+  });
+
+  const { data: rentals = [] } = useQuery({
+    queryKey: ["rentals"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("rentals").select("*");
+      if (error) throw error;
+      return data as Rental[];
     },
   });
 
@@ -71,6 +94,49 @@ export default function CashFlow() {
   const netOther = otherIn - otherOut;
   const netTotal = totalIncome - totalExpenses;
 
+  // Calculate expected income for the month
+  const calculateExpectedIncome = () => {
+    let expected = 0;
+    const missingPayments: MissingPayment[] = [];
+
+    rentals.forEach(rental => {
+      if (rental.status === "בוטל") return;
+
+      const rentalStart = new Date(rental.start_date);
+      const rentalEnd = new Date(rental.actual_end_date || rental.planned_end_date || rental.start_date);
+
+      // Check if rental overlaps with selected month
+      if (rentalEnd < monthStart || rentalStart > monthEnd) return;
+
+      const overlapStart = rentalStart > monthStart ? rentalStart : monthStart;
+      const overlapEnd = rentalEnd < monthEnd ? rentalEnd : monthEnd;
+
+      // Calculate days in rental and in month
+      const daysInRental = Math.ceil((rentalEnd.getTime() - rentalStart.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+      const daysInMonth = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Proportional cost for this month
+      const proportionalCost = (rental.total_cost || rental.base_cost || 0) * (daysInMonth / daysInRental);
+      expected += proportionalCost;
+
+      // Check for missing payments - only for active rentals with outstanding balance
+      if ((rental.paid_amount || 0) < proportionalCost) {
+        missingPayments.push({
+          customer_name: rental.customer_name || "לקוח",
+          vehicle_details: rental.vehicle_details || "",
+          expected: proportionalCost,
+          paid: rental.paid_amount || 0,
+          missing: proportionalCost - (rental.paid_amount || 0),
+          timing: "מראש"
+        });
+      }
+    });
+
+    return { expected, missingPayments };
+  };
+
+  const { expected: expectedIncome, missingPayments } = calculateExpectedIncome();
+
   // All transactions sorted by date
   const allTransactions = [
     ...incomes.map(i => ({ ...i, transactionType: 'income' as const })),
@@ -86,7 +152,7 @@ export default function CashFlow() {
 
       {/* Month Selector */}
       <div className="mb-6">
-        <Label className="text-gray-700">בחר חודש</Label>
+        <Label>בחר חודש</Label>
         <Input
           type="month"
           value={selectedMonth}
@@ -102,6 +168,13 @@ export default function CashFlow() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <StatCard
+              title="הכנסות צפויות"
+              value={formatCurrency(expectedIncome)}
+              icon={TrendingUp}
+              color="blue"
+              subtitle="לפי השכרות פעילות"
+            />
+            <StatCard
               title="הכנסות בפועל"
               value={formatCurrency(totalIncome)}
               icon={DollarSign}
@@ -116,7 +189,7 @@ export default function CashFlow() {
             <StatCard
               title="רווח נקי"
               value={formatCurrency(netTotal)}
-              icon={TrendingUp}
+              icon={DollarSign}
               color={netTotal >= 0 ? "green" : "red"}
             />
             <StatCard
@@ -125,34 +198,63 @@ export default function CashFlow() {
               icon={Wallet}
               color={netCash >= 0 ? "cyan" : "orange"}
             />
-            <StatCard
-              title="אשראי נטו"
-              value={formatCurrency(netCredit)}
-              icon={CreditCard}
-              color="blue"
-            />
           </div>
+
+          {/* Missing Payments Alert */}
+          {missingPayments.length > 0 && (
+            <Card className="p-6 mb-6 bg-red-50 border-2 border-red-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <Receipt className="w-5 h-5 text-red-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-900 mb-2">התרעת תשלומים חסרים</h3>
+                  <p className="text-sm text-red-700 mb-3">
+                    {missingPayments.length} לקוחות עם תשלומים חסרים בחודש זה
+                  </p>
+                  <div className="space-y-2">
+                    {missingPayments.map((payment, i) => (
+                      <div key={i} className="bg-white rounded-lg p-3 border border-red-200">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-gray-900">{payment.customer_name}</p>
+                            <p className="text-sm text-gray-600">{payment.vehicle_details}</p>
+                            <p className="text-xs text-red-600 mt-1">מועד תשלום: {payment.timing}</p>
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm text-gray-600">צפוי: {formatCurrency(payment.expected)}</p>
+                            <p className="text-sm text-gray-600">שולם: {formatCurrency(payment.paid)}</p>
+                            <p className="font-bold text-red-600">חסר: {formatCurrency(payment.missing)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* Payment Method Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             {/* Cash */}
-            <Card className="p-6 border-r-4 border-r-green-500 bg-white">
+            <Card className="p-6 border-r-4 border-r-green-500">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-green-100 rounded-xl">
                   <Banknote className="w-6 h-6 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-900">מזומן</h3>
-                  <p className="text-sm text-gray-500">תנועות במזומן</p>
+                  <h3 className="font-semibold text-lg">מזומן</h3>
+                  <p className="text-sm text-muted-foreground">תנועות במזומן</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">נכנס:</span>
+                  <span className="text-muted-foreground">נכנס:</span>
                   <span className="font-bold text-green-600">{formatCurrency(cashIn)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">יצא:</span>
+                  <span className="text-muted-foreground">יצא:</span>
                   <span className="font-bold text-red-600">{formatCurrency(cashOut)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
@@ -165,23 +267,23 @@ export default function CashFlow() {
             </Card>
 
             {/* Credit */}
-            <Card className="p-6 border-r-4 border-r-blue-500 bg-white">
+            <Card className="p-6 border-r-4 border-r-blue-500">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-blue-100 rounded-xl">
                   <CreditCard className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-900">אשראי</h3>
-                  <p className="text-sm text-gray-500">תנועות באשראי</p>
+                  <h3 className="font-semibold text-lg">אשראי</h3>
+                  <p className="text-sm text-muted-foreground">תנועות באשראי</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">נכנס:</span>
+                  <span className="text-muted-foreground">נכנס:</span>
                   <span className="font-bold text-green-600">{formatCurrency(creditIn)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">יצא:</span>
+                  <span className="text-muted-foreground">יצא:</span>
                   <span className="font-bold text-red-600">{formatCurrency(creditOut)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
@@ -194,23 +296,23 @@ export default function CashFlow() {
             </Card>
 
             {/* Other */}
-            <Card className="p-6 border-r-4 border-r-purple-500 bg-white">
+            <Card className="p-6 border-r-4 border-r-purple-500">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-3 bg-purple-100 rounded-xl">
                   <Receipt className="w-6 h-6 text-purple-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-900">אחר</h3>
-                  <p className="text-sm text-gray-500">צ'ק / העברה</p>
+                  <h3 className="font-semibold text-lg">אחר</h3>
+                  <p className="text-sm text-muted-foreground">צ'ק / העברה</p>
                 </div>
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">נכנס:</span>
+                  <span className="text-muted-foreground">נכנס:</span>
                   <span className="font-bold text-green-600">{formatCurrency(otherIn)}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b">
-                  <span className="text-gray-600">יצא:</span>
+                  <span className="text-muted-foreground">יצא:</span>
                   <span className="font-bold text-red-600">{formatCurrency(otherOut)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2">
@@ -224,11 +326,11 @@ export default function CashFlow() {
           </div>
 
           {/* Recent Transactions */}
-          <Card className="p-6 bg-white">
-            <h3 className="font-semibold mb-4 text-lg text-gray-900">תנועות אחרונות</h3>
+          <Card className="p-6">
+            <h3 className="font-semibold mb-4 text-lg">תנועות אחרונות</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {allTransactions.map((transaction, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                <div key={i} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
                   <div className="flex items-center gap-3 flex-1">
                     <div className={`p-2 rounded-lg ${transaction.transactionType === 'income' ? 'bg-green-100' : 'bg-red-100'}`}>
                       {transaction.transactionType === 'income' ? (
@@ -238,20 +340,20 @@ export default function CashFlow() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">
+                      <p className="font-medium">
                         {transaction.transactionType === 'income' ? 'הכנסה' : 'הוצאה'} - {transaction.type}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {transaction.transactionType === 'income' 
-                          ? (transaction.customer_name || '-')
-                          : (transaction.vehicle_details || transaction.description || '-')}
+                      <p className="text-sm text-muted-foreground">
+                        {transaction.transactionType === 'income'
+                          ? ((transaction as Income).customer_name || '-')
+                          : ((transaction as Expense).vehicle_details || (transaction as Expense).description || '-')}
                       </p>
                     </div>
                     <div className="text-left">
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-muted-foreground">
                         {format(new Date(transaction.date), "dd/MM/yyyy")}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-muted-foreground">
                         {transaction.payment_method || '-'}
                       </p>
                     </div>
@@ -262,7 +364,7 @@ export default function CashFlow() {
                 </div>
               ))}
               {allTransactions.length === 0 && (
-                <p className="text-center text-gray-500 py-8">אין תנועות בחודש זה</p>
+                <p className="text-center text-muted-foreground py-8">אין תנועות בחודש זה</p>
               )}
             </div>
           </Card>

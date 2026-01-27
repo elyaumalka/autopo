@@ -144,8 +144,7 @@ export default function Vehicles() {
         title="רכבים"
         subtitle="ניהול צי הרכבים"
         icon={Car}
-        action={() => setIsDialogOpen(true)}
-        actionLabel="הוסף רכב"
+        action={<Button onClick={() => setIsDialogOpen(true)}><Plus className="ml-2 h-4 w-4" />הוסף רכב</Button>}
       />
 
       {/* Filters */}

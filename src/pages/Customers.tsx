@@ -142,8 +142,7 @@ export default function Customers() {
         title="לקוחות"
         subtitle="ניהול לקוחות"
         icon={Users}
-        action={() => setIsDialogOpen(true)}
-        actionLabel="הוסף לקוח"
+        action={<Button onClick={() => setIsDialogOpen(true)}><Plus className="ml-2 h-4 w-4" />הוסף לקוח</Button>}
       />
 
       {/* Filters */}

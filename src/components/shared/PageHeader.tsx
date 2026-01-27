@@ -6,9 +6,7 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   icon?: LucideIcon;
-  action?: () => void;
-  actionLabel?: string;
-  actionIcon?: LucideIcon;
+  action?: React.ReactNode;
   className?: string;
   children?: React.ReactNode;
 }
@@ -18,8 +16,6 @@ export function PageHeader({
   subtitle,
   icon: Icon,
   action,
-  actionLabel,
-  actionIcon: ActionIcon = Plus,
   className,
   children,
 }: PageHeaderProps) {
@@ -40,12 +36,7 @@ export function PageHeader({
       </div>
       <div className="flex items-center gap-2">
         {children}
-        {action && actionLabel && (
-          <Button onClick={action} className="gap-2">
-            <ActionIcon className="h-4 w-4" />
-            {actionLabel}
-          </Button>
-        )}
+        {action}
       </div>
     </div>
   );

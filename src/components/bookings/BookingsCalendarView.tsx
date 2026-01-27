@@ -32,9 +32,10 @@ type Rental = Database["public"]["Tables"]["rentals"]["Row"];
 
 interface BookingsCalendarViewProps {
   onNewBooking?: () => void;
+  onCellClick?: (date: Date, vehicle: Vehicle, booking?: any) => void;
 }
 
-export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarViewProps) {
+export default function BookingsCalendarView({ onNewBooking, onCellClick }: BookingsCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [hideMonthly, setHideMonthly] = useState(false);
@@ -310,6 +311,14 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
                 {/* Day Cells - RTL order */}
                 {weekDays.map((day) => {
                   const event = getVehicleEvent(vehicle, day);
+                  const handleCellClick = () => {
+                    if (onCellClick) {
+                      onCellClick(day, vehicle, event ? { ...event, type: event.type } : undefined);
+                    } else if (!event && onNewBooking) {
+                      onNewBooking();
+                    }
+                  };
+
                   return (
                     <>
                       <td
@@ -318,6 +327,7 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
                       >
                         {event ? (
                           <div
+                            onClick={handleCellClick}
                             className={cn(
                               "h-full rounded px-1.5 py-0.5 text-xs font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity",
                               getStatusColor(event.status)
@@ -328,7 +338,7 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
                           </div>
                         ) : (
                           <button
-                            onClick={onNewBooking}
+                            onClick={handleCellClick}
                             className="h-full w-full flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-muted/30 transition-colors"
                           >
                             <Plus className="h-3 w-3" />
@@ -341,6 +351,7 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
                       >
                         {event ? (
                           <div
+                            onClick={handleCellClick}
                             className={cn(
                               "h-full rounded px-1.5 py-0.5 text-xs font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity",
                               getStatusColor(event.status)
@@ -351,7 +362,7 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
                           </div>
                         ) : (
                           <button
-                            onClick={onNewBooking}
+                            onClick={handleCellClick}
                             className="h-full w-full flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-muted/30 transition-colors"
                           >
                             <Plus className="h-3 w-3" />

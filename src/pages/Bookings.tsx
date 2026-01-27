@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
+import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -44,6 +45,8 @@ export default function Bookings() {
   const [formData, setFormData] = useState<Partial<Booking>>({});
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [activeTab, setActiveTab] = useState("calendar");
+  const [quickBookingOpen, setQuickBookingOpen] = useState(false);
+  const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle } | null>(null);
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -195,6 +198,44 @@ export default function Bookings() {
     }
   };
 
+  const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any) => {
+    if (booking) {
+      // יש הזמנה קיימת - פתח לעריכה
+      const existingBooking = bookings.find(b => 
+        b.vehicle_id === vehicle.id && 
+        b.start_date <= format(date, "yyyy-MM-dd") && 
+        b.end_date >= format(date, "yyyy-MM-dd") &&
+        b.status !== "בוטל" && b.status !== "הושלם"
+      );
+      if (existingBooking) {
+        setSelectedBooking(existingBooking);
+        setFormData(existingBooking);
+        setStep(1);
+        setIsOpen(true);
+      }
+    } else {
+      // תא ריק - פתח שריון מהיר
+      setQuickBookingData({ date: format(date, "yyyy-MM-dd"), vehicle });
+      setQuickBookingOpen(true);
+    }
+  };
+
+  const handleQuickBookingSubmit = async (bookingData: any) => {
+    // בדיקת זמינות
+    if (!isVehicleAvailable(bookingData.vehicle_id, bookingData.start_date, bookingData.end_date)) {
+      toast({ 
+        title: "הרכב תפוס", 
+        description: "הרכב כבר תפוס בתאריכים אלו. אנא בחר תאריכים אחרים.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    await createMutation.mutateAsync(bookingData);
+    setQuickBookingOpen(false);
+    setQuickBookingData(null);
+  };
+
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = 
       b.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -328,7 +369,10 @@ export default function Bookings() {
 
         <TabsContent value="calendar" className="mt-4">
           <div className="bg-white rounded-2xl border shadow-sm p-6">
-            <BookingsCalendarView onNewBooking={() => { resetForm(); setIsOpen(true); }} />
+            <BookingsCalendarView 
+              onNewBooking={() => { resetForm(); setIsOpen(true); }}
+              onCellClick={handleCalendarCellClick}
+            />
           </div>
         </TabsContent>
 
@@ -368,6 +412,21 @@ export default function Bookings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Quick Booking Dialog */}
+      {quickBookingData && (
+        <QuickBookingDialog
+          isOpen={quickBookingOpen}
+          onClose={() => {
+            setQuickBookingOpen(false);
+            setQuickBookingData(null);
+          }}
+          onSubmit={handleQuickBookingSubmit}
+          date={quickBookingData.date}
+          vehicle={quickBookingData.vehicle}
+          customers={customers}
+        />
+      )}
 
       {/* Create/Edit Booking Dialog */}
       <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>

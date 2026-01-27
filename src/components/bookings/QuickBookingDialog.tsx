@@ -1,0 +1,348 @@
+import React, { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CheckCircle2, Check, ChevronsUpDown } from "lucide-react";
+import { format, addDays, addWeeks, addMonths } from "date-fns";
+import type { Database } from "@/integrations/supabase/types";
+
+type Customer = Database["public"]["Tables"]["customers"]["Row"];
+type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
+
+interface QuickBookingDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (bookingData: BookingData) => void;
+  onSubmitAndStart?: (bookingData: BookingData) => void;
+  date: string;
+  vehicle: Vehicle | null;
+  customers: Customer[];
+}
+
+interface BookingData {
+  customer_id: string | null;
+  customer_name: string;
+  vehicle_id: string;
+  vehicle_details: string;
+  start_date: string;
+  start_time: string;
+  end_date: string;
+  end_time: string;
+  rental_type: string;
+  rental_cost: number;
+  status: string;
+}
+
+export default function QuickBookingDialog({ 
+  isOpen, 
+  onClose, 
+  onSubmit,
+  onSubmitAndStart, 
+  date, 
+  vehicle,
+  customers 
+}: QuickBookingDialogProps) {
+  const [customerType, setCustomerType] = useState<"existing" | "new">("existing");
+  const [customerId, setCustomerId] = useState("");
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [startTime, setStartTime] = useState("10:00");
+  const [rentalType, setRentalType] = useState("24 שעות");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [customEndTime, setCustomEndTime] = useState("10:00");
+  const [rentalCost, setRentalCost] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filteredCustomers = customers.filter(c => {
+    if (!customerSearch) return true;
+    const searchLower = customerSearch.toLowerCase();
+    return (
+      c.first_name?.toLowerCase().includes(searchLower) ||
+      c.last_name?.toLowerCase().includes(searchLower) ||
+      c.phone?.includes(searchLower)
+    );
+  });
+
+  const calculateEndDate = () => {
+    if (!date) return "";
+    const startDate = new Date(date);
+    
+    switch(rentalType) {
+      case "חצי יום":
+        return format(startDate, "yyyy-MM-dd");
+      case "24 שעות":
+        return format(addDays(startDate, 1), "yyyy-MM-dd");
+      case "שבוע":
+        return format(addWeeks(startDate, 1), "yyyy-MM-dd");
+      case "חודש":
+        return format(addMonths(startDate, 1), "yyyy-MM-dd");
+      case "עד תאריך":
+        return customEndDate;
+      default:
+        return format(addDays(startDate, 1), "yyyy-MM-dd");
+    }
+  };
+
+  const getBookingData = (): BookingData => {
+    const selectedCustomer = customerType === "existing" 
+      ? customers.find(c => c.id === customerId)
+      : null;
+
+    return {
+      customer_id: customerId || null,
+      customer_name: customerType === "existing" 
+        ? (selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : "")
+        : newCustomerName,
+      vehicle_id: vehicle?.id || "",
+      vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : "",
+      start_date: date,
+      start_time: startTime,
+      end_date: calculateEndDate(),
+      end_time: rentalType === "עד תאריך" ? customEndTime : "",
+      rental_type: rentalType,
+      rental_cost: rentalCost ? parseFloat(rentalCost) : 0,
+      status: "מאושר"
+    };
+  };
+
+  const handleSubmit = () => {
+    onSubmit(getBookingData());
+    resetForm();
+  };
+
+  const handleSubmitAndStart = () => {
+    if (onSubmitAndStart) {
+      onSubmitAndStart(getBookingData());
+      resetForm();
+    }
+  };
+
+  const resetForm = () => {
+    setCustomerType("existing");
+    setCustomerId("");
+    setNewCustomerName("");
+    setStartTime("10:00");
+    setRentalType("24 שעות");
+    setCustomEndDate("");
+    setCustomEndTime("10:00");
+    setRentalCost("");
+    setCustomerSearch("");
+  };
+
+  const isFormValid = () => {
+    if (customerType === "existing" && !customerId) return false;
+    if (customerType === "new" && !newCustomerName) return false;
+    if (rentalType === "עד תאריך" && !customEndDate) return false;
+    return true;
+  };
+
+  if (!date || !vehicle) return null;
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); resetForm(); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>שריון מהיר - {vehicle.license_plate}</DialogTitle>
+          <DialogDescription>
+            יצירת הזמנה מהירה לרכב {vehicle.manufacturer} {vehicle.model}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="p-3 bg-muted rounded-lg text-sm">
+            <div><strong>רכב:</strong> {vehicle.manufacturer} {vehicle.model}</div>
+            <div><strong>תאריך:</strong> {format(new Date(date), "dd/MM/yyyy")}</div>
+          </div>
+
+          <div>
+            <Label>סוג לקוח</Label>
+            <Select value={customerType} onValueChange={(v) => setCustomerType(v as "existing" | "new")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="existing">לקוח קיים</SelectItem>
+                <SelectItem value="new">לקוח חדש</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {customerType === "existing" ? (
+            <div>
+              <Label>בחר לקוח *</Label>
+              <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between"
+                  >
+                    {customerId
+                      ? (() => {
+                          const selected = customers.find(c => c.id === customerId);
+                          return selected ? `${selected.first_name} ${selected.last_name} - ${selected.phone}` : "בחר לקוח";
+                        })()
+                      : "בחר לקוח..."}
+                    <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <div className="p-2">
+                    <Input
+                      placeholder="חיפוש לפי שם או טלפון..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="mb-2"
+                    />
+                    <div className="max-h-60 overflow-y-auto">
+                      {filteredCustomers.length === 0 ? (
+                        <div className="p-2 text-sm text-muted-foreground text-center">לא נמצאו לקוחות</div>
+                      ) : (
+                        filteredCustomers.map((c) => (
+                          <div
+                            key={c.id}
+                            className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted rounded text-sm"
+                            onClick={() => {
+                              setCustomerId(c.id);
+                              setOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`h-4 w-4 ${customerId === c.id ? "opacity-100" : "opacity-0"}`}
+                            />
+                            <div>
+                              {c.first_name} {c.last_name} - {c.phone}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          ) : (
+            <div>
+              <Label>שם הלקוח *</Label>
+              <Input
+                placeholder="שם מלא"
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div>
+            <Label>שעת יציאה</Label>
+            <Input
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <Label>סוג השכרה</Label>
+            <Select value={rentalType} onValueChange={setRentalType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="חצי יום">חצי יום</SelectItem>
+                <SelectItem value="24 שעות">24 שעות</SelectItem>
+                <SelectItem value="שבוע">שבוע</SelectItem>
+                <SelectItem value="חודש">חודש</SelectItem>
+                <SelectItem value="עד תאריך">עד תאריך מסוים</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {rentalType === "עד תאריך" && (
+            <div className="space-y-3">
+              <div>
+                <Label>תאריך סיום</Label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  min={date}
+                />
+              </div>
+              <div>
+                <Label>שעת סיום</Label>
+                <Input
+                  type="time"
+                  value={customEndTime}
+                  onChange={(e) => setCustomEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          {rentalType !== "עד תאריך" && (
+            <div className="text-sm text-muted-foreground bg-accent/10 p-3 rounded">
+              תאריך סיום משוער: {calculateEndDate() ? format(new Date(calculateEndDate()), "dd/MM/yyyy") : "-"}
+            </div>
+          )}
+
+          <div>
+            <Label>מחיר</Label>
+            <Input
+              type="number"
+              placeholder="0"
+              value={rentalCost}
+              onChange={(e) => setRentalCost(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <div className="flex gap-3">
+              <Button
+                onClick={handleSubmit}
+                disabled={!isFormValid()}
+                variant="outline"
+                className="flex-1"
+              >
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+                שמור הזמנה בלבד
+              </Button>
+              <Button type="button" variant="outline" onClick={onClose}>
+                ביטול
+              </Button>
+            </div>
+            {onSubmitAndStart && (
+              <Button
+                onClick={handleSubmitAndStart}
+                disabled={!isFormValid()}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle2 className="w-4 h-4 ml-2" />
+                שמור והמשך להפעלת השכרה
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

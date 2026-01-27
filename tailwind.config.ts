@@ -109,7 +109,7 @@ export default {
         "slide-in-right": "slide-in-right 0.3s ease-out",
       },
       fontFamily: {
-        sans: ["Heebo", "system-ui", "sans-serif"],
+        sans: ["Discovery", "Heebo", "system-ui", "sans-serif"],
       },
     },
   },

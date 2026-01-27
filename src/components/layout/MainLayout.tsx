@@ -30,6 +30,7 @@ const LOGO_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/pub
 const menuItems = [
   { name: "ראשי", page: "/dashboard", icon: LayoutDashboard },
   { name: "הזמנות", page: "/bookings", icon: ClipboardList },
+  { name: "לוח שנה", page: "/calendar", icon: CalendarDays },
   { name: "תמונת מצב יומית", page: "/daily-snapshot", icon: Calendar },
   { name: "היסטוריית השכרות", page: "/rentals", icon: FileText },
   { name: "לקוחות", page: "/customers", icon: Users },

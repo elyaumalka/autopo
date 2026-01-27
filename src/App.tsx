@@ -35,6 +35,7 @@ import HighwayBills from "@/pages/HighwayBills";
 import CalendarView from "@/components/calendar/CalendarView";
 import Sign from "@/pages/Sign";
 import TabletSignatures from "@/pages/TabletSignatures";
+import VehiclePhotos from "@/pages/VehiclePhotos";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -89,6 +90,8 @@ const App = () => (
 
             {/* Public pages */}
             <Route path="/sign" element={<Sign />} />
+            <Route path="/tablet-signatures" element={<TabletSignatures />} />
+            <Route path="/vehicle-photos" element={<VehiclePhotos />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
             <Route path="/today-rentals" element={
               <ProtectedRoute requireRole>

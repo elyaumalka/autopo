@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { PageHeader } from "@/components/shared/PageHeader";
+import { Link } from "react-router-dom";
 import { StatCard } from "@/components/shared/StatCard";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Car,
   Users,
@@ -11,15 +12,23 @@ import {
   Calendar,
   AlertTriangle,
   Wrench,
+  ArrowLeft,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatShortDate } from "@/lib/formatters";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { EmptyState } from "@/components/shared/EmptyState";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { format, subMonths } from "date-fns";
 
 export default function Dashboard() {
   // Fetch stats
-  const { data: vehicleStats } = useQuery({
+  const { data: vehicleStats, isLoading: loadingVehicles } = useQuery({
     queryKey: ["vehicleStats"],
     queryFn: async () => {
       const { data, error } = await supabase.from("vehicles").select("status");
@@ -31,7 +40,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: customerCount } = useQuery({
+  const { data: customerCount, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customerCount"],
     queryFn: async () => {
       const { count, error } = await supabase
@@ -42,7 +51,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: monthlyIncome } = useQuery({
+  const { data: monthlyIncome, isLoading: loadingIncomes } = useQuery({
     queryKey: ["monthlyIncome"],
     queryFn: async () => {
       const startOfMonth = new Date();
@@ -58,38 +67,32 @@ export default function Dashboard() {
     },
   });
 
-  const { data: monthlyExpenses } = useQuery({
-    queryKey: ["monthlyExpenses"],
+  const { data: collectionTasks, isLoading: loadingCollections } = useQuery({
+    queryKey: ["openCollectionTasks"],
     queryFn: async () => {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
       const { data, error } = await supabase
-        .from("expenses")
-        .select("amount")
-        .gte("date", startOfMonth.toISOString().split("T")[0]);
-      if (error) throw error;
-      return data.reduce((sum, e) => sum + (e.amount || 0), 0);
-    },
-  });
-
-  const { data: urgentTasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ["urgentTasks"],
-    queryFn: async () => {
-      const today = new Date().toISOString().split("T")[0];
-      const { data, error } = await supabase
-        .from("maintenance_tasks")
+        .from("collection_tasks")
         .select("*")
-        .neq("status", "הושלם")
-        .lte("due_date", today)
-        .limit(5);
+        .eq("status", "פתוח");
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: activeRentals, isLoading: rentalsLoading } = useQuery({
+  const { data: maintenanceTasks, isLoading: loadingMaintenance } = useQuery({
+    queryKey: ["pendingMaintenanceTasks"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("maintenance_tasks")
+        .select("*")
+        .eq("status", "ממתין")
+        .limit(4);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: activeRentals, isLoading: loadingRentals } = useQuery({
     queryKey: ["activeRentals"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -103,138 +106,236 @@ export default function Dashboard() {
     },
   });
 
-  const profit = (monthlyIncome || 0) - (monthlyExpenses || 0);
+  const { data: monthlyData } = useQuery({
+    queryKey: ["monthlyChartData"],
+    queryFn: async () => {
+      const data = [];
+      for (let i = 5; i >= 0; i--) {
+        const date = subMonths(new Date(), i);
+        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+
+        const { data: incomes } = await supabase
+          .from("incomes")
+          .select("amount")
+          .gte("date", startOfMonth.toISOString().split("T")[0])
+          .lte("date", endOfMonth.toISOString().split("T")[0]);
+
+        data.push({
+          name: format(date, "MMM"),
+          income: incomes?.reduce((sum, i) => sum + (i.amount || 0), 0) || 0,
+        });
+      }
+      return data;
+    },
+  });
+
+  const isLoading = loadingVehicles || loadingCustomers || loadingIncomes;
+  const totalDebt = collectionTasks?.reduce((sum, t) => sum + (t.amount - (t.paid_amount || 0)), 0) || 0;
 
   return (
-    <div className="animate-fade-in">
-      <PageHeader title="לוח בקרה" subtitle="סקירה כללית של מערכת השכרת הרכב" />
+    <div className="space-y-8 animate-fade-in">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">שלום! 👋</h1>
+        <p className="text-gray-500 mt-1">הנה סקירה של העסק שלך היום</p>
+      </div>
 
       {/* Stats Grid */}
-      <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="הכנסות החודש"
-          value={monthlyIncome || 0}
-          icon={DollarSign}
-          color="success"
-          isCurrency
-        />
-        <StatCard
-          title="הוצאות החודש"
-          value={monthlyExpenses || 0}
-          icon={TrendingUp}
-          color="destructive"
-          isCurrency
-        />
-        <StatCard
-          title="רווח נקי"
-          value={profit}
-          icon={TrendingUp}
-          color={profit >= 0 ? "success" : "destructive"}
-          isCurrency
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="רכבים זמינים"
-          value={vehicleStats?.available || 0}
+          value={isLoading ? "..." : `${vehicleStats?.available || 0}/${vehicleStats?.total || 0}`}
           icon={Car}
-          color="info"
-          subtitle={`מתוך ${vehicleStats?.total || 0} רכבים`}
+          color="cyan"
+          subtitle={`${vehicleStats?.rented || 0} מושכרים כרגע`}
+        />
+        <StatCard
+          title="לקוחות"
+          value={isLoading ? "..." : String(customerCount || 0)}
+          icon={Users}
+          color="blue"
+        />
+        <StatCard
+          title="הכנסות החודש"
+          value={isLoading ? "..." : formatCurrency(monthlyIncome || 0)}
+          icon={DollarSign}
+          color="green"
+        />
+        <StatCard
+          title="חובות לגבייה"
+          value={isLoading ? "..." : formatCurrency(totalDebt)}
+          icon={AlertTriangle}
+          color="red"
+          subtitle={`${collectionTasks?.length || 0} פריטים פתוחים`}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Active Rentals */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              השכרות פעילות
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {rentalsLoading ? (
-              <LoadingSpinner />
-            ) : activeRentals && activeRentals.length > 0 ? (
-              <div className="space-y-4">
-                {activeRentals.map((rental) => (
-                  <div
-                    key={rental.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <p className="font-medium">{rental.customer_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {rental.vehicle_details}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm text-muted-foreground">
-                        החזרה: {formatShortDate(rental.planned_end_date || "")}
-                      </p>
-                      {rental.remaining_payment && rental.remaining_payment > 0 && (
-                        <p className="text-sm font-medium text-destructive">
-                          נותר: {formatCurrency(rental.remaining_payment)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="אין השכרות פעילות"
-                description="כרגע אין השכרות פעילות במערכת"
-              />
-            )}
-          </CardContent>
-        </Card>
+      {/* Charts and Lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Income Chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">הכנסות - 6 חודשים אחרונים</h2>
+            <TrendingUp className="w-5 h-5 text-green-500" />
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyData || []}>
+                <defs>
+                  <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#0891b2" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" />
+                <Tooltip
+                  formatter={(value: number) => [`₪${value.toLocaleString()}`, "הכנסה"]}
+                  contentStyle={{ borderRadius: 12, border: "1px solid #e5e7eb" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  stroke="#0891b2"
+                  strokeWidth={2}
+                  fill="url(#incomeGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-        {/* Urgent Tasks */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              משימות דחופות
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tasksLoading ? (
-              <LoadingSpinner />
-            ) : urgentTasks && urgentTasks.length > 0 ? (
-              <div className="space-y-4">
-                {urgentTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Wrench className="h-4 w-4 text-muted-foreground" />
-                        <p className="font-medium">{task.type}</p>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {task.vehicle_details}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <StatusBadge status={task.status} />
-                      {task.due_date && (
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {formatShortDate(task.due_date)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        {/* Active Rentals */}
+        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">השכרות פעילות</h2>
+            <Link
+              to="/rentals"
+              className="text-cyan-600 hover:text-cyan-700 text-sm flex items-center gap-1"
+            >
+              הכל <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {loadingRentals ? (
+              [...Array(4)].map((_, i) => (
+                <Skeleton key={i} className="h-16 rounded-xl" />
+              ))
+            ) : !activeRentals || activeRentals.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">אין השכרות פעילות</p>
             ) : (
-              <EmptyState
-                icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
-                title="אין משימות דחופות"
-                description="כל המשימות מעודכנות"
-              />
+              activeRentals.map((rental) => (
+                <div
+                  key={rental.id}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{rental.customer_name}</p>
+                    <p className="text-xs text-gray-500">{rental.vehicle_details}</p>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs text-gray-500">עד</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {rental.planned_end_date ? formatShortDate(rental.planned_end_date) : "-"}
+                    </p>
+                  </div>
+                </div>
+              ))
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Maintenance Tasks */}
+        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Wrench className="w-5 h-5 text-orange-500" />
+              <h2 className="text-lg font-semibold text-gray-900">משימות תפעול</h2>
+            </div>
+            <Link
+              to="/maintenance-tasks"
+              className="text-cyan-600 hover:text-cyan-700 text-sm flex items-center gap-1"
+            >
+              הכל <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {loadingMaintenance ? (
+              [...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))
+            ) : !maintenanceTasks || maintenanceTasks.length === 0 ? (
+              <p className="text-gray-500 text-center py-6">אין משימות פתוחות</p>
+            ) : (
+              maintenanceTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-100"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{task.type}</p>
+                    <p className="text-xs text-gray-500">{task.vehicle_details}</p>
+                  </div>
+                  <div className="text-left">
+                    {task.due_date && (
+                      <p className="text-sm text-orange-600 font-medium">
+                        {formatShortDate(task.due_date)}
+                      </p>
+                    )}
+                    {task.due_km && (
+                      <p className="text-xs text-gray-500">{task.due_km} ק"מ</p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Collection Tasks */}
+        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-red-500" />
+              <h2 className="text-lg font-semibold text-gray-900">גבייה</h2>
+            </div>
+            <Link
+              to="/collection-tasks"
+              className="text-cyan-600 hover:text-cyan-700 text-sm flex items-center gap-1"
+            >
+              הכל <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </div>
+          <div className="space-y-3">
+            {loadingCollections ? (
+              [...Array(3)].map((_, i) => (
+                <Skeleton key={i} className="h-14 rounded-xl" />
+              ))
+            ) : !collectionTasks || collectionTasks.length === 0 ? (
+              <p className="text-gray-500 text-center py-6">אין חובות פתוחים</p>
+            ) : (
+              collectionTasks.slice(0, 4).map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between p-3 bg-red-50 rounded-xl border border-red-100"
+                >
+                  <div>
+                    <p className="font-medium text-sm text-gray-900">{task.customer_name}</p>
+                    <p className="text-xs text-gray-500">{task.vehicle_details}</p>
+                  </div>
+                  <p className="text-red-600 font-bold">
+                    ₪{(task.amount - (task.paid_amount || 0)).toLocaleString()}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

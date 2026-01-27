@@ -183,10 +183,10 @@ export default function Vehicles() {
             <div
               key={vehicle.id}
               onClick={() => openEditDialog(vehicle)}
-              className="card-hover cursor-pointer rounded-2xl bg-card p-6 shadow-lg"
+              className="cursor-pointer rounded-2xl bg-white border p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
             >
               {/* Vehicle Image or Placeholder */}
-              <div className="mb-4 aspect-video overflow-hidden rounded-xl bg-muted">
+              <div className="mb-4 aspect-video overflow-hidden rounded-xl bg-gray-100">
                 {vehicle.image_url ? (
                   <img
                     src={vehicle.image_url}
@@ -195,7 +195,7 @@ export default function Vehicles() {
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center">
-                    <Car className="h-16 w-16 text-muted-foreground/50" />
+                    <Car className="h-16 w-16 text-gray-300" />
                   </div>
                 )}
               </div>
@@ -204,10 +204,10 @@ export default function Vehicles() {
               <div className="mb-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-bold">
+                    <h3 className="text-lg font-bold text-gray-900">
                       {vehicle.manufacturer} {vehicle.model}
                     </h3>
-                    <p className="text-muted-foreground">{vehicle.license_plate}</p>
+                    <p className="text-gray-500">{vehicle.license_plate}</p>
                   </div>
                   <StatusBadge status={vehicle.status} />
                 </div>
@@ -216,13 +216,13 @@ export default function Vehicles() {
               {/* Details */}
               <div className="space-y-2 text-sm">
                 {vehicle.fuel_type && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="flex items-center gap-2 text-gray-500">
                     <Fuel className="h-4 w-4" />
                     <span>{vehicle.fuel_type}</span>
                   </div>
                 )}
                 {vehicle.current_km !== null && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
+                  <div className="flex items-center gap-2 text-gray-500">
                     <Gauge className="h-4 w-4" />
                     <span>{formatNumber(vehicle.current_km)} ק״מ</span>
                   </div>
@@ -232,8 +232,8 @@ export default function Vehicles() {
               {/* Rates */}
               <div className="mt-4 border-t pt-4">
                 <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="h-4 w-4 text-primary" />
-                  <span>
+                  <DollarSign className="h-4 w-4 text-cyan-600" />
+                  <span className="text-gray-700">
                     יומי: {formatCurrency(vehicle.daily_rate || 0)}
                   </span>
                 </div>

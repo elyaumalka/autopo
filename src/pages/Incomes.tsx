@@ -92,23 +92,23 @@ export default function Incomes() {
       />
 
       {/* Summary Card */}
-      <Card className="mb-6">
-        <CardContent className="py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-green-600" />
-              <span className="text-muted-foreground">סה"כ הכנסות (לפי סינון)</span>
+      <div className="mb-6 bg-white rounded-2xl border shadow-sm p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-green-100 rounded-xl">
+              <DollarSign className="h-6 w-6 text-green-600" />
             </div>
-            <span className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</span>
+            <span className="text-gray-600">סה"כ הכנסות (לפי סינון)</span>
           </div>
-        </CardContent>
-      </Card>
+          <span className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</span>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
+      <div className="bg-white rounded-2xl border shadow-sm">
+        <div className="p-6 border-b">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <Input
                 placeholder="חיפוש לפי לקוח, חשבונית או הערות..."
                 value={searchTerm}
@@ -131,8 +131,8 @@ export default function Incomes() {
               </SelectContent>
             </Select>
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <div className="p-6">
           {isLoading ? (
             <LoadingSpinner />
           ) : filteredIncomes && filteredIncomes.length > 0 ? (
@@ -150,10 +150,10 @@ export default function Incomes() {
               </TableHeader>
               <TableBody>
                 {filteredIncomes.map((income) => (
-                  <TableRow key={income.id}>
+                  <TableRow key={income.id} className="hover:bg-gray-50">
                     <TableCell>{formatShortDate(income.date)}</TableCell>
                     <TableCell>
-                      <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-800">
+                      <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
                         {income.type}
                       </span>
                     </TableCell>
@@ -161,7 +161,7 @@ export default function Incomes() {
                     <TableCell className="font-mono text-sm">{income.invoice_number || "-"}</TableCell>
                     <TableCell>{income.payment_method || "-"}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{income.notes || "-"}</TableCell>
-                    <TableCell className="font-medium text-green-600">{formatCurrency(income.amount)}</TableCell>
+                    <TableCell className="font-bold text-green-600">{formatCurrency(income.amount)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -169,8 +169,8 @@ export default function Incomes() {
           ) : (
             <EmptyState title="אין הכנסות" description="לא נמצאו הכנסות במערכת" />
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,4 @@
-import { LucideIcon, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
@@ -20,23 +19,25 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className={cn("mb-6 flex items-center justify-between", className)}>
-      <div className="flex items-center gap-3">
-        {Icon && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Icon className="h-5 w-5 text-primary" />
-          </div>
-        )}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+    <div className={cn("mb-8", className)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {Icon && (
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Icon className="h-6 w-6 text-primary" />
+            </div>
           )}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+            {subtitle && (
+              <p className="mt-1 text-gray-500">{subtitle}</p>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        {children}
-        {action}
+        <div className="flex items-center gap-3">
+          {children}
+          {action}
+        </div>
       </div>
     </div>
   );

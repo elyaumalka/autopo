@@ -3,12 +3,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -16,496 +21,368 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { ClipboardList, Plus, Search, Pencil, Trash2, Calendar, Flag } from "lucide-react";
+import { CheckSquare, Check, Edit, Trash2, Clock, AlertTriangle } from "lucide-react";
+import { motion } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { he } from "date-fns/locale";
-import { Tables, TablesInsert, Constants } from "@/integrations/supabase/types";
+import type { Tables, Constants } from "@/integrations/supabase/types";
 
 type GeneralTask = Tables<"general_tasks">;
 
-const taskTypes = Constants.public.Enums.general_task_type;
-const taskStatuses = Constants.public.Enums.task_status;
-const priorities = Constants.public.Enums.priority;
+const taskTypes = ["כללי", "טלפון", "פגישה", "מסמכים", "אחר"] as const;
+const taskStatuses = ["ממתין", "בתהליך", "הושלם"] as const;
+const priorities = ["נמוכה", "בינונית", "גבוהה", "דחוף"] as const;
 
 export default function GeneralTasks() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<GeneralTask | null>(null);
+  const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [priorityFilter, setPriorityFilter] = useState<string>("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<GeneralTask | null>(null);
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    type: "כללי" as typeof taskTypes[number],
-    priority: "בינונית" as typeof priorities[number],
-    status: "ממתין" as typeof taskStatuses[number],
-    due_date: "",
-    due_time: "",
-    reminder_date: "",
-    reminder_time: "",
-    notes: "",
-  });
+  // Form state for controlled selects
+  const [formType, setFormType] = useState<string>("כללי");
+  const [formPriority, setFormPriority] = useState<string>("בינונית");
+  const [formStatus, setFormStatus] = useState<string>("ממתין");
 
-  const { data: tasks, isLoading } = useQuery({
-    queryKey: ["general_tasks"],
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["generalTasks"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("general_tasks")
         .select("*")
-        .order("due_date", { ascending: true });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data as GeneralTask[];
     },
   });
 
   const createMutation = useMutation({
-    mutationFn: async (task: TablesInsert<"general_tasks">) => {
-      const { error } = await supabase.from("general_tasks").insert(task);
+    mutationFn: async (data: Partial<GeneralTask>) => {
+      const { error } = await supabase.from("general_tasks").insert(data as any);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["general_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["generalTasks"] });
+      setIsOpen(false);
+      setSelectedTask(null);
       toast({ title: "משימה נוצרה בהצלחה" });
-      handleCloseDialog();
     },
-    onError: () => {
-      toast({ title: "שגיאה ביצירת משימה", variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "שגיאה ביצירת משימה", description: error.message, variant: "destructive" });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...task }: Partial<GeneralTask> & { id: string }) => {
-      const { error } = await supabase
-        .from("general_tasks")
-        .update(task)
-        .eq("id", id);
+    mutationFn: async ({ id, data }: { id: string; data: Partial<GeneralTask> }) => {
+      const { error } = await supabase.from("general_tasks").update(data).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["general_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["generalTasks"] });
+      setIsOpen(false);
+      setSelectedTask(null);
       toast({ title: "משימה עודכנה בהצלחה" });
-      handleCloseDialog();
     },
-    onError: () => {
-      toast({ title: "שגיאה בעדכון משימה", variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "שגיאה בעדכון משימה", description: error.message, variant: "destructive" });
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("general_tasks")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("general_tasks").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["general_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["generalTasks"] });
       toast({ title: "משימה נמחקה בהצלחה" });
     },
-    onError: () => {
-      toast({ title: "שגיאה במחיקת משימה", variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "שגיאה במחיקת משימה", description: error.message, variant: "destructive" });
     },
   });
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingTask(null);
-    setFormData({
-      title: "",
-      description: "",
-      type: "כללי",
-      priority: "בינונית",
-      status: "ממתין",
-      due_date: "",
-      due_time: "",
-      reminder_date: "",
-      reminder_time: "",
-      notes: "",
-    });
-  };
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
 
-  const handleEdit = (task: GeneralTask) => {
-    setEditingTask(task);
-    setFormData({
-      title: task.title,
-      description: task.description || "",
-      type: task.type || "כללי",
-      priority: task.priority,
-      status: task.status,
-      due_date: task.due_date,
-      due_time: task.due_time || "",
-      reminder_date: task.reminder_date || "",
-      reminder_time: task.reminder_time || "",
-      notes: task.notes || "",
-    });
-    setIsDialogOpen(true);
-  };
-
-  const handleSubmit = () => {
-    if (!formData.title || !formData.due_date) {
-      toast({ title: "נא למלא שדות חובה", variant: "destructive" });
-      return;
-    }
-
-    const taskData = {
-      title: formData.title,
-      description: formData.description || null,
-      type: formData.type,
-      priority: formData.priority,
-      status: formData.status,
-      due_date: formData.due_date,
-      due_time: formData.due_time || null,
-      reminder_date: formData.reminder_date || null,
-      reminder_time: formData.reminder_time || null,
-      notes: formData.notes || null,
+    const data: Partial<GeneralTask> = {
+      title: formData.get("title") as string,
+      type: formType as any,
+      priority: formPriority as any,
+      status: formStatus as any,
+      due_date: formData.get("due_date") as string,
+      due_time: (formData.get("due_time") as string) || null,
+      reminder_date: (formData.get("reminder_date") as string) || null,
+      reminder_time: (formData.get("reminder_time") as string) || null,
+      description: (formData.get("description") as string) || null,
     };
 
-    if (editingTask) {
-      updateMutation.mutate({ id: editingTask.id, ...taskData });
+    if (selectedTask) {
+      updateMutation.mutate({ id: selectedTask.id, data });
     } else {
-      createMutation.mutate(taskData);
+      createMutation.mutate(data);
     }
   };
 
-  const filteredTasks = tasks?.filter((task) => {
-    const matchesSearch =
-      task.title.includes(searchQuery) ||
-      task.description?.includes(searchQuery);
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-    const matchesPriority =
-      priorityFilter === "all" || task.priority === priorityFilter;
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "דחוף":
-        return "text-red-600";
-      case "גבוהה":
-        return "text-orange-600";
-      case "בינונית":
-        return "text-yellow-600";
-      case "נמוכה":
-        return "text-gray-600";
-      default:
-        return "";
-    }
+  const markComplete = (task: GeneralTask) => {
+    updateMutation.mutate({
+      id: task.id,
+      data: { status: "הושלם" as any },
+    });
   };
 
-  if (isLoading) return <LoadingSpinner />;
+  const openNewTask = () => {
+    setSelectedTask(null);
+    setFormType("כללי");
+    setFormPriority("בינונית");
+    setFormStatus("ממתין");
+    setIsOpen(true);
+  };
+
+  const openEditTask = (task: GeneralTask) => {
+    setSelectedTask(task);
+    setFormType(task.type || "כללי");
+    setFormPriority(task.priority);
+    setFormStatus(task.status);
+    setIsOpen(true);
+  };
+
+  const filteredTasks = statusFilter === "all"
+    ? tasks
+    : tasks.filter((t) => t.status === statusFilter);
+
+  const pendingTasks = tasks.filter((t) => t.status === "ממתין");
+  const urgentTasks = tasks.filter((t) => t.priority === "דחוף" && t.status !== "הושלם");
+
+  const priorityColors: Record<string, string> = {
+    "נמוכה": "border-r-gray-400",
+    "בינונית": "border-r-blue-400",
+    "גבוהה": "border-r-orange-400",
+    "דחוף": "border-r-red-500",
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="animate-fade-in">
       <PageHeader
         title="משימות כלליות"
-        subtitle="ניהול משימות ופעילויות כלליות"
-        icon={ClipboardList}
+        subtitle={`${pendingTasks.length} משימות ממתינות`}
         action={
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4 ml-2" />
+          <Button onClick={openNewTask}>
+            <CheckSquare className="ml-2 h-4 w-4" />
             משימה חדשה
           </Button>
         }
       />
 
-      <div className="bg-white rounded-2xl border shadow-sm">
-        <div className="p-6 border-b">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="חיפוש..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="סטטוס" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הסטטוסים</SelectItem>
-                {taskStatuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="עדיפות" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל העדיפויות</SelectItem>
-                {priorities.map((priority) => (
-                  <SelectItem key={priority} value={priority}>
-                    {priority}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Urgent Tasks Alert */}
+      {urgentTasks.length > 0 && (
+        <Card className="p-4 mb-6 bg-red-50 border-red-200">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertTriangle className="w-5 h-5" />
+            <span className="font-medium">{urgentTasks.length} משימות דחופות דורשות טיפול</span>
           </div>
-        </div>
-        <div className="p-6">
-          {!filteredTasks?.length ? (
-            <EmptyState
-              icon={<ClipboardList className="h-8 w-8 text-gray-300" />}
-              title="אין משימות"
-              description="לא נמצאו משימות כלליות במערכת"
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>כותרת</TableHead>
-                    <TableHead>סוג</TableHead>
-                    <TableHead>עדיפות</TableHead>
-                    <TableHead>תאריך יעד</TableHead>
-                    <TableHead>סטטוס</TableHead>
-                    <TableHead>פעולות</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTasks.map((task) => (
-                    <TableRow key={task.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">
-                        <div>
-                          <div>{task.title}</div>
-                          {task.description && (
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {task.description}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
-                          {task.type}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className={`flex items-center gap-1 ${getPriorityColor(task.priority)}`}>
-                          <Flag className="h-4 w-4" />
-                          {task.priority}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 text-gray-600">
-                          <Calendar className="h-4 w-4" />
-                          {format(new Date(task.due_date), "dd/MM/yyyy", {
-                            locale: he,
-                          })}
-                          {task.due_time && ` ${task.due_time}`}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={task.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(task)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMutation.mutate(task.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </div>
+        </Card>
+      )}
+
+      <div className="mb-6">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">הכל</SelectItem>
+            {taskStatuses.map((status) => (
+              <SelectItem key={status} value={status}>{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="p-4 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+              <div className="h-4 bg-gray-200 rounded w-1/2" />
+            </Card>
+          ))}
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="text-center py-12 text-gray-500">אין משימות</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTasks.map((task, i) => (
+            <motion.div
+              key={task.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+            >
+              <Card
+                className={`p-4 border-r-4 ${priorityColors[task.priority] || priorityColors["בינונית"]} ${
+                  task.status === "הושלם" ? "opacity-60" : ""
+                }`}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3
+                      className={`font-medium ${
+                        task.status === "הושלם" ? "line-through text-gray-500" : ""
+                      }`}
+                    >
+                      {task.title}
+                    </h3>
+                    <span className="text-sm text-gray-500">{task.type}</span>
+                  </div>
+                  <StatusBadge status={task.priority || "בינונית"} />
+                </div>
+
+                {task.description && (
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">{task.description}</p>
+                )}
+
+                <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                  {task.due_date && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      <span>{format(new Date(task.due_date), "dd/MM/yyyy")}</span>
+                      {task.due_time && <span>{task.due_time}</span>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <StatusBadge status={task.status || "ממתין"} />
+                  <div className="flex gap-1">
+                    {task.status !== "הושלם" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-green-600 hover:text-green-700"
+                        onClick={() => markComplete(task)}
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEditTask(task)}
+                    >
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => deleteMutation.mutate(task.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {editingTask ? "עריכת משימה" : "משימה חדשה"}
-            </DialogTitle>
+            <DialogTitle>{selectedTask ? "עריכת משימה" : "משימה חדשה"}</DialogTitle>
           </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2 md:col-span-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
               <Label>כותרת *</Label>
-              <Input
-                value={formData.title}
-                onChange={(e) =>
-                  setFormData({ ...formData, title: e.target.value })
-                }
-              />
+              <Input name="title" defaultValue={selectedTask?.title || ""} required />
             </div>
-
-            <div className="space-y-2">
-              <Label>סוג משימה</Label>
-              <Select
-                value={formData.type}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, type: value as typeof taskTypes[number] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {taskTypes.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>סוג</Label>
+                <Select value={formType} onValueChange={setFormType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {taskTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>עדיפות</Label>
+                <Select value={formPriority} onValueChange={setFormPriority}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {priorities.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <Label>עדיפות</Label>
-              <Select
-                value={formData.priority}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, priority: value as typeof priorities[number] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {priorities.map((priority) => (
-                    <SelectItem key={priority} value={priority}>
-                      {priority}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>תאריך ביצוע *</Label>
+                <Input
+                  name="due_date"
+                  type="date"
+                  defaultValue={selectedTask?.due_date || ""}
+                  required
+                />
+              </div>
+              <div>
+                <Label>שעה</Label>
+                <Input
+                  name="due_time"
+                  type="time"
+                  defaultValue={selectedTask?.due_time || ""}
+                />
+              </div>
             </div>
-
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>תזכורת</Label>
+                <Input
+                  name="reminder_date"
+                  type="date"
+                  defaultValue={selectedTask?.reminder_date || ""}
+                />
+              </div>
+              <div>
+                <Label>שעת תזכורת</Label>
+                <Input
+                  name="reminder_time"
+                  type="time"
+                  defaultValue={selectedTask?.reminder_time || ""}
+                />
+              </div>
+            </div>
+            <div>
               <Label>סטטוס</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, status: value as typeof taskStatuses[number] })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={formStatus} onValueChange={setFormStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {taskStatuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
+                  {taskStatuses.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-2">
-              <Label>תאריך יעד *</Label>
-              <Input
-                type="date"
-                value={formData.due_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, due_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>שעת יעד</Label>
-              <Input
-                type="time"
-                value={formData.due_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, due_time: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>תאריך תזכורת</Label>
-              <Input
-                type="date"
-                value={formData.reminder_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, reminder_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>שעת תזכורת</Label>
-              <Input
-                type="time"
-                value={formData.reminder_time}
-                onChange={(e) =>
-                  setFormData({ ...formData, reminder_time: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
+            <div>
               <Label>תיאור</Label>
-              <Textarea
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
-              />
+              <Textarea name="description" defaultValue={selectedTask?.description || ""} />
             </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label>הערות</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-              />
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" className="flex-1 bg-cyan-600 hover:bg-cyan-700">
+                {selectedTask ? "עדכון" : "יצירה"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                ביטול
+              </Button>
             </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
-              ביטול
-            </Button>
-            <Button onClick={handleSubmit}>
-              {editingTask ? "עדכון" : "שמירה"}
-            </Button>
-          </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

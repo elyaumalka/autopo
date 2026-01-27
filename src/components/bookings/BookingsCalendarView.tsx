@@ -64,7 +64,8 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
       const { data, error } = await supabase
         .from("bookings")
         .select("*")
-        .or(`start_date.lte.${format(weekEnd, "yyyy-MM-dd")},end_date.gte.${format(weekStart, "yyyy-MM-dd")}`);
+        .lte("start_date", format(weekEnd, "yyyy-MM-dd"))
+        .gte("end_date", format(weekStart, "yyyy-MM-dd"));
       if (error) throw error;
       return data || [];
     },
@@ -83,13 +84,23 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
     },
   });
 
+  // Helper to match vehicle by license plate (from vehicle_details string)
+  const matchVehicleToDetails = (vehicleLicensePlate: string, details: string | null) => {
+    if (!details) return false;
+    return details.includes(vehicleLicensePlate);
+  };
+
   // Get booking/rental for a specific vehicle and day
-  const getVehicleEvent = (vehicleId: string, day: Date) => {
+  const getVehicleEvent = (vehicle: Vehicle, day: Date) => {
     const dayStr = format(day, "yyyy-MM-dd");
     
-    // Check active rentals first
+    // Check active rentals first - match by vehicle_id OR vehicle_details containing license plate
     const rental = rentals.find(r => {
-      if (r.vehicle_id !== vehicleId) return false;
+      const matchById = r.vehicle_id === vehicle.id;
+      const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
+      
+      if (!matchById && !matchByDetails) return false;
+      
       const start = parseISO(r.start_date);
       const end = r.planned_end_date ? parseISO(r.planned_end_date) : addDays(start, 30);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
@@ -103,9 +114,13 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
       };
     }
 
-    // Check bookings
+    // Check bookings - match by vehicle_id OR vehicle_details containing license plate
     const booking = bookings.find(b => {
-      if (b.vehicle_id !== vehicleId) return false;
+      const matchById = b.vehicle_id === vehicle.id;
+      const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
+      
+      if (!matchById && !matchByDetails) return false;
+      
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
@@ -259,7 +274,7 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
               <tr key={vehicle.id} className="hover:bg-muted/20">
                 {/* Day Cells - RTL order */}
                 {weekDays.map((day) => {
-                  const event = getVehicleEvent(vehicle.id, day);
+                  const event = getVehicleEvent(vehicle, day);
                   return (
                     <>
                       <td

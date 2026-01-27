@@ -42,7 +42,8 @@ const menuItems = [
       { name: "תזרים מזומנים", page: "/cash-flow" },
       { name: "רווחיות רכבים", page: "/vehicle-financials" },
       { name: "הכנסות", page: "/incomes" },
-      { name: "הוצאות", page: "/expenses" }
+      { name: "הוצאות", page: "/expenses" },
+      { name: "כביש 6", page: "/highway-bills" }
     ]
   },
   { 

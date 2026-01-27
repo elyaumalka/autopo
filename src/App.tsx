@@ -18,6 +18,13 @@ import TodayDepartures from "@/pages/TodayDepartures";
 import TodayReturns from "@/pages/TodayReturns";
 import Vehicles from "@/pages/Vehicles";
 import Customers from "@/pages/Customers";
+import Bookings from "@/pages/Bookings";
+import Rentals from "@/pages/Rentals";
+import DailySnapshot from "@/pages/DailySnapshot";
+import Incomes from "@/pages/Incomes";
+import Expenses from "@/pages/Expenses";
+import CashFlow from "@/pages/CashFlow";
+import VehicleFinancials from "@/pages/VehicleFinancials";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,21 +59,16 @@ const App = () => (
             } />
 
             {/* Protected routes with sidebar */}
-            <Route path="/dashboard" element={
-              <ProtectedRoute requireRole>
-                <MainLayout><Dashboard /></MainLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/vehicles" element={
-              <ProtectedRoute requireRole>
-                <MainLayout><Vehicles /></MainLayout>
-              </ProtectedRoute>
-            } />
-            <Route path="/customers" element={
-              <ProtectedRoute requireRole>
-                <MainLayout><Customers /></MainLayout>
-              </ProtectedRoute>
-            } />
+            <Route path="/dashboard" element={<ProtectedRoute requireRole><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
+            <Route path="/vehicles" element={<ProtectedRoute requireRole><MainLayout><Vehicles /></MainLayout></ProtectedRoute>} />
+            <Route path="/customers" element={<ProtectedRoute requireRole><MainLayout><Customers /></MainLayout></ProtectedRoute>} />
+            <Route path="/bookings" element={<ProtectedRoute requireRole><MainLayout><Bookings /></MainLayout></ProtectedRoute>} />
+            <Route path="/rentals" element={<ProtectedRoute requireRole><MainLayout><Rentals /></MainLayout></ProtectedRoute>} />
+            <Route path="/daily-snapshot" element={<ProtectedRoute requireRole><MainLayout><DailySnapshot /></MainLayout></ProtectedRoute>} />
+            <Route path="/incomes" element={<ProtectedRoute requireRole><MainLayout><Incomes /></MainLayout></ProtectedRoute>} />
+            <Route path="/expenses" element={<ProtectedRoute requireRole><MainLayout><Expenses /></MainLayout></ProtectedRoute>} />
+            <Route path="/cash-flow" element={<ProtectedRoute requireRole><MainLayout><CashFlow /></MainLayout></ProtectedRoute>} />
+            <Route path="/vehicle-financials" element={<ProtectedRoute requireRole><MainLayout><VehicleFinancials /></MainLayout></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

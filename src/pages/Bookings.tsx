@@ -1,118 +1,316 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { format, addDays } from "date-fns";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
-import { EmptyState } from "@/components/shared/EmptyState";
+import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, List, CalendarDays, Car, User } from "lucide-react";
-import { formatShortDate, formatCurrency, formatTime } from "@/lib/formatters";
-import { toast } from "@/hooks/use-toast";
-import { format, addDays } from "date-fns";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
+import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
+type Rental = Database["public"]["Tables"]["rentals"]["Row"];
 
 export default function Bookings() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState<Partial<Booking>>({});
+  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [activeTab, setActiveTab] = useState("calendar");
   const queryClient = useQueryClient();
 
-  const { data: bookings, isLoading } = useQuery({
+  const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["bookings"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("*, customer:customers(*), vehicle:vehicles(*)")
-        .order("start_date", { ascending: false });
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
-    },
+      return data || [];
+    }
   });
 
-  const { data: customers } = useQuery({
+  const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").eq("status", "פעיל");
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("status", "פעיל");
       if (error) throw error;
-      return data;
-    },
+      return data || [];
+    }
   });
 
-  const { data: vehicles } = useQuery({
-    queryKey: ["availableVehicles"],
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("*").eq("status", "זמין");
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .not("status", "eq", "נמכר");
       if (error) throw error;
-      return data;
-    },
+      return data || [];
+    }
   });
 
-  const createBooking = useMutation({
-    mutationFn: async (booking: Partial<Booking>) => {
-      const { data, error } = await supabase.from("bookings").insert(booking as any).select().single();
+  const { data: rentals = [] } = useQuery({
+    queryKey: ["rentals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rentals")
+        .select("*");
       if (error) throw error;
-      return data;
+      return data || [];
+    }
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: Partial<Booking>) => {
+      const { data: result, error } = await supabase
+        .from("bookings")
+        .insert(data as any)
+        .select()
+        .single();
+      if (error) throw error;
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
-      setDialogOpen(false);
+      setIsOpen(false);
+      resetForm();
       toast({ title: "ההזמנה נוצרה בהצלחה" });
     },
     onError: (error) => {
       toast({ title: "שגיאה ביצירת הזמנה", description: error.message, variant: "destructive" });
-    },
+    }
   });
 
-  const filteredBookings = bookings?.filter((booking) => {
-    const matchesSearch =
-      booking.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.vehicle_details?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || booking.status === statusFilter;
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Booking> }) => {
+      const { error } = await supabase
+        .from("bookings")
+        .update(data as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+      setIsOpen(false);
+      resetForm();
+      toast({ title: "ההזמנה עודכנה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה בעדכון הזמנה", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("bookings")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "ההזמנה נמחקה" });
+    }
+  });
+
+  const resetForm = () => {
+    setFormData({});
+    setStep(1);
+    setSelectedBooking(null);
+  };
+
+  const isVehicleAvailable = (vehicleId: string, startDate: string, endDate: string, excludeBookingId?: string) => {
+    const hasOverlap = bookings.some(b => {
+      if (b.id === excludeBookingId) return false;
+      if (b.vehicle_id !== vehicleId) return false;
+      if (b.status === "בוטל" || b.status === "הושלם") return false;
+      return startDate < b.end_date && endDate > b.start_date;
+    });
+    return !hasOverlap;
+  };
+
+  const getAvailableVehicles = () => {
+    if (!formData.start_date || !formData.end_date) return [];
+    return vehicles.filter(v => 
+      v.status !== "נמכר" && 
+      v.status !== "לא פעיל" &&
+      isVehicleAvailable(v.id, formData.start_date!, formData.end_date!, selectedBooking?.id)
+    );
+  };
+
+  const handleSubmit = () => {
+    const customer = customers.find(c => c.id === formData.customer_id);
+    const vehicle = vehicles.find(v => v.id === formData.vehicle_id);
+    
+    const data: Partial<Booking> = {
+      ...formData,
+      customer_name: customer ? `${customer.first_name} ${customer.last_name}` : "",
+      vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : "",
+      rental_cost: formData.rental_cost ? Number(formData.rental_cost) : 0,
+      deposit_amount: formData.deposit_amount ? Number(formData.deposit_amount) : 0,
+      credit_hold: formData.credit_hold ? Number(formData.credit_hold) : 0,
+      status: formData.status || "מאושר"
+    };
+
+    if (selectedBooking) {
+      updateMutation.mutate({ id: selectedBooking.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  const filteredBookings = bookings.filter(b => {
+    const matchesSearch = 
+      b.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      b.vehicle_details?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || b.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const bookingsCount = bookings?.length || 0;
+  const columns = [
+    {
+      header: "לקוח",
+      cell: (row: Booking) => (
+        <div className="flex items-center gap-2">
+          <User className="w-4 h-4 text-muted-foreground" />
+          <span className="font-medium">{row.customer_name}</span>
+        </div>
+      )
+    },
+    {
+      header: "רכב",
+      cell: (row: Booking) => (
+        <div className="flex items-center gap-2">
+          <Car className="w-4 h-4 text-muted-foreground" />
+          <span>{row.vehicle_details}</span>
+        </div>
+      )
+    },
+    {
+      header: "תאריך התחלה",
+      cell: (row: Booking) => (
+        <div className="text-sm">
+          {row.start_date ? format(new Date(row.start_date), "dd/MM/yy") : "-"}
+          {row.start_time && ` ${row.start_time.substring(0, 5)}`}
+        </div>
+      )
+    },
+    {
+      header: "תאריך סיום",
+      cell: (row: Booking) => (
+        <div className="text-sm">
+          {row.end_date ? format(new Date(row.end_date), "dd/MM/yy") : "-"}
+          {row.end_time && ` ${row.end_time.substring(0, 5)}`}
+        </div>
+      )
+    },
+    {
+      header: "תשלום",
+      cell: (row: Booking) => {
+        const total = row.rental_cost || 0;
+        const paid = row.deposit_amount || 0;
+        const remaining = total - paid;
+        
+        return (
+          <div className="text-sm">
+            <div className="font-medium">₪{total.toLocaleString()}</div>
+            {paid > 0 && (
+              <div className="text-green-600 text-xs">שולם: ₪{paid.toLocaleString()}</div>
+            )}
+            {remaining > 0 && (
+              <div className="text-red-600 text-xs">נותר: ₪{remaining.toLocaleString()}</div>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      header: "סטטוס",
+      cell: (row: Booking) => <StatusBadge status={row.status || "ממתין"} />
+    },
+    {
+      header: "פעולות",
+      cell: (row: Booking) => (
+        <div className="flex gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setViewingBooking(row)}
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              setSelectedBooking(row);
+              setFormData(row);
+              setStep(1);
+              setIsOpen(true);
+            }}
+          >
+            עריכה
+          </Button>
+          {row.status === "מאושר" && (
+            <Button 
+              size="sm" 
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="w-4 h-4 ml-1" />
+              התחל
+            </Button>
+          )}
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="הזמנות"
-        subtitle={`${bookingsCount} הזמנות`}
+        subtitle={`${bookings.length} הזמנות`}
         action={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="ml-2 h-4 w-4" />
-                הזמנה חדשה
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>יצירת הזמנה חדשה</DialogTitle>
-              </DialogHeader>
-              <BookingForm
-                customers={customers || []}
-                vehicles={vehicles || []}
-                onSubmit={(data) => createBooking.mutate(data)}
-                isLoading={createBooking.isPending}
-              />
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => { resetForm(); setIsOpen(true); }}>
+            <Plus className="ml-2 h-4 w-4" />
+            הזמנה חדשה
+          </Button>
         }
       />
 
@@ -123,243 +321,431 @@ export default function Bookings() {
             תמונת מצב
           </TabsTrigger>
           <TabsTrigger value="list" className="gap-2 data-[state=active]:bg-muted">
-            <List className="h-4 w-4" />
+            <FileText className="h-4 w-4" />
             רשימת הזמנות
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="calendar" className="mt-4">
           <div className="bg-white rounded-2xl border shadow-sm p-6">
-            <BookingsCalendarView onNewBooking={() => setDialogOpen(true)} />
+            <BookingsCalendarView onNewBooking={() => { resetForm(); setIsOpen(true); }} />
           </div>
         </TabsContent>
 
-        <TabsContent value="list">
-          <div className="bg-white rounded-2xl border shadow-sm">
-            <div className="p-6 border-b">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="relative flex-1">
-                  <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <Input
-                    placeholder="חיפוש לפי שם לקוח או רכב..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue placeholder="סטטוס" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">הכל</SelectItem>
-                    <SelectItem value="ממתין">ממתין</SelectItem>
-                    <SelectItem value="מאושר">מאושר</SelectItem>
-                    <SelectItem value="פעיל">פעיל</SelectItem>
-                    <SelectItem value="הושלם">הושלם</SelectItem>
-                    <SelectItem value="בוטל">בוטל</SelectItem>
-                  </SelectContent>
-                </Select>
+        <TabsContent value="list" className="space-y-6 mt-4">
+          <div className="bg-white rounded-2xl border shadow-sm p-6">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <Input
+                  placeholder="חיפוש לפי לקוח או רכב..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pr-10"
+                />
               </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">הכל</SelectItem>
+                  <SelectItem value="ממתין">ממתין</SelectItem>
+                  <SelectItem value="מאושר">מאושר</SelectItem>
+                  <SelectItem value="פעיל">פעיל</SelectItem>
+                  <SelectItem value="הושלם">הושלם</SelectItem>
+                  <SelectItem value="בוטל">בוטל</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="p-6">
-              {isLoading ? (
-                <LoadingSpinner />
-              ) : filteredBookings && filteredBookings.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>לקוח</TableHead>
-                      <TableHead>רכב</TableHead>
-                      <TableHead>תאריך התחלה</TableHead>
-                      <TableHead>תאריך סיום</TableHead>
-                      <TableHead>סוג</TableHead>
-                      <TableHead>עלות</TableHead>
-                      <TableHead>סטטוס</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredBookings.map((booking) => (
-                      <TableRow key={booking.id} className="hover:bg-gray-50">
-                        <TableCell className="font-medium">{booking.customer_name}</TableCell>
-                        <TableCell>{booking.vehicle_details}</TableCell>
-                        <TableCell>
-                          {formatShortDate(booking.start_date)}
-                          {booking.start_time && ` ${formatTime(booking.start_time)}`}
-                        </TableCell>
-                        <TableCell>
-                          {formatShortDate(booking.end_date)}
-                          {booking.end_time && ` ${formatTime(booking.end_time)}`}
-                        </TableCell>
-                        <TableCell>{booking.rental_type}</TableCell>
-                        <TableCell>{formatCurrency(booking.rental_cost || 0)}</TableCell>
-                        <TableCell>
-                          <StatusBadge status={booking.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <EmptyState title="אין הזמנות" description="לא נמצאו הזמנות במערכת" />
-              )}
-            </div>
+
+            <DataTable
+              columns={columns}
+              data={filteredBookings}
+              isLoading={isLoading}
+              emptyMessage="לא נמצאו הזמנות"
+            />
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
 
-interface BookingFormProps {
-  customers: Customer[];
-  vehicles: Vehicle[];
-  onSubmit: (data: Partial<Booking>) => void;
-  isLoading: boolean;
-}
+      {/* Create/Edit Booking Dialog */}
+      <Dialog open={isOpen} onOpenChange={(open) => { setIsOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {selectedBooking ? "עריכת הזמנה" : "הזמנה חדשה"}
+            </DialogTitle>
+          </DialogHeader>
 
-function BookingForm({ customers, vehicles, onSubmit, isLoading }: BookingFormProps) {
-  const [formData, setFormData] = useState({
-    customer_id: "",
-    vehicle_id: "",
-    start_date: format(new Date(), "yyyy-MM-dd"),
-    start_time: "10:00",
-    end_date: format(addDays(new Date(), 1), "yyyy-MM-dd"),
-    end_time: "10:00",
-    rental_type: "24 שעות" as string,
-    notes: "",
-  });
-
-  const selectedCustomer = customers.find((c) => c.id === formData.customer_id);
-  const selectedVehicle = vehicles.find((v) => v.id === formData.vehicle_id);
-
-  // Calculate rental cost based on type and vehicle rates
-  const calculateCost = () => {
-    if (!selectedVehicle) return 0;
-    const rentalType = formData.rental_type;
-    if (rentalType === "חצי יום") return selectedVehicle.half_day_rate || 0;
-    if (rentalType === "24 שעות") return selectedVehicle.daily_rate || 0;
-    if (rentalType === "שבוע") return (selectedVehicle.daily_rate || 0) * 7 * 0.85;
-    if (rentalType === "חודש") return selectedVehicle.monthly_rate || 0;
-    return 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.customer_id || !formData.vehicle_id) {
-      toast({ title: "נא לבחור לקוח ורכב", variant: "destructive" });
-      return;
-    }
-    onSubmit({
-      customer_id: formData.customer_id,
-      customer_name: `${selectedCustomer?.first_name} ${selectedCustomer?.last_name}`,
-      vehicle_id: formData.vehicle_id,
-      vehicle_details: `${selectedVehicle?.manufacturer} ${selectedVehicle?.model} - ${selectedVehicle?.license_plate}`,
-      start_date: formData.start_date,
-      start_time: formData.start_time,
-      end_date: formData.end_date,
-      end_time: formData.end_time,
-      rental_type: formData.rental_type as "24 שעות" | "חודש" | "חצי יום" | "שבוע",
-      rental_cost: calculateCost(),
-      notes: formData.notes,
-      status: "מאושר",
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>לקוח</Label>
-          <Select value={formData.customer_id} onValueChange={(v) => setFormData({ ...formData, customer_id: v })}>
-            <SelectTrigger>
-              <SelectValue placeholder="בחר לקוח" />
-            </SelectTrigger>
-            <SelectContent>
-              {customers.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    {c.first_name} {c.last_name} - {c.phone}
+          <div className="space-y-6">
+            {/* Progress Steps */}
+            <div className="flex items-center justify-between mb-6">
+              {["תאריכים", "רכב", "פרטים"].map((s, i) => (
+                <div key={i} className="flex items-center">
+                  <div className={`
+                    w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
+                    ${step > i + 1 ? 'bg-accent text-accent-foreground' : step === i + 1 ? 'bg-accent text-accent-foreground' : 'bg-muted text-muted-foreground'}
+                  `}>
+                    {i + 1}
                   </div>
-                </SelectItem>
+                  <span className={`mr-2 text-sm ${step >= i + 1 ? 'text-foreground' : 'text-muted-foreground'}`}>{s}</span>
+                  {i < 2 && <div className="w-12 h-0.5 bg-muted mx-2" />}
+                </div>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
+            </div>
 
-        <div className="space-y-2">
-          <Label>רכב</Label>
-          <Select value={formData.vehicle_id} onValueChange={(v) => setFormData({ ...formData, vehicle_id: v })}>
-            <SelectTrigger>
-              <SelectValue placeholder="בחר רכב" />
-            </SelectTrigger>
-            <SelectContent>
-              {vehicles.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  <div className="flex items-center gap-2">
-                    <Car className="h-4 w-4" />
-                    {v.manufacturer} {v.model} - {v.license_plate}
+            {step === 1 && (
+              <div className="space-y-4">
+                <div>
+                  <Label>לקוח *</Label>
+                  <Select 
+                    value={formData.customer_id || ""} 
+                    onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר לקוח" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map(c => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.first_name} {c.last_name} - {c.phone}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>תאריך התחלה *</Label>
+                    <Input
+                      type="date"
+                      value={formData.start_date || ""}
+                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                    />
                   </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+                  <div>
+                    <Label>שעת התחלה</Label>
+                    <Input
+                      type="time"
+                      value={formData.start_time || ""}
+                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>תאריך סיום *</Label>
+                    <Input
+                      type="date"
+                      value={formData.end_date || ""}
+                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>שעת סיום</Label>
+                    <Input
+                      type="time"
+                      value={formData.end_time || ""}
+                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                    />
+                  </div>
+                </div>
 
-        <div className="space-y-2">
-          <Label>תאריך התחלה</Label>
-          <Input type="date" value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} />
-        </div>
+                <Button 
+                  onClick={() => setStep(2)}
+                  disabled={!formData.customer_id || !formData.start_date || !formData.end_date}
+                  className="w-full"
+                >
+                  המשך
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                </Button>
+              </div>
+            )}
 
-        <div className="space-y-2">
-          <Label>שעת התחלה</Label>
-          <Input type="time" value={formData.start_time} onChange={(e) => setFormData({ ...formData, start_time: e.target.value })} />
-        </div>
+            {step === 2 && (
+              <div className="space-y-4">
+                <h3 className="font-semibold">רכבים זמינים בתאריכים הנבחרים</h3>
+                
+                {getAvailableVehicles().length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    אין רכבים זמינים בתאריכים אלו
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto">
+                    {getAvailableVehicles().map(vehicle => (
+                      <Card
+                        key={vehicle.id}
+                        className={`p-4 cursor-pointer transition-all ${
+                          formData.vehicle_id === vehicle.id 
+                            ? 'border-2 border-accent bg-accent/10' 
+                            : 'hover:border-accent/50'
+                        }`}
+                        onClick={() => setFormData({ ...formData, vehicle_id: vehicle.id })}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{vehicle.manufacturer} {vehicle.model}</p>
+                            <p className="text-sm text-muted-foreground">{vehicle.license_plate} | {vehicle.vehicle_type}</p>
+                          </div>
+                          <div className="text-left">
+                            <p className="font-bold text-accent">₪{vehicle.daily_rate}/יום</p>
+                            <p className="text-sm text-muted-foreground">₪{vehicle.monthly_rate}/חודש</p>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
 
-        <div className="space-y-2">
-          <Label>תאריך סיום</Label>
-          <Input type="date" value={formData.end_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} />
-        </div>
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(1)}>חזרה</Button>
+                  <Button 
+                    onClick={() => setStep(3)}
+                    disabled={!formData.vehicle_id}
+                    className="flex-1"
+                  >
+                    המשך
+                  </Button>
+                </div>
+              </div>
+            )}
 
-        <div className="space-y-2">
-          <Label>שעת סיום</Label>
-          <Input type="time" value={formData.end_time} onChange={(e) => setFormData({ ...formData, end_time: e.target.value })} />
-        </div>
+            {step === 3 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>עלות השכרה</Label>
+                    <Input
+                      type="number"
+                      value={formData.rental_cost || ""}
+                      onChange={(e) => setFormData({ ...formData, rental_cost: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label>סכום מקדמה</Label>
+                    <Input
+                      type="number"
+                      value={formData.deposit_amount || ""}
+                      onChange={(e) => setFormData({ ...formData, deposit_amount: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label>מסגרת אשראי</Label>
+                    <Input
+                      type="number"
+                      value={formData.credit_hold || ""}
+                      onChange={(e) => setFormData({ ...formData, credit_hold: Number(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <Label>אמצעי תשלום</Label>
+                    <Select 
+                      value={formData.payment_method || ""} 
+                      onValueChange={(v: any) => setFormData({ ...formData, payment_method: v })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="מזומן">מזומן</SelectItem>
+                        <SelectItem value="אשראי">אשראי</SelectItem>
+                        <SelectItem value="צ׳ק">צ׳ק</SelectItem>
+                        <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>סטטוס תשלום</Label>
+                    <Select 
+                      value={formData.payment_status || "לא שולם"} 
+                      onValueChange={(v: any) => setFormData({ ...formData, payment_status: v })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="לא שולם">לא שולם</SelectItem>
+                        <SelectItem value="מקדמה">מקדמה</SelectItem>
+                        <SelectItem value="שולם">שולם</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>סטטוס הזמנה</Label>
+                    <Select 
+                      value={formData.status || "מאושר"} 
+                      onValueChange={(v: any) => setFormData({ ...formData, status: v })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ממתין">ממתין</SelectItem>
+                        <SelectItem value="מאושר">מאושר</SelectItem>
+                        <SelectItem value="בוטל">בוטל</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-        <div className="space-y-2">
-          <Label>סוג השכרה</Label>
-          <Select value={formData.rental_type} onValueChange={(v: any) => setFormData({ ...formData, rental_type: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="חצי יום">חצי יום</SelectItem>
-              <SelectItem value="24 שעות">24 שעות</SelectItem>
-              <SelectItem value="שבוע">שבוע</SelectItem>
-              <SelectItem value="חודש">חודש</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+                <div>
+                  <Label>הערות</Label>
+                  <Textarea
+                    value={formData.notes || ""}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  />
+                </div>
 
-        <div className="space-y-2">
-          <Label>עלות משוערת</Label>
-          <div className="flex h-10 items-center rounded-md border bg-muted px-3 font-medium">
-            {formatCurrency(calculateCost())}
+                <div className="flex gap-3">
+                  <Button variant="outline" onClick={() => setStep(2)}>חזרה</Button>
+                  <Button 
+                    onClick={handleSubmit}
+                    className="flex-1"
+                    disabled={createMutation.isPending || updateMutation.isPending}
+                  >
+                    {selectedBooking ? "עדכון" : "יצירת הזמנה"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
-      <div className="space-y-2">
-        <Label>הערות</Label>
-        <Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} placeholder="הערות נוספות..." />
-      </div>
+      {/* View Booking Details Dialog */}
+      <Dialog open={!!viewingBooking} onOpenChange={() => setViewingBooking(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>פרטי הזמנה</DialogTitle>
+          </DialogHeader>
 
-      <div className="flex justify-end gap-2">
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "שומר..." : "שמור הזמנה"}
-        </Button>
-      </div>
-    </form>
+          {viewingBooking && (
+            <div className="space-y-6">
+              {/* Basic Info */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <Label className="text-muted-foreground">לקוח</Label>
+                  <p className="font-medium">{viewingBooking.customer_name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">רכב</Label>
+                  <p className="font-medium">{viewingBooking.vehicle_details}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">תאריך התחלה</Label>
+                  <p className="font-medium">
+                    {viewingBooking.start_date} {viewingBooking.start_time || ""}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">תאריך סיום</Label>
+                  <p className="font-medium">
+                    {viewingBooking.end_date} {viewingBooking.end_time || ""}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">עלות</Label>
+                  <p className="font-medium text-lg">₪{viewingBooking.rental_cost?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">סטטוס</Label>
+                  <StatusBadge status={viewingBooking.status} />
+                </div>
+              </div>
+
+              {/* Documents Status */}
+              <div className="border rounded-lg p-4">
+                <h3 className="font-semibold mb-4">מסמכים וחתימות</h3>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-muted rounded">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span className="font-medium">חוזה השכרה</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {viewingBooking.contract_signed ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="text-green-600 font-medium">נחתם</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">טרם נחתם</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-muted rounded">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-purple-600" />
+                      <span className="font-medium">תצהיר קבלת רכב</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {viewingBooking.declaration_signed ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="text-green-600 font-medium">נחתם</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">טרם נחתם</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-muted rounded">
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-red-600" />
+                      <span className="font-medium">כתב ויתור</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {viewingBooking.waiver_signed ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="text-green-600 font-medium">נחתם</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">טרם נחתם</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Info */}
+              {(viewingBooking.deposit_amount || viewingBooking.credit_hold) && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold mb-4">תשלום</h3>
+                  <div className="space-y-2">
+                    {viewingBooking.deposit_amount && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">מקדמה:</span>
+                        <span className="font-medium">₪{viewingBooking.deposit_amount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {viewingBooking.credit_hold && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">מסגרת אשראי:</span>
+                        <span className="font-medium">₪{viewingBooking.credit_hold.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {viewingBooking.payment_method && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">אמצעי תשלום:</span>
+                        <span className="font-medium">{viewingBooking.payment_method}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              {viewingBooking.notes && (
+                <div className="border rounded-lg p-4">
+                  <h3 className="font-semibold mb-2">הערות</h3>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{viewingBooking.notes}</p>
+                </div>
+              )}
+
+              <Button onClick={() => setViewingBooking(null)} className="w-full">
+                סגור
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

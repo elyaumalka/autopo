@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -21,12 +22,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Car, Search, Filter, Plus, Fuel, Gauge, DollarSign } from "lucide-react";
+import { Car, Search, Filter, Plus, Fuel, Gauge, DollarSign, Edit, Trash2, Calendar } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatCurrency, formatNumber } from "@/lib/formatters";
+import { motion } from "framer-motion";
 import type { Database } from "@/integrations/supabase/types";
 
 type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
@@ -178,68 +179,75 @@ export default function Vehicles() {
       {isLoading ? (
         <LoadingSpinner className="py-12" />
       ) : filteredVehicles && filteredVehicles.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredVehicles.map((vehicle) => (
-            <div
-              key={vehicle.id}
-              onClick={() => openEditDialog(vehicle)}
-              className="cursor-pointer rounded-2xl bg-white border p-6 shadow-sm transition-all duration-300 hover:shadow-lg hover:scale-[1.02]"
-            >
-              {/* Vehicle Image or Placeholder */}
-              <div className="mb-4 aspect-video overflow-hidden rounded-xl bg-gray-100">
-                {vehicle.image_url ? (
-                  <img
-                    src={vehicle.image_url}
-                    alt={`${vehicle.manufacturer} ${vehicle.model}`}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center">
-                    <Car className="h-16 w-16 text-gray-300" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredVehicles.map((vehicle, i) => {
+            const statusColors: Record<string, string> = {
+              "זמין": "border-green-200 hover:border-green-400",
+              "מושכר": "border-blue-200 hover:border-blue-400",
+              "בטיפול": "border-orange-200 hover:border-orange-400",
+              "תאונה": "border-red-200 hover:border-red-400",
+              "לא פעיל": "border-gray-200 hover:border-gray-400",
+              "נמכר": "border-purple-200 hover:border-purple-400",
+            };
+            
+            return (
+              <motion.div
+                key={vehicle.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                <Card
+                  onClick={() => openEditDialog(vehicle)}
+                  className={`p-5 border-2 transition-all duration-300 hover:shadow-lg cursor-pointer ${statusColors[vehicle.status] || 'border-gray-200'}`}
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-lg text-gray-900">
+                        {vehicle.manufacturer} {vehicle.model}
+                      </h3>
+                      <p className="text-gray-500 text-sm">{vehicle.license_plate}</p>
+                    </div>
+                    <StatusBadge status={vehicle.status} />
                   </div>
-                )}
-              </div>
 
-              {/* Vehicle Info */}
-              <div className="mb-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">
-                      {vehicle.manufacturer} {vehicle.model}
-                    </h3>
-                    <p className="text-gray-500">{vehicle.license_plate}</p>
+                  <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>{vehicle.year || "-"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Fuel className="w-4 h-4" />
+                      <span>{vehicle.fuel_type || "-"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Gauge className="w-4 h-4" />
+                      <span>{formatNumber(vehicle.current_km || 0)} ק"מ</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Car className="w-4 h-4" />
+                      <span>{vehicle.vehicle_type || "-"}</span>
+                    </div>
                   </div>
-                  <StatusBadge status={vehicle.status} />
-                </div>
-              </div>
 
-              {/* Details */}
-              <div className="space-y-2 text-sm">
-                {vehicle.fuel_type && (
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Fuel className="h-4 w-4" />
-                    <span>{vehicle.fuel_type}</span>
+                  <div className="flex items-center justify-between pt-3 border-t">
+                    <div className="text-cyan-600 font-bold">
+                      ₪{vehicle.daily_rate?.toLocaleString() || 0} / יום
+                    </div>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => openEditDialog(vehicle)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                )}
-                {vehicle.current_km !== null && (
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Gauge className="h-4 w-4" />
-                    <span>{formatNumber(vehicle.current_km)} ק״מ</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Rates */}
-              <div className="mt-4 border-t pt-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <DollarSign className="h-4 w-4 text-cyan-600" />
-                  <span className="text-gray-700">
-                    יומי: {formatCurrency(vehicle.daily_rate || 0)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          ))}
+                </Card>
+              </motion.div>
+            );
+          })}
         </div>
       ) : (
         <EmptyState

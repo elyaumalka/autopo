@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { StatCard } from "@/components/shared/StatCard";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Card } from "@/components/ui/card";
@@ -72,32 +71,54 @@ export default function VehicleFinancials() {
         <LoadingSpinner />
       ) : vehicleFinancials && vehicleFinancials.length > 0 ? (
         <>
-          {/* Summary Cards */}
-          <div className="mb-6 grid gap-4 md:grid-cols-4">
-            <StatCard
-              title="סה״כ רכבים"
-              value={String(vehicleFinancials.length)}
-              icon={Car}
-              color="cyan"
-            />
-            <StatCard
-              title="סה״כ הכנסות"
-              value={formatCurrency(totals.income)}
-              icon={TrendingUp}
-              color="green"
-            />
-            <StatCard
-              title="סה״כ הוצאות"
-              value={formatCurrency(totals.expenses)}
-              icon={TrendingDown}
-              color="red"
-            />
-            <StatCard
-              title="רווח נקי"
-              value={formatCurrency(totals.profit)}
-              icon={DollarSign}
-              color={totals.profit >= 0 ? "green" : "red"}
-            />
+          {/* Summary Cards - Base44 Style */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+            <Card className="p-4 border-r-4 border-r-blue-500">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Car className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">סה"כ רכבים</p>
+                  <p className="text-xl font-bold">{vehicleFinancials.length}</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4 border-r-4 border-r-green-500">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">סה"כ הכנסות</p>
+                  <p className="text-xl font-bold text-green-600">{formatCurrency(totals.income)}</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4 border-r-4 border-r-red-500">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-100 rounded-lg">
+                  <TrendingDown className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">סה"כ הוצאות</p>
+                  <p className="text-xl font-bold text-red-600">{formatCurrency(totals.expenses)}</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-4 border-r-4 border-r-cyan-500">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-cyan-100 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-cyan-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">רווח נקי</p>
+                  <p className={`text-xl font-bold ${totals.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(totals.profit)}
+                  </p>
+                </div>
+              </div>
+            </Card>
           </div>
 
           {/* Chart */}

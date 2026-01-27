@@ -16,6 +16,7 @@ import RentalStation from "@/pages/RentalStation";
 import Dashboard from "@/pages/Dashboard";
 import TodayDepartures from "@/pages/TodayDepartures";
 import TodayReturns from "@/pages/TodayReturns";
+import TodayRentals from "@/pages/TodayRentals";
 import Vehicles from "@/pages/Vehicles";
 import Customers from "@/pages/Customers";
 import Bookings from "@/pages/Bookings";
@@ -89,6 +90,11 @@ const App = () => (
             {/* Public pages */}
             <Route path="/sign" element={<Sign />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
+            <Route path="/today-rentals" element={
+              <ProtectedRoute requireRole>
+                <TodayRentals />
+              </ProtectedRoute>
+            } />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

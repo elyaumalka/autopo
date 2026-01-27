@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   ChevronRight, 
   ChevronLeft, 
@@ -18,7 +19,8 @@ import {
   subWeeks, 
   isSameDay, 
   parseISO, 
-  isWithinInterval 
+  isWithinInterval,
+  differenceInDays
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,11 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
   const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
   const [hideMonthly, setHideMonthly] = useState(false);
   const [hideWeekly, setHideWeekly] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(100);
+
+  // Zoom controls
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 150));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 70));
 
   // Get week range
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
@@ -90,6 +97,18 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
     return details.includes(vehicleLicensePlate);
   };
 
+  // Helper to determine rental type based on duration
+  const getRentalType = (startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
+    if (!endDate) return "monthly"; // No end date = monthly
+    const start = parseISO(startDate);
+    const end = parseISO(endDate);
+    const days = differenceInDays(end, start);
+    
+    if (days >= 25) return "monthly";
+    if (days >= 6) return "weekly";
+    return "daily";
+  };
+
   // Get booking/rental for a specific vehicle and day
   const getVehicleEvent = (vehicle: Vehicle, day: Date) => {
     const dayStr = format(day, "yyyy-MM-dd");
@@ -107,10 +126,17 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
     });
 
     if (rental) {
+      const rentalType = getRentalType(rental.start_date, rental.planned_end_date);
+      
+      // Apply filters
+      if (hideMonthly && rentalType === "monthly") return null;
+      if (hideWeekly && rentalType === "weekly") return null;
+      
       return {
         type: "rental" as const,
         customerName: rental.customer_name || "לקוח",
         status: "פעיל" as const,
+        rentalType,
       };
     }
 
@@ -127,10 +153,17 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
     });
 
     if (booking) {
+      const bookingType = getRentalType(booking.start_date, booking.end_date);
+      
+      // Apply filters
+      if (hideMonthly && bookingType === "monthly") return null;
+      if (hideWeekly && bookingType === "weekly") return null;
+      
       return {
         type: "booking" as const,
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
+        rentalType: bookingType,
       };
     }
 
@@ -195,20 +228,16 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
         {/* Filters */}
         <div className="flex items-center gap-4 text-sm">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hideWeekly}
-              onChange={(e) => setHideWeekly(e.target.checked)}
-              className="rounded"
+              onCheckedChange={(checked) => setHideWeekly(checked === true)}
             />
             <span>הסתר שבועי</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hideMonthly}
-              onChange={(e) => setHideMonthly(e.target.checked)}
-              className="rounded"
+              onCheckedChange={(checked) => setHideMonthly(checked === true)}
             />
             <span>הסתר חודשי</span>
           </label>
@@ -216,11 +245,11 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
 
         {/* Zoom Controls */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={zoomLevel <= 70}>
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm">100%</span>
-          <Button variant="ghost" size="icon">
+          <span className="text-sm min-w-[40px] text-center">{zoomLevel}%</span>
+          <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={zoomLevel >= 150}>
             <ZoomIn className="h-4 w-4" />
           </Button>
         </div>
@@ -228,7 +257,13 @@ export default function BookingsCalendarView({ onNewBooking }: BookingsCalendarV
 
       {/* Calendar Grid */}
       <div className="bg-white rounded-lg border overflow-x-auto">
-        <table className="w-full border-collapse min-w-[900px]">
+        <table 
+          className="w-full border-collapse transition-all duration-200"
+          style={{ 
+            fontSize: `${zoomLevel}%`,
+            minWidth: `${900 * (zoomLevel / 100)}px`
+          }}
+        >
           <thead>
             <tr className="bg-muted/50">
               {/* Day Headers - RTL order */}

@@ -32,6 +32,7 @@ import TrafficTickets from "@/pages/TrafficTickets";
 import Accidents from "@/pages/Accidents";
 import HighwayBills from "@/pages/HighwayBills";
 import CalendarView from "@/components/calendar/CalendarView";
+import Sign from "@/pages/Sign";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -83,6 +84,9 @@ const App = () => (
             <Route path="/accidents" element={<ProtectedRoute requireRole><MainLayout><Accidents /></MainLayout></ProtectedRoute>} />
             <Route path="/highway-bills" element={<ProtectedRoute requireRole><MainLayout><HighwayBills /></MainLayout></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute requireRole><MainLayout><CalendarView /></MainLayout></ProtectedRoute>} />
+
+            {/* Public signing page */}
+            <Route path="/sign" element={<Sign />} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

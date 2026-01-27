@@ -176,7 +176,7 @@ export default function Customers() {
       {isLoading ? (
         <LoadingSpinner className="py-12" />
       ) : filteredCustomers && filteredCustomers.length > 0 ? (
-        <div className="rounded-lg border bg-card">
+        <div className="bg-white rounded-2xl border shadow-sm">
           <Table>
             <TableHeader>
               <TableRow>
@@ -190,21 +190,26 @@ export default function Customers() {
             </TableHeader>
             <TableBody>
               {filteredCustomers.map((customer) => (
-                <TableRow key={customer.id}>
+                <TableRow key={customer.id} className="hover:bg-gray-50">
                   <TableCell className="font-medium">
-                    {customer.first_name} {customer.last_name}
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-cyan-100 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-cyan-600" />
+                      </div>
+                      {customer.first_name} {customer.last_name}
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3 text-muted-foreground" />
+                    <div className="flex items-center gap-1 text-gray-600">
+                      <Phone className="h-3 w-3" />
                       {customer.phone}
                     </div>
                   </TableCell>
-                  <TableCell>{customer.id_number}</TableCell>
+                  <TableCell className="font-mono text-sm">{customer.id_number}</TableCell>
                   <TableCell>
                     {customer.city && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <div className="flex items-center gap-1 text-gray-600">
+                        <MapPin className="h-3 w-3" />
                         {customer.city}
                       </div>
                     )}

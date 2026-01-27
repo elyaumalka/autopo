@@ -2,14 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { StatCard } from "@/components/shared/StatCard";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
 import {
   Car,
   Users,
   DollarSign,
   TrendingUp,
-  Calendar,
   AlertTriangle,
   Wrench,
   ArrowLeft,
@@ -25,18 +24,19 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { format, subMonths } from "date-fns";
+import type { Tables } from "@/integrations/supabase/types";
+
+type Vehicle = Tables<"vehicles">;
+type MaintenanceTask = Tables<"maintenance_tasks">;
 
 export default function Dashboard() {
-  // Fetch stats
-  const { data: vehicleStats, isLoading: loadingVehicles } = useQuery({
-    queryKey: ["vehicleStats"],
+  // Fetch all vehicles
+  const { data: vehicles = [], isLoading: loadingVehicles } = useQuery({
+    queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("vehicles").select("status");
+      const { data, error } = await supabase.from("vehicles").select("*");
       if (error) throw error;
-      const available = data.filter((v) => v.status === "זמין").length;
-      const rented = data.filter((v) => v.status === "מושכר").length;
-      const total = data.length;
-      return { available, rented, total };
+      return data as Vehicle[];
     },
   });
 
@@ -51,23 +51,16 @@ export default function Dashboard() {
     },
   });
 
-  const { data: monthlyIncome, isLoading: loadingIncomes } = useQuery({
-    queryKey: ["monthlyIncome"],
+  const { data: incomes = [] } = useQuery({
+    queryKey: ["incomes"],
     queryFn: async () => {
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      const { data, error } = await supabase
-        .from("incomes")
-        .select("amount")
-        .gte("date", startOfMonth.toISOString().split("T")[0]);
+      const { data, error } = await supabase.from("incomes").select("*");
       if (error) throw error;
-      return data.reduce((sum, i) => sum + (i.amount || 0), 0);
+      return data;
     },
   });
 
-  const { data: collectionTasks, isLoading: loadingCollections } = useQuery({
+  const { data: collectionTasks = [], isLoading: loadingCollections } = useQuery({
     queryKey: ["openCollectionTasks"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -79,7 +72,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: maintenanceTasks, isLoading: loadingMaintenance } = useQuery({
+  const { data: maintenanceTasks = [], isLoading: loadingMaintenance } = useQuery({
     queryKey: ["pendingMaintenanceTasks"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -88,11 +81,11 @@ export default function Dashboard() {
         .eq("status", "ממתין")
         .limit(4);
       if (error) throw error;
-      return data;
+      return data as MaintenanceTask[];
     },
   });
 
-  const { data: activeRentals, isLoading: loadingRentals } = useQuery({
+  const { data: activeRentals = [], isLoading: loadingRentals } = useQuery({
     queryKey: ["activeRentals"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -106,32 +99,45 @@ export default function Dashboard() {
     },
   });
 
-  const { data: monthlyData } = useQuery({
-    queryKey: ["monthlyChartData"],
-    queryFn: async () => {
-      const data = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = subMonths(new Date(), i);
-        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-        const endOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  // Calculate stats
+  const availableVehicles = vehicles.filter(v => v.status === "זמין");
+  const rentedVehicles = vehicles.filter(v => v.status === "מושכר");
 
-        const { data: incomes } = await supabase
-          .from("incomes")
-          .select("amount")
-          .gte("date", startOfMonth.toISOString().split("T")[0])
-          .lte("date", endOfMonth.toISOString().split("T")[0]);
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const monthlyIncome = incomes
+    .filter(i => {
+      const d = new Date(i.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((sum, i) => sum + (i.amount || 0), 0);
 
-        data.push({
-          name: format(date, "MMM"),
-          income: incomes?.reduce((sum, i) => sum + (i.amount || 0), 0) || 0,
-        });
-      }
-      return data;
-    },
+  // Calculate monthly data for chart
+  const monthlyData = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const month = d.getMonth();
+    const year = d.getFullYear();
+    const monthIncomes = incomes.filter(inc => {
+      const incDate = new Date(inc.date);
+      return incDate.getMonth() === month && incDate.getFullYear() === year;
+    });
+    monthlyData.push({
+      name: format(d, "MMM"),
+      income: monthIncomes.reduce((sum, inc) => sum + (inc.amount || 0), 0)
+    });
+  }
+
+  const isLoading = loadingVehicles || loadingCustomers;
+  const totalDebt = collectionTasks.reduce((sum, t) => sum + (t.amount - (t.paid_amount || 0)), 0);
+
+  // Check for maintenance tasks that are overdue
+  const today = new Date();
+  const overdueMaintenanceTasks = maintenanceTasks.filter(task => {
+    if (task.due_date && new Date(task.due_date) < today) return true;
+    return false;
   });
-
-  const isLoading = loadingVehicles || loadingCustomers || loadingIncomes;
-  const totalDebt = collectionTasks?.reduce((sum, t) => sum + (t.amount - (t.paid_amount || 0)), 0) || 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -141,14 +147,47 @@ export default function Dashboard() {
         <p className="text-gray-500 mt-1">הנה סקירה של העסק שלך היום</p>
       </div>
 
+      {/* Maintenance Alerts */}
+      {overdueMaintenanceTasks.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-red-50 border-2 border-red-200 rounded-2xl p-4"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900">התרעות תחזוקה</h3>
+              <p className="text-sm text-red-700">
+                {overdueMaintenanceTasks.length} משימות דורשות תשומת לב
+              </p>
+            </div>
+            <Link 
+              to="/maintenance-tasks"
+              className="text-red-700 hover:text-red-900 text-sm font-medium"
+            >
+              צפה
+            </Link>
+          </div>
+          <div className="mt-3 space-y-2">
+            {overdueMaintenanceTasks.slice(0, 3).map((task) => (
+              <div key={task.id} className="text-sm bg-white rounded-lg p-2 border border-red-200">
+                <span className="font-medium">{task.vehicle_details}</span>
+                <span className="text-red-600 mr-2">• {task.type}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="רכבים זמינים"
-          value={isLoading ? "..." : `${vehicleStats?.available || 0}/${vehicleStats?.total || 0}`}
+          value={isLoading ? "..." : `${availableVehicles.length}/${vehicles.length}`}
           icon={Car}
           color="cyan"
-          subtitle={`${vehicleStats?.rented || 0} מושכרים כרגע`}
+          subtitle={`${rentedVehicles.length} מושכרים כרגע`}
         />
         <StatCard
           title="לקוחות"
@@ -158,30 +197,34 @@ export default function Dashboard() {
         />
         <StatCard
           title="הכנסות החודש"
-          value={isLoading ? "..." : formatCurrency(monthlyIncome || 0)}
+          value={isLoading ? "..." : `₪${monthlyIncome.toLocaleString()}`}
           icon={DollarSign}
           color="green"
         />
         <StatCard
           title="חובות לגבייה"
-          value={isLoading ? "..." : formatCurrency(totalDebt)}
+          value={isLoading ? "..." : `₪${totalDebt.toLocaleString()}`}
           icon={AlertTriangle}
           color="red"
-          subtitle={`${collectionTasks?.length || 0} פריטים פתוחים`}
+          subtitle={`${collectionTasks.length} פריטים פתוחים`}
         />
       </div>
 
       {/* Charts and Lists */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Income Chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border p-6 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-2 bg-white rounded-2xl border p-6 shadow-sm"
+        >
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold text-gray-900">הכנסות - 6 חודשים אחרונים</h2>
             <TrendingUp className="w-5 h-5 text-green-500" />
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData || []}>
+              <AreaChart data={monthlyData}>
                 <defs>
                   <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0891b2" stopOpacity={0.3} />
@@ -205,10 +248,15 @@ export default function Dashboard() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
 
         {/* Active Rentals */}
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-2xl border p-6 shadow-sm"
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">השכרות פעילות</h2>
             <Link
@@ -223,7 +271,7 @@ export default function Dashboard() {
               [...Array(4)].map((_, i) => (
                 <Skeleton key={i} className="h-16 rounded-xl" />
               ))
-            ) : !activeRentals || activeRentals.length === 0 ? (
+            ) : activeRentals.length === 0 ? (
               <p className="text-gray-500 text-center py-8">אין השכרות פעילות</p>
             ) : (
               activeRentals.map((rental) => (
@@ -238,20 +286,25 @@ export default function Dashboard() {
                   <div className="text-left">
                     <p className="text-xs text-gray-500">עד</p>
                     <p className="text-sm font-medium text-gray-900">
-                      {rental.planned_end_date ? formatShortDate(rental.planned_end_date) : "-"}
+                      {rental.planned_end_date ? format(new Date(rental.planned_end_date), "dd/MM") : "-"}
                     </p>
                   </div>
                 </div>
               ))
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Bottom Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Maintenance Tasks */}
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-2xl border p-6 shadow-sm"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Wrench className="w-5 h-5 text-orange-500" />
@@ -269,7 +322,7 @@ export default function Dashboard() {
               [...Array(3)].map((_, i) => (
                 <Skeleton key={i} className="h-14 rounded-xl" />
               ))
-            ) : !maintenanceTasks || maintenanceTasks.length === 0 ? (
+            ) : maintenanceTasks.length === 0 ? (
               <p className="text-gray-500 text-center py-6">אין משימות פתוחות</p>
             ) : (
               maintenanceTasks.map((task) => (
@@ -284,7 +337,7 @@ export default function Dashboard() {
                   <div className="text-left">
                     {task.due_date && (
                       <p className="text-sm text-orange-600 font-medium">
-                        {formatShortDate(task.due_date)}
+                        {format(new Date(task.due_date), "dd/MM")}
                       </p>
                     )}
                     {task.due_km && (
@@ -295,10 +348,15 @@ export default function Dashboard() {
               ))
             )}
           </div>
-        </div>
+        </motion.div>
 
         {/* Collection Tasks */}
-        <div className="bg-white rounded-2xl border p-6 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white rounded-2xl border p-6 shadow-sm"
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-red-500" />
@@ -316,7 +374,7 @@ export default function Dashboard() {
               [...Array(3)].map((_, i) => (
                 <Skeleton key={i} className="h-14 rounded-xl" />
               ))
-            ) : !collectionTasks || collectionTasks.length === 0 ? (
+            ) : collectionTasks.length === 0 ? (
               <p className="text-gray-500 text-center py-6">אין חובות פתוחים</p>
             ) : (
               collectionTasks.slice(0, 4).map((task) => (
@@ -335,7 +393,7 @@ export default function Dashboard() {
               ))
             )}
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

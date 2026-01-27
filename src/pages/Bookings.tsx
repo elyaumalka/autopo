@@ -205,66 +205,6 @@ export default function Bookings() {
 
   const columns = [
     {
-      header: "לקוח",
-      cell: (row: Booking) => (
-        <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium">{row.customer_name}</span>
-        </div>
-      )
-    },
-    {
-      header: "רכב",
-      cell: (row: Booking) => (
-        <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-muted-foreground" />
-          <span>{row.vehicle_details}</span>
-        </div>
-      )
-    },
-    {
-      header: "תאריך התחלה",
-      cell: (row: Booking) => (
-        <div className="text-sm">
-          {row.start_date ? format(new Date(row.start_date), "dd/MM/yy") : "-"}
-          {row.start_time && ` ${row.start_time.substring(0, 5)}`}
-        </div>
-      )
-    },
-    {
-      header: "תאריך סיום",
-      cell: (row: Booking) => (
-        <div className="text-sm">
-          {row.end_date ? format(new Date(row.end_date), "dd/MM/yy") : "-"}
-          {row.end_time && ` ${row.end_time.substring(0, 5)}`}
-        </div>
-      )
-    },
-    {
-      header: "תשלום",
-      cell: (row: Booking) => {
-        const total = row.rental_cost || 0;
-        const paid = row.deposit_amount || 0;
-        const remaining = total - paid;
-        
-        return (
-          <div className="text-sm">
-            <div className="font-medium">₪{total.toLocaleString()}</div>
-            {paid > 0 && (
-              <div className="text-green-600 text-xs">שולם: ₪{paid.toLocaleString()}</div>
-            )}
-            {remaining > 0 && (
-              <div className="text-red-600 text-xs">נותר: ₪{remaining.toLocaleString()}</div>
-            )}
-          </div>
-        );
-      }
-    },
-    {
-      header: "סטטוס",
-      cell: (row: Booking) => <StatusBadge status={row.status || "ממתין"} />
-    },
-    {
       header: "פעולות",
       cell: (row: Booking) => (
         <div className="flex gap-2">
@@ -296,6 +236,66 @@ export default function Bookings() {
               התחל
             </Button>
           )}
+        </div>
+      )
+    },
+    {
+      header: "סטטוס",
+      cell: (row: Booking) => <StatusBadge status={row.status || "ממתין"} />
+    },
+    {
+      header: "תשלום",
+      cell: (row: Booking) => {
+        const total = row.rental_cost || 0;
+        const paid = row.deposit_amount || 0;
+        const remaining = total - paid;
+        
+        return (
+          <div className="text-sm">
+            <div className="font-medium">₪{total.toLocaleString()}</div>
+            {paid > 0 && (
+              <div className="text-green-600 text-xs">שולם: ₪{paid.toLocaleString()}</div>
+            )}
+            {remaining > 0 && (
+              <div className="text-red-600 text-xs">נותר: ₪{remaining.toLocaleString()}</div>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      header: "תאריך סיום",
+      cell: (row: Booking) => (
+        <div className="text-sm">
+          {row.end_date ? format(new Date(row.end_date), "dd/MM/yy") : "-"}
+          {row.end_time && ` ${row.end_time.substring(0, 5)}`}
+        </div>
+      )
+    },
+    {
+      header: "תאריך התחלה",
+      cell: (row: Booking) => (
+        <div className="text-sm">
+          {row.start_date ? format(new Date(row.start_date), "dd/MM/yy") : "-"}
+          {row.start_time && ` ${row.start_time.substring(0, 5)}`}
+        </div>
+      )
+    },
+    {
+      header: "רכב",
+      cell: (row: Booking) => (
+        <div className="flex items-center gap-2">
+          <Car className="w-4 h-4 text-muted-foreground" />
+          <span>{row.vehicle_details}</span>
+        </div>
+      )
+    },
+    {
+      header: "לקוח",
+      cell: (row: Booking) => (
+        <div className="flex items-center gap-2">
+          <User className="w-4 h-4 text-muted-foreground" />
+          <span className="font-medium">{row.customer_name}</span>
         </div>
       )
     }

@@ -28,6 +28,7 @@ import { Card } from "@/components/ui/card";
 import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
+import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -47,6 +48,8 @@ export default function Bookings() {
   const [activeTab, setActiveTab] = useState("calendar");
   const [quickBookingOpen, setQuickBookingOpen] = useState(false);
   const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle } | null>(null);
+  const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
+  const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -236,6 +239,34 @@ export default function Bookings() {
     setQuickBookingData(null);
   };
 
+  const handleQuickBookingSubmitAndStart = async (bookingData: any) => {
+    // בדיקת זמינות
+    if (!isVehicleAvailable(bookingData.vehicle_id, bookingData.start_date, bookingData.end_date)) {
+      toast({ 
+        title: "הרכב תפוס", 
+        description: "הרכב כבר תפוס בתאריכים אלו. אנא בחר תאריכים אחרים.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const newBooking = await createMutation.mutateAsync(bookingData);
+    setQuickBookingOpen(false);
+    setQuickBookingData(null);
+    
+    // פתיחת אשף התחלת השכרה
+    setWizardBooking(newBooking);
+    setRentalWizardOpen(true);
+  };
+
+  const handleWizardComplete = () => {
+    setRentalWizardOpen(false);
+    setWizardBooking(null);
+    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["rentals"] });
+    queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+  };
+
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = 
       b.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -422,6 +453,7 @@ export default function Bookings() {
             setQuickBookingData(null);
           }}
           onSubmit={handleQuickBookingSubmit}
+          onSubmitAndStart={handleQuickBookingSubmitAndStart}
           date={quickBookingData.date}
           vehicle={quickBookingData.vehicle}
           customers={customers}
@@ -802,6 +834,24 @@ export default function Bookings() {
                 סגור
               </Button>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Rental Start Wizard Dialog */}
+      <Dialog open={rentalWizardOpen} onOpenChange={(open) => { if (!open) { setRentalWizardOpen(false); setWizardBooking(null); } }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>התחלת השכרה</DialogTitle>
+          </DialogHeader>
+          {wizardBooking && (
+            <RentalStartWizard
+              booking={wizardBooking}
+              customer={customers.find(c => c.id === wizardBooking.customer_id) || null}
+              vehicle={vehicles.find(v => v.id === wizardBooking.vehicle_id) || null}
+              onComplete={handleWizardComplete}
+              onCancel={() => { setRentalWizardOpen(false); setWizardBooking(null); }}
+            />
           )}
         </DialogContent>
       </Dialog>

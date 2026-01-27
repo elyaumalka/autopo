@@ -30,6 +30,7 @@ import CollectionTasks from "@/pages/CollectionTasks";
 import GeneralTasks from "@/pages/GeneralTasks";
 import TrafficTickets from "@/pages/TrafficTickets";
 import Accidents from "@/pages/Accidents";
+import CalendarView from "@/components/calendar/CalendarView";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -79,6 +80,7 @@ const App = () => (
             <Route path="/general-tasks" element={<ProtectedRoute requireRole><MainLayout><GeneralTasks /></MainLayout></ProtectedRoute>} />
             <Route path="/traffic-tickets" element={<ProtectedRoute requireRole><MainLayout><TrafficTickets /></MainLayout></ProtectedRoute>} />
             <Route path="/accidents" element={<ProtectedRoute requireRole><MainLayout><Accidents /></MainLayout></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute requireRole><MainLayout><CalendarView /></MainLayout></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

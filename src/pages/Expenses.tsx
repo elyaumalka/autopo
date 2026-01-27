@@ -2,19 +2,29 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { DataTable } from "@/components/shared/DataTable";
+import { StatCard } from "@/components/shared/StatCard";
 import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Filter, TrendingDown } from "lucide-react";
-import { formatShortDate, formatCurrency } from "@/lib/formatters";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Receipt, TrendingDown, Edit, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
@@ -26,12 +36,12 @@ const expenseTypes = ["דלק", "טיפול", "ביטוח", "רישוי", "תי�
 const paymentMethods = ["מזומן", "אשראי", "צ׳ק", "העברה בנקאית"] as const;
 
 export default function Expenses() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [filterType, setFilterType] = useState("all");
   const queryClient = useQueryClient();
 
-  const { data: expenses, isLoading } = useQuery({
+  const { data: expenses = [], isLoading } = useQuery({
     queryKey: ["expenses"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,7 +53,7 @@ export default function Expenses() {
     },
   });
 
-  const { data: vehicles } = useQuery({
+  const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
       const { data, error } = await supabase.from("vehicles").select("*");
@@ -52,7 +62,7 @@ export default function Expenses() {
     },
   });
 
-  const createExpense = useMutation({
+  const createMutation = useMutation({
     mutationFn: async (expense: Partial<Expense>) => {
       const { data, error } = await supabase.from("expenses").insert(expense as any).select().single();
       if (error) throw error;
@@ -60,273 +70,305 @@ export default function Expenses() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
-      setDialogOpen(false);
-      toast({ title: "ההוצאה נוספה בהצלחה" });
+      setIsOpen(false);
+      setSelectedExpense(null);
+      toast({ title: "ההוצאה נשמרה בהצלחה" });
     },
     onError: (error) => {
-      toast({ title: "שגיאה בהוספת הוצאה", description: error.message, variant: "destructive" });
+      toast({ title: "שגיאה בשמירת הוצאה", description: error.message, variant: "destructive" });
     },
   });
 
-  const filteredExpenses = expenses?.filter((expense) => {
-    const matchesSearch =
-      expense.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.vehicle_details?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      expense.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = typeFilter === "all" || expense.type === typeFilter;
-    return matchesSearch && matchesType;
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Expense> }) => {
+      const { error } = await supabase.from("expenses").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      setIsOpen(false);
+      setSelectedExpense(null);
+      toast({ title: "ההוצאה עודכנה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה בעדכון הוצאה", description: error.message, variant: "destructive" });
+    },
   });
 
-  const totalAmount = filteredExpenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0;
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("expenses").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      toast({ title: "ההוצאה נמחקה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה במחיקת הוצאה", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const vehicle_id = formData.get("vehicle_id") as string || null;
+    const vehicle = vehicles.find((v) => v.id === vehicle_id);
+
+    const data: Partial<Expense> = {
+      date: formData.get("date") as string,
+      type: formData.get("type") as any,
+      amount: parseFloat(formData.get("amount") as string),
+      payment_method: (formData.get("payment_method") as any) || null,
+      description: (formData.get("description") as string) || null,
+      is_recurring: formData.get("is_recurring") === "on",
+      vehicle_id: vehicle_id || null,
+      vehicle_details: vehicle
+        ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`
+        : null,
+    };
+
+    if (selectedExpense) {
+      updateMutation.mutate({ id: selectedExpense.id, data });
+    } else {
+      createMutation.mutate(data);
+    }
+  };
+
+  // Calculate stats
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  const monthlyTotal = expenses
+    .filter((e) => {
+      const d = new Date(e.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    })
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const yearlyTotal = expenses
+    .filter((e) => new Date(e.date).getFullYear() === currentYear)
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const recurringTotal = expenses
+    .filter((e) => e.is_recurring)
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+  const filteredExpenses = filterType === "all" 
+    ? expenses 
+    : expenses.filter((e) => e.type === filterType);
+
+  const columns = [
+    {
+      header: "תאריך",
+      cell: (row: Expense) => row.date ? format(new Date(row.date), "dd/MM/yyyy") : "-",
+    },
+    {
+      header: "סוג",
+      cell: (row: Expense) => (
+        <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+          {row.type}
+        </span>
+      ),
+    },
+    {
+      header: "רכב",
+      accessor: "vehicle_details" as keyof Expense,
+    },
+    {
+      header: "תיאור",
+      accessor: "description" as keyof Expense,
+    },
+    {
+      header: "סכום",
+      cell: (row: Expense) => (
+        <span className="font-bold text-red-600">₪{row.amount?.toLocaleString() || 0}</span>
+      ),
+    },
+    {
+      header: "קבועה",
+      cell: (row: Expense) => row.is_recurring ? (
+        <span className="text-green-600">✓</span>
+      ) : null,
+    },
+    {
+      header: "פעולות",
+      cell: (row: Expense) => (
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setSelectedExpense(row);
+              setIsOpen(true);
+            }}
+          >
+            <Edit className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-red-500 hover:text-red-700"
+            onClick={() => deleteMutation.mutate(row.id)}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="הוצאות"
-        subtitle="ניהול וצפייה בהוצאות"
+        subtitle={`הוצאות החודש: ₪${monthlyTotal.toLocaleString()}`}
         action={
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="ml-2 h-4 w-4" />
-                הוסף הוצאה
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>הוספת הוצאה חדשה</DialogTitle>
-              </DialogHeader>
-              <ExpenseForm
-                vehicles={vehicles || []}
-                onSubmit={(data) => createExpense.mutate(data)}
-                isLoading={createExpense.isPending}
-              />
-            </DialogContent>
-          </Dialog>
+          <Button onClick={() => { setSelectedExpense(null); setIsOpen(true); }}>
+            הוצאה חדשה
+          </Button>
         }
       />
 
-      {/* Summary Card */}
-      <div className="mb-6 bg-white rounded-2xl border shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-red-100 rounded-xl">
-              <TrendingDown className="h-6 w-6 text-red-600" />
-            </div>
-            <span className="text-gray-600">סה"כ הוצאות (לפי סינון)</span>
-          </div>
-          <span className="text-2xl font-bold text-red-600">{formatCurrency(totalAmount)}</span>
-        </div>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatCard
+          title="הוצאות החודש"
+          value={`₪${monthlyTotal.toLocaleString()}`}
+          icon={TrendingDown}
+          color="red"
+        />
+        <StatCard
+          title="סה״כ שנתי"
+          value={`₪${yearlyTotal.toLocaleString()}`}
+          icon={Receipt}
+          color="orange"
+        />
+        <StatCard
+          title="הוצאות קבועות"
+          value={`₪${recurringTotal.toLocaleString()}`}
+          icon={Receipt}
+          color="purple"
+        />
       </div>
 
-      <div className="bg-white rounded-2xl border shadow-sm">
-        <div className="p-6 border-b">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                placeholder="חיפוש לפי תיאור, רכב או הערות..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pr-10"
+      {/* Filters */}
+      <div className="mb-6">
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="סינון לפי סוג" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">כל הסוגים</SelectItem>
+            {expenseTypes.map((type) => (
+              <SelectItem key={type} value={type}>{type}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : filteredExpenses.length > 0 ? (
+        <DataTable columns={columns} data={filteredExpenses} />
+      ) : (
+        <EmptyState title="לא נמצאו הוצאות" description="לא נמצאו הוצאות במערכת" />
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedExpense ? "עריכת הוצאה" : "הוצאה חדשה"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label>רכב</Label>
+              <Select name="vehicle_id" defaultValue={selectedExpense?.vehicle_id || ""}>
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר רכב (אופציונלי)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">ללא רכב</SelectItem>
+                  {vehicles.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.manufacturer} {v.model} - {v.license_plate}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>סוג *</Label>
+                <Select name="type" defaultValue={selectedExpense?.type || "אחר"}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {expenseTypes.map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>סכום *</Label>
+                <Input
+                  name="amount"
+                  type="number"
+                  defaultValue={selectedExpense?.amount || ""}
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>תאריך *</Label>
+                <Input
+                  name="date"
+                  type="date"
+                  defaultValue={selectedExpense?.date || format(new Date(), "yyyy-MM-dd")}
+                  required
+                />
+              </div>
+              <div>
+                <Label>אמצעי תשלום</Label>
+                <Select name="payment_method" defaultValue={selectedExpense?.payment_method || ""}>
+                  <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method} value={method}>{method}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>תיאור</Label>
+              <Textarea
+                name="description"
+                defaultValue={selectedExpense?.description || ""}
               />
             </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-48">
-                <Filter className="ml-2 h-4 w-4" />
-                <SelectValue placeholder="סוג הוצאה" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הסוגים</SelectItem>
-                {expenseTypes.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {type}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        <div className="p-6">
-          {isLoading ? (
-            <LoadingSpinner />
-          ) : filteredExpenses && filteredExpenses.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>תאריך</TableHead>
-                  <TableHead>סוג</TableHead>
-                  <TableHead>תיאור</TableHead>
-                  <TableHead>רכב</TableHead>
-                  <TableHead>אמצעי תשלום</TableHead>
-                  <TableHead>חוזר</TableHead>
-                  <TableHead>סכום</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredExpenses.map((expense) => (
-                  <TableRow key={expense.id}>
-                    <TableCell>{formatShortDate(expense.date)}</TableCell>
-                    <TableCell>
-                      <span className="rounded-full bg-red-100 px-2 py-1 text-xs text-red-800">
-                        {expense.type}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">{expense.description || "-"}</TableCell>
-                    <TableCell>{expense.vehicle_details || "-"}</TableCell>
-                    <TableCell>{expense.payment_method || "-"}</TableCell>
-                    <TableCell>{expense.is_recurring ? "✓" : "-"}</TableCell>
-                    <TableCell className="font-medium text-red-600">{formatCurrency(expense.amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <EmptyState title="אין הוצאות" description="לא נמצאו הוצאות במערכת" />
-          )}
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="is_recurring"
+                name="is_recurring"
+                defaultChecked={selectedExpense?.is_recurring || false}
+              />
+              <Label htmlFor="is_recurring">הוצאה קבועה/חוזרת</Label>
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" className="flex-1 bg-cyan-600 hover:bg-cyan-700">
+                {selectedExpense ? "עדכון" : "שמירה"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                ביטול
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
-}
-
-interface ExpenseFormProps {
-  vehicles: Vehicle[];
-  onSubmit: (data: Partial<Expense>) => void;
-  isLoading: boolean;
-}
-
-function ExpenseForm({ vehicles, onSubmit, isLoading }: ExpenseFormProps) {
-  const [formData, setFormData] = useState({
-    date: format(new Date(), "yyyy-MM-dd"),
-    type: "דלק" as typeof expenseTypes[number],
-    amount: "",
-    vehicle_id: "",
-    description: "",
-    payment_method: "אשראי" as typeof paymentMethods[number],
-    is_recurring: false,
-    notes: "",
-  });
-
-  const selectedVehicle = vehicles.find((v) => v.id === formData.vehicle_id);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast({ title: "נא להזין סכום תקין", variant: "destructive" });
-      return;
-    }
-    onSubmit({
-      date: formData.date,
-      type: formData.type,
-      amount: parseFloat(formData.amount),
-      vehicle_id: formData.vehicle_id || null,
-      vehicle_details: selectedVehicle
-        ? `${selectedVehicle.manufacturer} ${selectedVehicle.model} - ${selectedVehicle.license_plate}`
-        : null,
-      description: formData.description || null,
-      payment_method: formData.payment_method,
-      is_recurring: formData.is_recurring,
-      notes: formData.notes || null,
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>תאריך</Label>
-          <Input
-            type="date"
-            value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>סוג הוצאה</Label>
-          <Select value={formData.type} onValueChange={(v: any) => setFormData({ ...formData, type: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {expenseTypes.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>סכום</Label>
-          <Input
-            type="number"
-            placeholder="0"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>אמצעי תשלום</Label>
-          <Select value={formData.payment_method} onValueChange={(v: any) => setFormData({ ...formData, payment_method: v })}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {paymentMethods.map((method) => (
-                <SelectItem key={method} value={method}>
-                  {method}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>רכב (אופציונלי)</Label>
-          <Select value={formData.vehicle_id} onValueChange={(v) => setFormData({ ...formData, vehicle_id: v })}>
-            <SelectTrigger>
-              <SelectValue placeholder="בחר רכב" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">ללא רכב</SelectItem>
-              {vehicles.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.manufacturer} {v.model} - {v.license_plate}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label>תיאור</Label>
-          <Input
-            placeholder="תיאור ההוצאה"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          />
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="recurring"
-          checked={formData.is_recurring}
-          onCheckedChange={(checked) => setFormData({ ...formData, is_recurring: checked as boolean })}
-        />
-        <Label htmlFor="recurring">הוצאה חוזרת</Label>
-      </div>
-      <div className="space-y-2">
-        <Label>הערות</Label>
-        <Textarea
-          placeholder="הערות נוספות..."
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-        />
-      </div>
-      <div className="flex justify-end">
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "שומר..." : "שמור"}
-        </Button>
-      </div>
-    </form>
   );
 }

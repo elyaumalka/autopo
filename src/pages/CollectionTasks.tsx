@@ -3,12 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
+import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -17,458 +17,445 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Card, CardContent } from "@/components/ui/card";
-import { Banknote, Plus, Search, Pencil, Trash2, Phone, User } from "lucide-react";
+import { DollarSign, Phone, MessageSquare, Edit, Check, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { Tables, TablesInsert, Constants } from "@/integrations/supabase/types";
+import { Json } from "@/integrations/supabase/types";
 
 type CollectionTask = Tables<"collection_tasks">;
 type Customer = Tables<"customers">;
 
 const collectionStatuses = Constants.public.Enums.collection_status;
 
+interface CallHistoryItem {
+  date: string;
+  notes: string;
+}
+
 export default function CollectionTasks() {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<CollectionTask | null>(null);
+  const [callDialog, setCallDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<CollectionTask | null>(null);
 
-  const [formData, setFormData] = useState({
-    customer_id: "",
-    amount: "",
-    paid_amount: "",
-    reason: "",
-    debt_date: "",
-    payment_due_date: "",
-    reminder_date: "",
-    status: "פתוח" as typeof collectionStatuses[number],
-    notes: "",
-  });
-
-  const { data: tasks, isLoading } = useQuery({
-    queryKey: ["collection_tasks"],
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ["collectionTasks"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("collection_tasks")
         .select("*")
-        .order("payment_due_date", { ascending: true });
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data as CollectionTask[];
-    },
+    }
   });
 
-  const { data: customers } = useQuery({
+  const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("status", "פעיל")
-        .order("first_name");
+      const { data, error } = await supabase.from("customers").select("*");
       if (error) throw error;
       return data as Customer[];
-    },
+    }
   });
 
   const createMutation = useMutation({
-    mutationFn: async (task: TablesInsert<"collection_tasks">) => {
-      const { error } = await supabase.from("collection_tasks").insert(task);
+    mutationFn: async (data: TablesInsert<"collection_tasks">) => {
+      const { error } = await supabase.from("collection_tasks").insert(data);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["collectionTasks"] });
       toast({ title: "משימת גבייה נוצרה בהצלחה" });
-      handleCloseDialog();
+      setIsOpen(false);
+      setSelectedTask(null);
     },
     onError: () => {
       toast({ title: "שגיאה ביצירת משימה", variant: "destructive" });
-    },
+    }
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, ...task }: Partial<CollectionTask> & { id: string }) => {
-      const { error } = await supabase
-        .from("collection_tasks")
-        .update(task)
-        .eq("id", id);
+    mutationFn: async ({ id, data }: { id: string; data: Partial<CollectionTask> }) => {
+      const { error } = await supabase.from("collection_tasks").update(data).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["collectionTasks"] });
       toast({ title: "משימה עודכנה בהצלחה" });
-      handleCloseDialog();
+      setIsOpen(false);
+      setCallDialog(false);
+      setSelectedTask(null);
     },
     onError: () => {
       toast({ title: "שגיאה בעדכון משימה", variant: "destructive" });
-    },
+    }
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("collection_tasks")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
-      toast({ title: "משימה נמחקה בהצלחה" });
-    },
-    onError: () => {
-      toast({ title: "שגיאה במחיקת משימה", variant: "destructive" });
-    },
-  });
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingTask(null);
-    setFormData({
-      customer_id: "",
-      amount: "",
-      paid_amount: "",
-      reason: "",
-      debt_date: "",
-      payment_due_date: "",
-      reminder_date: "",
-      status: "פתוח",
-      notes: "",
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data: Record<string, unknown> = {};
+    formData.forEach((value, key) => {
+      data[key] = value;
     });
-  };
 
-  const handleEdit = (task: CollectionTask) => {
-    setEditingTask(task);
-    setFormData({
-      customer_id: task.customer_id || "",
-      amount: task.amount.toString(),
-      paid_amount: task.paid_amount?.toString() || "0",
-      reason: task.reason || "",
-      debt_date: task.debt_date || "",
-      payment_due_date: task.payment_due_date || "",
-      reminder_date: task.reminder_date || "",
-      status: task.status,
-      notes: task.notes || "",
-    });
-    setIsDialogOpen(true);
-  };
+    data.amount = parseFloat(data.amount as string);
+    if (data.paid_amount) data.paid_amount = parseFloat(data.paid_amount as string);
 
-  const handleSubmit = () => {
-    if (!formData.customer_id || !formData.amount) {
-      toast({ title: "נא למלא שדות חובה", variant: "destructive" });
-      return;
+    const customer = customers.find(c => c.id === data.customer_id);
+    if (customer) {
+      data.customer_name = `${customer.first_name} ${customer.last_name}`;
     }
 
-    const customer = customers?.find((c) => c.id === formData.customer_id);
-    const taskData = {
-      customer_id: formData.customer_id,
-      customer_name: customer
-        ? `${customer.first_name} ${customer.last_name}`
-        : null,
-      amount: parseFloat(formData.amount),
-      paid_amount: parseFloat(formData.paid_amount) || 0,
-      reason: formData.reason || null,
-      debt_date: formData.debt_date || null,
-      payment_due_date: formData.payment_due_date || null,
-      reminder_date: formData.reminder_date || null,
-      status: formData.status,
-      notes: formData.notes || null,
-    };
-
-    if (editingTask) {
-      updateMutation.mutate({ id: editingTask.id, ...taskData });
+    if (selectedTask) {
+      updateMutation.mutate({ id: selectedTask.id, data: data as Partial<CollectionTask> });
     } else {
-      createMutation.mutate(taskData);
+      createMutation.mutate(data as TablesInsert<"collection_tasks">);
     }
   };
 
-  const filteredTasks = tasks?.filter((task) => {
-    const matchesSearch =
-      task.customer_name?.includes(searchQuery) ||
-      task.reason?.includes(searchQuery);
-    const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const addCallNote = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedTask) return;
 
-  const getRemainingAmount = (task: CollectionTask) => {
-    return task.amount - (task.paid_amount || 0);
+    const formData = new FormData(e.currentTarget);
+    const notes = formData.get("notes") as string;
+
+    const existingHistory = selectedTask.call_history as unknown;
+    const callHistory: CallHistoryItem[] = Array.isArray(existingHistory) ? existingHistory : [];
+    callHistory.push({
+      date: format(new Date(), "yyyy-MM-dd HH:mm"),
+      notes
+    });
+
+    updateMutation.mutate({
+      id: selectedTask.id,
+      data: { call_history: callHistory as unknown as Json }
+    });
   };
 
-  if (isLoading) return <LoadingSpinner />;
+  const markPaid = (task: CollectionTask) => {
+    updateMutation.mutate({
+      id: task.id,
+      data: {
+        status: "נסגר",
+        paid_amount: task.amount
+      }
+    });
+  };
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="משימות גבייה"
-        subtitle="ניהול חובות וגביית תשלומים מלקוחות"
-        icon={Banknote}
-        action={
-          <Button onClick={() => setIsDialogOpen(true)}>
-            <Plus className="h-4 w-4 ml-2" />
-            משימה חדשה
-          </Button>
-        }
-      />
+  // Separate tasks by payment due date
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-      <div className="bg-white rounded-2xl border shadow-sm">
-        <div className="p-6 border-b">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="חיפוש..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-48">
-                <SelectValue placeholder="סטטוס" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">כל הסטטוסים</SelectItem>
-                {collectionStatuses.map((status) => (
-                  <SelectItem key={status} value={status}>
-                    {status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+  const urgentTasks = tasks.filter(t => {
+    if (t.status === "נסגר") return false;
+    if (!t.payment_due_date) return true; // No due date = show as urgent
+    const dueDate = new Date(t.payment_due_date);
+    return dueDate <= today;
+  });
+
+  const futureTasks = tasks.filter(t => {
+    if (t.status === "נסגר") return false;
+    if (!t.payment_due_date) return false;
+    const dueDate = new Date(t.payment_due_date);
+    return dueDate > today;
+  });
+
+  const filteredTasks = statusFilter === "all"
+    ? urgentTasks
+    : urgentTasks.filter(t => t.status === statusFilter);
+
+  const totalDebt = urgentTasks
+    .reduce((sum, t) => sum + ((t.amount || 0) - (t.paid_amount || 0)), 0);
+
+  const totalFutureIncome = futureTasks
+    .reduce((sum, t) => sum + ((t.amount || 0) - (t.paid_amount || 0)), 0);
+
+  const openCount = urgentTasks.filter(t => t.status === "פתוח").length;
+
+  const columns = [
+    {
+      header: "לקוח",
+      cell: (row: CollectionTask) => (
+        <div className="flex items-center gap-2">
+          <User className="w-4 h-4 text-muted-foreground" />
+          <div>
+            <p className="font-medium">{row.customer_name}</p>
+            <p className="text-sm text-muted-foreground">{row.vehicle_details}</p>
           </div>
         </div>
-        <div className="p-6">
-          {!filteredTasks?.length ? (
-            <EmptyState
-              icon={<Banknote className="h-8 w-8 text-gray-300" />}
-              title="אין משימות גבייה"
-              description="לא נמצאו משימות גבייה במערכת"
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>לקוח</TableHead>
-                    <TableHead>סכום חוב</TableHead>
-                    <TableHead>שולם</TableHead>
-                    <TableHead>נותר</TableHead>
-                    <TableHead>תאריך פירעון</TableHead>
-                    <TableHead>סיבה</TableHead>
-                    <TableHead>סטטוס</TableHead>
-                    <TableHead>פעולות</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTasks.map((task) => (
-                    <TableRow key={task.id} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-red-500" />
-                          {task.customer_name || "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-red-600 font-semibold">
-                        ₪{task.amount.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-green-600 font-medium">
-                        ₪{(task.paid_amount || 0).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="font-bold text-red-600">
-                        ₪{getRemainingAmount(task).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        {task.payment_due_date
-                          ? format(new Date(task.payment_due_date), "dd/MM/yyyy", {
-                              locale: he,
-                            })
-                          : "-"}
-                      </TableCell>
-                      <TableCell>{task.reason || "-"}</TableCell>
-                      <TableCell>
-                        <StatusBadge status={task.status} />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(task)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => deleteMutation.mutate(task.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+      )
+    },
+    {
+      header: "תאריך חוב",
+      cell: (row: CollectionTask) => row.debt_date ? format(new Date(row.debt_date), "dd/MM/yyyy") : "-"
+    },
+    {
+      header: "יעד תשלום",
+      cell: (row: CollectionTask) => {
+        if (!row.payment_due_date) return "-";
+        const dueDate = new Date(row.payment_due_date);
+        const isOverdue = dueDate < today;
+        return (
+          <span className={isOverdue ? "text-red-600 font-semibold" : ""}>
+            {format(dueDate, "dd/MM/yyyy")}
+          </span>
+        );
+      }
+    },
+    {
+      header: "סכום",
+      cell: (row: CollectionTask) => (
+        <span className="font-bold text-red-600">₪{row.amount?.toLocaleString() || 0}</span>
+      )
+    },
+    {
+      header: "שולם",
+      cell: (row: CollectionTask) => (
+        <span className="text-green-600">₪{row.paid_amount?.toLocaleString() || 0}</span>
+      )
+    },
+    {
+      header: "יתרה",
+      cell: (row: CollectionTask) => (
+        <span className="font-bold text-orange-600">
+          ₪{((row.amount || 0) - (row.paid_amount || 0)).toLocaleString()}
+        </span>
+      )
+    },
+    {
+      header: "סטטוס",
+      cell: (row: CollectionTask) => <StatusBadge status={row.status || "פתוח"} />
+    },
+    {
+      header: "פעולות",
+      cell: (row: CollectionTask) => (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setSelectedTask(row); setCallDialog(true); }}
+          >
+            <Phone className="w-4 h-4" />
+          </Button>
+          {row.status !== "נסגר" && (
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => markPaid(row)}
+            >
+              <Check className="w-4 h-4" />
+            </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { setSelectedTask(row); setIsOpen(true); }}
+          >
+            <Edit className="w-4 h-4" />
+          </Button>
         </div>
+      )
+    }
+  ];
+
+  return (
+    <div>
+      <PageHeader
+        title="משימות גבייה"
+        subtitle={`${openCount} פריטים פתוחים`}
+        action={() => { setSelectedTask(null); setIsOpen(true); }}
+        actionLabel="משימה חדשה"
+        actionIcon={DollarSign}
+      />
+
+      {/* Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <Card className="p-6 bg-red-50 border-red-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">גבייה דחופה</p>
+              <p className="text-3xl font-bold text-red-600">₪{totalDebt.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">תאריך תשלום עבר או לא הוגדר</p>
+            </div>
+            <DollarSign className="w-12 h-12 text-red-300" />
+          </div>
+        </Card>
+        <Card className="p-6 bg-blue-50 border-blue-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">הכנסות עתידיות</p>
+              <p className="text-3xl font-bold text-blue-600">₪{totalFutureIncome.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">תשלומים שטרם הגיע מועדם</p>
+            </div>
+            <DollarSign className="w-12 h-12 text-blue-300" />
+          </div>
+        </Card>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editingTask ? "עריכת משימת גבייה" : "משימת גבייה חדשה"}
-            </DialogTitle>
-          </DialogHeader>
+      <div className="mb-6">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">הכל</SelectItem>
+            {collectionStatuses.map(status => (
+              <SelectItem key={status} value={status}>{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+      <div className="mb-6">
+        <h3 className="font-semibold text-lg mb-3 text-red-600">התרעות גבייה - דורש טיפול מיידי</h3>
+        <DataTable
+          columns={columns}
+          data={filteredTasks}
+          isLoading={isLoading}
+          emptyMessage="אין משימות גבייה דחופות"
+        />
+      </div>
+
+      {futureTasks.length > 0 && (
+        <div>
+          <h3 className="font-semibold text-lg mb-3 text-blue-600">הכנסות עתידיות</h3>
+          <DataTable
+            columns={columns}
+            data={futureTasks}
+            isLoading={isLoading}
+            emptyMessage="אין הכנסות עתידיות"
+          />
+        </div>
+      )}
+
+      {/* Add/Edit Dialog */}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedTask ? "עריכת משימה" : "משימה חדשה"}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
               <Label>לקוח *</Label>
-              <Select
-                value={formData.customer_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, customer_id: value })
-                }
-              >
+              <Select name="customer_id" defaultValue={selectedTask?.customer_id || undefined}>
                 <SelectTrigger>
                   <SelectValue placeholder="בחר לקוח" />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers?.map((customer) => (
-                    <SelectItem key={customer.id} value={customer.id}>
-                      {customer.first_name} {customer.last_name} - {customer.phone}
+                  {customers.map(c => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.first_name} {c.last_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>סכום חוב *</Label>
+                <Input name="amount" type="number" defaultValue={selectedTask?.amount} required />
+              </div>
+              <div>
+                <Label>סכום ששולם</Label>
+                <Input name="paid_amount" type="number" defaultValue={selectedTask?.paid_amount || 0} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>תאריך חוב</Label>
+                <Input name="debt_date" type="date" defaultValue={selectedTask?.debt_date || ""} />
+              </div>
+              <div>
+                <Label>תאריך יעד לתשלום</Label>
+                <Input name="payment_due_date" type="date" defaultValue={selectedTask?.payment_due_date || ""} />
+                <p className="text-xs text-muted-foreground mt-1">אם לא מוגדר - יופיע כגבייה דחופה</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>סטטוס</Label>
+                <Select name="status" defaultValue={selectedTask?.status || "פתוח"}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {collectionStatuses.map(status => (
+                      <SelectItem key={status} value={status}>{status}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>תזכורת</Label>
+                <Input name="reminder_date" type="date" defaultValue={selectedTask?.reminder_date || ""} />
+              </div>
+            </div>
+            <div>
+              <Label>סיבת החוב</Label>
+              <Textarea name="reason" defaultValue={selectedTask?.reason || ""} />
+            </div>
+            <div className="flex gap-3 pt-4">
+              <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
+                {selectedTask ? "עדכון" : "יצירה"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+                ביטול
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-            <div className="space-y-2">
-              <Label>סטטוס</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({
-                    ...formData,
-                    status: value as typeof collectionStatuses[number],
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {collectionStatuses.map((status) => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {/* Call History Dialog */}
+      <Dialog open={callDialog} onOpenChange={setCallDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>היסטוריית שיחות - {selectedTask?.customer_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Existing calls */}
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {(() => {
+                const history = selectedTask?.call_history;
+                const callHistoryArr: CallHistoryItem[] = Array.isArray(history) 
+                  ? (history as unknown as CallHistoryItem[]) 
+                  : [];
+                return callHistoryArr.length > 0 ? (
+                  callHistoryArr.map((call, i) => (
+                    <div key={i} className="p-3 bg-muted rounded-lg">
+                      <p className="text-sm text-muted-foreground">{call.date}</p>
+                      <p>{call.notes}</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">אין שיחות קודמות</p>
+                );
+              })()}
             </div>
 
-            <div className="space-y-2">
-              <Label>סכום חוב *</Label>
-              <Input
-                type="number"
-                value={formData.amount}
-                onChange={(e) =>
-                  setFormData({ ...formData, amount: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>סכום ששולם</Label>
-              <Input
-                type="number"
-                value={formData.paid_amount}
-                onChange={(e) =>
-                  setFormData({ ...formData, paid_amount: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>תאריך החוב</Label>
-              <Input
-                type="date"
-                value={formData.debt_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, debt_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>תאריך פירעון</Label>
-              <Input
-                type="date"
-                value={formData.payment_due_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, payment_due_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>תאריך תזכורת</Label>
-              <Input
-                type="date"
-                value={formData.reminder_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, reminder_date: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>סיבה</Label>
-              <Input
-                value={formData.reason}
-                onChange={(e) =>
-                  setFormData({ ...formData, reason: e.target.value })
-                }
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label>הערות</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-              />
-            </div>
+            {/* Add new call */}
+            <form onSubmit={addCallNote} className="border-t pt-4">
+              <Label>הוסף הערה לשיחה</Label>
+              <Textarea name="notes" className="mt-2" placeholder="פרטי השיחה..." />
+              <div className="flex gap-3 mt-4">
+                <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
+                  <MessageSquare className="w-4 h-4 ml-2" />
+                  הוסף
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setCallDialog(false)}>
+                  סגור
+                </Button>
+              </div>
+            </form>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCloseDialog}>
-              ביטול
-            </Button>
-            <Button onClick={handleSubmit}>
-              {editingTask ? "עדכון" : "שמירה"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

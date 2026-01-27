@@ -69,32 +69,32 @@ export function DataTable<T extends { id?: string }>({
   return (
     <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
       <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-gray-50">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 border-b">
+            <tr>
               {columns.map((col, i) => (
-                <TableHead key={i} className="text-right font-semibold text-gray-700 whitespace-nowrap">
+                <th key={i} className="h-11 px-3 text-right align-middle font-semibold text-muted-foreground whitespace-nowrap">
                   {col.header}
-                </TableHead>
+                </th>
               ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody>
             {data.map((row, i) => (
-              <TableRow 
+              <tr 
                 key={row.id || i} 
                 onClick={() => onRowClick?.(row)}
-                className={onRowClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""}
+                className={`border-b transition-colors hover:bg-muted/50 ${onRowClick ? "cursor-pointer" : ""}`}
               >
                 {columns.map((col, j) => (
-                  <TableCell key={j} className="whitespace-nowrap text-right">
+                  <td key={j} className="px-3 py-3 align-middle text-right whitespace-nowrap">
                     {col.cell ? col.cell(row) : (col.accessor ? String(row[col.accessor] || "") : "")}
-                  </TableCell>
+                  </td>
                 ))}
-              </TableRow>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );

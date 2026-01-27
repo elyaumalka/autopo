@@ -6,7 +6,6 @@ import { LoadingSpinner } from "@/components/shared/LoadingSpinner";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -14,14 +13,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Plus, Search, List, CalendarDays, Phone, Car, User } from "lucide-react";
+import { Plus, Search, List, CalendarDays, Car, User } from "lucide-react";
 import { formatShortDate, formatCurrency, formatTime } from "@/lib/formatters";
 import { toast } from "@/hooks/use-toast";
-import { format, startOfWeek, endOfWeek, addDays, isSameDay, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { format, addDays } from "date-fns";
+import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import type { Database } from "@/integrations/supabase/types";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -32,7 +28,7 @@ export default function Bookings() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [activeTab, setActiveTab] = useState("calendar");
   const queryClient = useQueryClient();
 
   const { data: bookings, isLoading } = useQuery({
@@ -73,6 +69,7 @@ export default function Bookings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
       setDialogOpen(false);
       toast({ title: "ההזמנה נוצרה בהצלחה" });
     },
@@ -89,22 +86,13 @@ export default function Bookings() {
     return matchesSearch && matchesStatus;
   });
 
-  // Get week dates
-  const weekStart = startOfWeek(selectedDate, { locale: he });
-  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-
-  // Get bookings for week view
-  const weekBookings = bookings?.filter((b) => {
-    const start = parseISO(b.start_date);
-    const end = parseISO(b.end_date);
-    return weekDays.some((day) => start <= day && end >= day);
-  });
+  const bookingsCount = bookings?.length || 0;
 
   return (
     <div className="animate-fade-in">
       <PageHeader
         title="הזמנות"
-        subtitle="ניהול הזמנות השכרת רכב"
+        subtitle={`${bookingsCount} הזמנות`}
         action={
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -128,17 +116,23 @@ export default function Bookings() {
         }
       />
 
-      <Tabs defaultValue="list" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="list" className="gap-2">
-            <List className="h-4 w-4" />
-            רשימה
-          </TabsTrigger>
-          <TabsTrigger value="calendar" className="gap-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="bg-white border">
+          <TabsTrigger value="calendar" className="gap-2 data-[state=active]:bg-muted">
             <CalendarDays className="h-4 w-4" />
-            לוח שנה
+            תמונת מצב
+          </TabsTrigger>
+          <TabsTrigger value="list" className="gap-2 data-[state=active]:bg-muted">
+            <List className="h-4 w-4" />
+            רשימת הזמנות
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="calendar" className="mt-4">
+          <div className="bg-white rounded-2xl border shadow-sm p-6">
+            <BookingsCalendarView onNewBooking={() => setDialogOpen(true)} />
+          </div>
+        </TabsContent>
 
         <TabsContent value="list">
           <div className="bg-white rounded-2xl border shadow-sm">
@@ -211,146 +205,6 @@ export default function Bookings() {
               )}
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="calendar">
-          <div className="bg-white rounded-2xl border shadow-sm">
-            <div className="p-6 border-b">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg text-gray-900">לוח הזמנות שבועי</h3>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, -7))}>
-                    שבוע קודם
-                  </Button>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline">
-                        <CalendarIcon className="ml-2 h-4 w-4" />
-                        {format(selectedDate, "MMMM yyyy", { locale: he })}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => date && setSelectedDate(date)}
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>
-                    שבוע הבא
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-1">
-                {weekDays.map((day) => (
-                  <div key={day.toISOString()} className="text-center">
-                    <div className="rounded-t bg-gray-100 p-2 font-medium text-gray-700">
-                      {format(day, "EEEE", { locale: he })}
-                    </div>
-                    <div className={cn("border p-2 text-sm", isSameDay(day, new Date()) && "bg-cyan-50")}>
-                      {format(day, "d/M")}
-                    </div>
-                    <div className="min-h-[100px] space-y-1 border border-t-0 p-1">
-                      {weekBookings
-                        ?.filter((b) => {
-                          const start = parseISO(b.start_date);
-                          const end = parseISO(b.end_date);
-                          return start <= day && end >= day;
-                        })
-                        .map((b) => (
-                          <div
-                            key={b.id}
-                            className={cn(
-                              "rounded p-1 text-xs",
-                              b.status === "מאושר" && "bg-blue-100 text-blue-800",
-                              b.status === "פעיל" && "bg-green-100 text-green-800",
-                              b.status === "בוטל" && "bg-red-100 text-red-800",
-                              b.status === "ממתין" && "bg-yellow-100 text-yellow-800"
-                            )}
-                          >
-                            {b.customer_name}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="calendar">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>לוח הזמנות שבועי</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, -7))}>
-                    שבוע קודם
-                  </Button>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline">
-                        <CalendarIcon className="ml-2 h-4 w-4" />
-                        {format(selectedDate, "MMMM yyyy", { locale: he })}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        onSelect={(date) => date && setSelectedDate(date)}
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Button variant="outline" onClick={() => setSelectedDate(addDays(selectedDate, 7))}>
-                    שבוע הבא
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-7 gap-1">
-                {weekDays.map((day) => (
-                  <div key={day.toISOString()} className="text-center">
-                    <div className="rounded-t bg-muted p-2 font-medium">
-                      {format(day, "EEEE", { locale: he })}
-                    </div>
-                    <div className={cn("border p-2 text-sm", isSameDay(day, new Date()) && "bg-primary/10")}>
-                      {format(day, "d/M")}
-                    </div>
-                    <div className="min-h-[100px] space-y-1 border border-t-0 p-1">
-                      {weekBookings
-                        ?.filter((b) => {
-                          const start = parseISO(b.start_date);
-                          const end = parseISO(b.end_date);
-                          return start <= day && end >= day;
-                        })
-                        .map((b) => (
-                          <div
-                            key={b.id}
-                            className={cn(
-                              "rounded p-1 text-xs",
-                              b.status === "מאושר" && "bg-blue-100 text-blue-800",
-                              b.status === "פעיל" && "bg-green-100 text-green-800",
-                              b.status === "בוטל" && "bg-red-100 text-red-800",
-                              b.status === "ממתין" && "bg-yellow-100 text-yellow-800"
-                            )}
-                          >
-                            {b.customer_name}
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

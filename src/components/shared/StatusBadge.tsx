@@ -1,76 +1,67 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const statusBadgeVariants = cva(
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
-  {
-    variants: {
-      variant: {
-        // Vehicle statuses
-        זמין: "bg-green-100 text-green-800",
-        מושכר: "bg-blue-100 text-blue-800",
-        בטיפול: "bg-yellow-100 text-yellow-800",
-        תאונה: "bg-red-100 text-red-800",
-        "לא פעיל": "bg-gray-100 text-gray-800",
-        נמכר: "bg-purple-100 text-purple-800",
-        
-        // Booking/Rental statuses
-        ממתין: "bg-yellow-100 text-yellow-800",
-        מאושר: "bg-blue-100 text-blue-800",
-        פעיל: "bg-green-100 text-green-800",
-        הושלם: "bg-gray-100 text-gray-800",
-        בוטל: "bg-red-100 text-red-800",
-        
-        // Payment statuses
-        "לא שולם": "bg-red-100 text-red-800",
-        מקדמה: "bg-yellow-100 text-yellow-800",
-        שולם: "bg-green-100 text-green-800",
-        
-        // Customer statuses - using aliases
-        חסום: "bg-red-100 text-red-800",
-        
-        // Collection task statuses
-        פתוח: "bg-red-100 text-red-800",
-        נסגר: "bg-gray-100 text-gray-800",
-        חלקי: "bg-orange-100 text-orange-800",
-        
-        // Traffic ticket statuses
-        חדש: "bg-red-100 text-red-800",
-        "הועבר ללקוח": "bg-yellow-100 text-yellow-800",
-        בערעור: "bg-purple-100 text-purple-800",
-        
-        // Accident statuses
-        "בהמתנה לביטוח": "bg-orange-100 text-orange-800",
-        
-        // Priority
-        נמוכה: "bg-gray-100 text-gray-800",
-        בינונית: "bg-yellow-100 text-yellow-800",
-        גבוהה: "bg-orange-100 text-orange-800",
-        דחוף: "bg-red-100 text-red-800",
-        
-        // Default
-        default: "bg-gray-100 text-gray-800",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-);
+const statusStyles: Record<string, string> = {
+  // Booking/Rental statuses
+  "מאושר": "bg-blue-100 text-blue-800 border-blue-200",
+  "פעיל": "bg-green-100 text-green-800 border-green-200",
+  "הושלם": "bg-gray-100 text-gray-800 border-gray-200",
+  "בוטל": "bg-red-100 text-red-800 border-red-200",
+  "ממתין": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  
+  // Vehicle statuses
+  "זמין": "bg-green-100 text-green-800 border-green-200",
+  "מושכר": "bg-blue-100 text-blue-800 border-blue-200",
+  "בטיפול": "bg-orange-100 text-orange-800 border-orange-200",
+  "תאונה": "bg-red-100 text-red-800 border-red-200",
+  "לא פעיל": "bg-gray-100 text-gray-800 border-gray-200",
+  "נמכר": "bg-purple-100 text-purple-800 border-purple-200",
+  
+  // Payment statuses
+  "לא שולם": "bg-red-100 text-red-800 border-red-200",
+  "מקדמה": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "שולם": "bg-green-100 text-green-800 border-green-200",
+  
+  // Customer statuses
+  "חסום": "bg-red-100 text-red-800 border-red-200",
+  
+  // Task statuses
+  "בתהליך": "bg-blue-100 text-blue-800 border-blue-200",
+  
+  // Collection statuses
+  "פתוח": "bg-red-100 text-red-800 border-red-200",
+  "חלקי": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "נסגר": "bg-green-100 text-green-800 border-green-200",
+  
+  // Accident statuses
+  "בהמתנה לביטוח": "bg-purple-100 text-purple-800 border-purple-200",
+  
+  // Traffic ticket statuses
+  "חדש": "bg-red-100 text-red-800 border-red-200",
+  "הועבר ללקוח": "bg-yellow-100 text-yellow-800 border-yellow-200",
+  "בערעור": "bg-purple-100 text-purple-800 border-purple-200",
+  
+  // Priority
+  "נמוכה": "bg-gray-100 text-gray-800 border-gray-200",
+  "בינונית": "bg-blue-100 text-blue-800 border-blue-200",
+  "גבוהה": "bg-orange-100 text-orange-800 border-orange-200",
+  "דחוף": "bg-red-100 text-red-800 border-red-200",
+};
 
-export interface StatusBadgeProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof statusBadgeVariants> {
+export interface StatusBadgeProps {
   status: string;
+  className?: string;
 }
 
-export function StatusBadge({ status, className, ...props }: StatusBadgeProps) {
+export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const style = statusStyles[status] || "bg-gray-100 text-gray-800 border-gray-200";
+  
   return (
-    <span
-      className={cn(statusBadgeVariants({ variant: status as any }), className)}
-      {...props}
+    <Badge 
+      variant="outline" 
+      className={cn(style, "font-medium", className)}
     >
       {status}
-    </span>
+    </Badge>
   );
 }

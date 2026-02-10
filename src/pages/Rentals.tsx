@@ -84,7 +84,7 @@ export default function Rentals() {
 
   const openEndDialog = (rental: Rental) => {
     setSelectedRental(rental);
-    const vehicle = vehicles.find((v) => v.id === rental.vehicle_id);
+    const vehicle = findVehicleForRental(rental);
     setEndData({
       actual_end_date: format(new Date(), "yyyy-MM-dd"),
       actual_end_time: format(new Date(), "HH:mm"),
@@ -98,7 +98,7 @@ export default function Rentals() {
   const calculateCosts = () => {
     if (!selectedRental) return { extraKm: 0, extraKmCost: 0, totalCost: 0, remaining: 0 };
 
-    const vehicle = vehicles.find((v) => v.id === selectedRental.vehicle_id);
+    const vehicle = findVehicleForRental(selectedRental);
     const extraKm = Math.max(
       0,
       (endData.end_km || 0) - (selectedRental.start_km || 0) - (vehicle?.km_limit || 0)
@@ -111,11 +111,22 @@ export default function Rentals() {
     return { extraKm, extraKmCost, totalCost, remaining };
   };
 
+  const findVehicleForRental = (rental: Rental) => {
+    if (rental.vehicle_id) {
+      return vehicles.find((v) => v.id === rental.vehicle_id);
+    }
+    // Fallback: match by license plate from vehicle_details
+    if (rental.vehicle_details) {
+      return vehicles.find((v) => rental.vehicle_details?.includes(v.license_plate));
+    }
+    return undefined;
+  };
+
   const handleEndRental = async () => {
     if (!selectedRental) return;
 
     const costs = calculateCosts();
-    const vehicle = vehicles.find((v) => v.id === selectedRental.vehicle_id);
+    const vehicle = findVehicleForRental(selectedRental);
 
     try {
       // Update rental

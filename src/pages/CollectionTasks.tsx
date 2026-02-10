@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { DollarSign, Phone, MessageSquare, Edit, Check, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import { format } from "date-fns";
 import { Tables, TablesInsert, Constants } from "@/integrations/supabase/types";
 import { Json } from "@/integrations/supabase/types";
@@ -43,6 +44,7 @@ export default function CollectionTasks() {
   const [selectedTask, setSelectedTask] = useState<CollectionTask | null>(null);
   const [callDialog, setCallDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [collectionCustomerId, setCollectionCustomerId] = useState("");
   const queryClient = useQueryClient();
 
   const { data: tasks = [], isLoading } = useQuery({
@@ -110,7 +112,8 @@ export default function CollectionTasks() {
     data.amount = parseFloat(data.amount as string);
     if (data.paid_amount) data.paid_amount = parseFloat(data.paid_amount as string);
 
-    const customer = customers.find(c => c.id === data.customer_id);
+    data.customer_id = collectionCustomerId || null;
+    const customer = customers.find(c => c.id === collectionCustomerId);
     if (customer) {
       data.customer_name = `${customer.first_name} ${customer.last_name}`;
     }
@@ -259,7 +262,7 @@ export default function CollectionTasks() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => { setSelectedTask(row); setIsOpen(true); }}
+            onClick={() => { setSelectedTask(row); setCollectionCustomerId(row.customer_id || ""); setIsOpen(true); }}
           >
             <Edit className="w-4 h-4" />
           </Button>
@@ -273,7 +276,7 @@ export default function CollectionTasks() {
       <PageHeader
         title="משימות גבייה"
         subtitle={`${openCount} פריטים פתוחים`}
-        action={() => { setSelectedTask(null); setIsOpen(true); }}
+        action={() => { setSelectedTask(null); setCollectionCustomerId(""); setIsOpen(true); }}
         actionLabel="משימה חדשה"
         actionIcon={DollarSign}
       />
@@ -347,18 +350,12 @@ export default function CollectionTasks() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>לקוח *</Label>
-              <Select name="customer_id" defaultValue={selectedTask?.customer_id || undefined}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר לקוח" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerSearchSelect
+                customers={customers}
+                value={collectionCustomerId}
+                onValueChange={setCollectionCustomerId}
+                placeholder="בחר לקוח"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

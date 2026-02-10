@@ -24,6 +24,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertTriangle, Edit, Eye, Upload, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import { format } from "date-fns";
 import { Tables, TablesInsert, Constants } from "@/integrations/supabase/types";
 import { Json } from "@/integrations/supabase/types";
@@ -444,16 +445,12 @@ export default function Accidents() {
                     </div>
                     <div>
                       <Label>לקוח</Label>
-                      <Select name="customer_id" defaultValue={selectedAccident?.customer_id || undefined}>
-                        <SelectTrigger><SelectValue placeholder="בחר לקוח" /></SelectTrigger>
-                        <SelectContent>
-                          {customers.map(c => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.first_name} {c.last_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <CustomerSearchSelect
+                        customers={customers}
+                        value={(formData.customer_id as string) || selectedAccident?.customer_id || ""}
+                        onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
+                        placeholder="בחר לקוח"
+                      />
                     </div>
                   </div>
                   <div>

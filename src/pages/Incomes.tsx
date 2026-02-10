@@ -38,6 +38,7 @@ import {
 import { format, startOfYear, endOfYear, eachMonthOfInterval } from "date-fns";
 import { he } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Income = Tables<"incomes">;
@@ -383,19 +384,14 @@ export default function Incomes() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label>לקוח (אופציונלי)</Label>
-              <Select value={formCustomerId} onValueChange={setFormCustomerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר לקוח או השאר ריק" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">ללא לקוח</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerSearchSelect
+                customers={customers}
+                value={formCustomerId}
+                onValueChange={setFormCustomerId}
+                placeholder="בחר לקוח או השאר ריק"
+                showNone
+                noneLabel="ללא לקוח"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

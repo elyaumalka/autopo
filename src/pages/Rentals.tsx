@@ -22,11 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Car, User, Calendar, Check, XCircle, Eye, Trash2 } from "lucide-react";
+import { Search, Car, User, Calendar, Check, XCircle, Eye, Trash2, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
 import { format, differenceInDays } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
+import RentalEditDialog from "@/components/rentals/RentalEditDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Rental = Tables<"rentals">;
@@ -39,6 +40,7 @@ export default function Rentals() {
   const [endRentalDialog, setEndRentalDialog] = useState(false);
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [viewingRental, setViewingRental] = useState<Rental | null>(null);
+  const [editingRental, setEditingRental] = useState<Rental | null>(null);
   const [endData, setEndData] = useState({
     actual_end_date: "",
     actual_end_time: "",
@@ -268,6 +270,9 @@ export default function Rentals() {
           <Button size="sm" variant="outline" onClick={() => setViewingRental(row)}>
             <Eye className="w-4 h-4" />
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setEditingRental(row)}>
+            <Pencil className="w-4 h-4" />
+          </Button>
           {row.status === "פעיל" && (
             <Button
               size="sm"
@@ -388,6 +393,13 @@ export default function Rentals() {
         rental={viewingRental}
         isOpen={!!viewingRental}
         onClose={() => setViewingRental(null)}
+      />
+
+      {/* Rental Edit Dialog */}
+      <RentalEditDialog
+        rental={editingRental}
+        isOpen={!!editingRental}
+        onClose={() => setEditingRental(null)}
       />
 
       {/* End Rental Dialog */}

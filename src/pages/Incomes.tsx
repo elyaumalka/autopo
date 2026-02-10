@@ -133,7 +133,7 @@ export default function Incomes() {
       date: formData.get("date") as string,
       type: formType as any,
       payment_method: formPaymentMethod as any,
-      customer_id: formCustomerId || null,
+      customer_id: formCustomerId && formCustomerId !== "none" ? formCustomerId : null,
       customer_name: customer ? `${customer.first_name} ${customer.last_name}` : null,
     };
 
@@ -388,7 +388,7 @@ export default function Incomes() {
                   <SelectValue placeholder="בחר לקוח או השאר ריק" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">ללא לקוח</SelectItem>
+                  <SelectItem value="none">ללא לקוח</SelectItem>
                   {customers.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.first_name} {c.last_name}

@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowRight, ArrowLeft, Car, User, Clock, Phone, Trash2, Users, Calendar } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import { format, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
@@ -370,18 +371,12 @@ export default function DailySnapshot() {
 
               <div>
                 <Label>בחר לקוח חדש</Label>
-                <Select value={newCustomerId} onValueChange={setNewCustomerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר לקוח" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map(c => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.first_name} {c.last_name} - {c.phone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <CustomerSearchSelect
+                  customers={customers}
+                  value={newCustomerId}
+                  onValueChange={setNewCustomerId}
+                  placeholder="בחר לקוח"
+                />
               </div>
 
               <div className="flex gap-3 pt-4">

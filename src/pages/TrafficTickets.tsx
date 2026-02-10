@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { FileWarning, Car, Edit, Check, Trash2, Send, FileText, Download, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import type { Tables } from "@/integrations/supabase/types";
 
 type TrafficTicket = Tables<"traffic_tickets">;
@@ -556,21 +557,12 @@ export default function TrafficTickets() {
             )}
             <div>
               <Label>לקוח (נהג)</Label>
-              <Select 
+              <CustomerSearchSelect
+                customers={customers}
                 value={formData.customer_id}
                 onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר לקוח" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map(c => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="בחר לקוח"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

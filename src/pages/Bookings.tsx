@@ -30,6 +30,7 @@ import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import { toast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import type { Database } from "@/integrations/supabase/types";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -490,21 +491,12 @@ export default function Bookings() {
               <div className="space-y-4">
                 <div>
                   <Label>לקוח *</Label>
-                  <Select 
-                    value={formData.customer_id || ""} 
+                  <CustomerSearchSelect
+                    customers={customers}
+                    value={formData.customer_id || ""}
                     onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="בחר לקוח" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map(c => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.first_name} {c.last_name} - {c.phone}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="בחר לקוח"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

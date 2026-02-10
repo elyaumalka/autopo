@@ -111,6 +111,12 @@ export default function CollectionTasks() {
 
     data.amount = parseFloat(data.amount as string);
     if (data.paid_amount) data.paid_amount = parseFloat(data.paid_amount as string);
+    
+    // Convert empty date strings to null
+    const dateFields = ["debt_date", "payment_due_date", "reminder_date"];
+    dateFields.forEach(field => {
+      if (!data[field] || data[field] === "") data[field] = null;
+    });
 
     data.customer_id = collectionCustomerId || null;
     const customer = customers.find(c => c.id === collectionCustomerId);

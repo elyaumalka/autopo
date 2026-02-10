@@ -634,6 +634,7 @@ export type Database = {
           invoice_number: string | null
           notes: string | null
           paid_amount: number | null
+          photos: Json | null
           planned_end_date: string | null
           planned_end_time: string | null
           remaining_payment: number | null
@@ -665,6 +666,7 @@ export type Database = {
           invoice_number?: string | null
           notes?: string | null
           paid_amount?: number | null
+          photos?: Json | null
           planned_end_date?: string | null
           planned_end_time?: string | null
           remaining_payment?: number | null
@@ -696,6 +698,7 @@ export type Database = {
           invoice_number?: string | null
           notes?: string | null
           paid_amount?: number | null
+          photos?: Json | null
           planned_end_date?: string | null
           planned_end_time?: string | null
           remaining_payment?: number | null

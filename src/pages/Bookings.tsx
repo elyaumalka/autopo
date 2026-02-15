@@ -48,7 +48,7 @@ export default function Bookings() {
   const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
   const [activeTab, setActiveTab] = useState("calendar");
   const [quickBookingOpen, setQuickBookingOpen] = useState(false);
-  const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle } | null>(null);
+  const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle; defaultStartTime?: string } | null>(null);
   const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
   const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
   const queryClient = useQueryClient();
@@ -202,7 +202,7 @@ export default function Bookings() {
     }
   };
 
-  const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any) => {
+  const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => {
     if (booking) {
       // יש הזמנה קיימת - פתח לעריכה
       const existingBooking = bookings.find(b => 
@@ -219,7 +219,18 @@ export default function Bookings() {
       }
     } else {
       // תא ריק - פתח שריון מהיר
-      setQuickBookingData({ date: format(date, "yyyy-MM-dd"), vehicle });
+      // חישוב שעת התחלה ברירת מחדל לפי המשבצת
+      let defaultStartTime = "09:00";
+      if (slotInfo) {
+        if (slotInfo.slot === "pm") {
+          // משבצת אחה"צ - ברירת מחדל 16:00 או אחרי הזמנה קיימת
+          defaultStartTime = slotInfo.existingEndTime ? slotInfo.existingEndTime.slice(0, 5) : "16:00";
+        } else {
+          // משבצת בוקר - ברירת מחדל 09:00 או אחרי הזמנה קיימת
+          defaultStartTime = slotInfo.existingEndTime ? slotInfo.existingEndTime.slice(0, 5) : "09:00";
+        }
+      }
+      setQuickBookingData({ date: format(date, "yyyy-MM-dd"), vehicle, defaultStartTime });
       setQuickBookingOpen(true);
     }
   };
@@ -458,6 +469,7 @@ export default function Bookings() {
           date={quickBookingData.date}
           vehicle={quickBookingData.vehicle}
           customers={customers}
+          defaultStartTime={quickBookingData.defaultStartTime}
         />
       )}
 

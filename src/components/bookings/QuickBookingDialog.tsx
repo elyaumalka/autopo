@@ -36,6 +36,7 @@ interface QuickBookingDialogProps {
   date: string;
   vehicle: Vehicle | null;
   customers: Customer[];
+  defaultStartTime?: string;
 }
 
 interface BookingData {
@@ -59,12 +60,13 @@ export default function QuickBookingDialog({
   onSubmitAndStart, 
   date, 
   vehicle,
-  customers 
+  customers,
+  defaultStartTime = "10:00"
 }: QuickBookingDialogProps) {
   const [customerType, setCustomerType] = useState<"existing" | "new">("existing");
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState("");
-  const [startTime, setStartTime] = useState("10:00");
+  const [startTime, setStartTime] = useState(defaultStartTime);
   const [rentalType, setRentalType] = useState("24 שעות");
   const [customEndDate, setCustomEndDate] = useState("");
   const [customEndTime, setCustomEndTime] = useState("10:00");
@@ -120,6 +122,11 @@ export default function QuickBookingDialog({
       setCustomEndTime(calculateDefaultEndTime(rentalType, startTime));
     }
   }, [rentalType, startTime]);
+
+  // Sync startTime when defaultStartTime prop changes
+  React.useEffect(() => {
+    setStartTime(defaultStartTime);
+  }, [defaultStartTime]);
 
   const getBookingData = (): BookingData => {
     const selectedCustomer = customerType === "existing" 

@@ -32,7 +32,7 @@ type Rental = Database["public"]["Tables"]["rentals"]["Row"];
 
 interface BookingsCalendarViewProps {
   onNewBooking?: () => void;
-  onCellClick?: (date: Date, vehicle: Vehicle, booking?: any) => void;
+  onCellClick?: (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => void;
 }
 
 export default function BookingsCalendarView({ onNewBooking, onCellClick }: BookingsCalendarViewProps) {
@@ -391,10 +391,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string) => {
+                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
                     const handleClick = () => {
                       if (onCellClick) {
-                        onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined);
+                        onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
                       } else if (slotData.status === "free" && onNewBooking) {
                         onNewBooking();
                       }
@@ -436,7 +436,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                             </div>
                             <button
                               onClick={() => {
-                                if (onCellClick) onCellClick(day, vehicle, undefined);
+                                if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
                                 else if (onNewBooking) onNewBooking();
                               }}
                               className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
@@ -463,8 +463,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`)}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`)}
+                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
                     </React.Fragment>
                   );
                 })}

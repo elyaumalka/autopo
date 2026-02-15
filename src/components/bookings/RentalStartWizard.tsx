@@ -177,7 +177,7 @@ export default function RentalStartWizard({
     if (!customer.first_name || customer.first_name === "-") missingFields.push("שם פרטי");
     if (!customer.last_name || customer.last_name === "-") missingFields.push("שם משפחה");
     if (!customer.phone || customer.phone === "0000000000") missingFields.push("טלפון");
-    if (!customer.email) missingFields.push("אימייל");
+    
     if (!customer.license_front_url) missingFields.push("צילום רישיון (קדמי)");
     if (!customer.license_back_url) missingFields.push("צילום רישיון (אחורי)");
   }

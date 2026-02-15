@@ -33,6 +33,7 @@ const menuItems = [
   { name: "לוח שנה", page: "/calendar", icon: CalendarDays },
   { name: "תמונת מצב יומית", page: "/daily-snapshot", icon: Calendar },
   { name: "היסטוריית השכרות", page: "/rentals", icon: FileText },
+  { name: "מסמכים חתומים", page: "/documents", icon: FileText },
   { name: "לקוחות", page: "/customers", icon: Users },
   { name: "רכבים", page: "/vehicles", icon: Car },
   { 

@@ -9,12 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, DollarSign, Calendar, Car, User } from "lucide-react";
+import { FileText, DollarSign, Calendar, Car, User, ScrollText } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
+import DocumentsList from "@/components/shared/DocumentsList";
 
 type Rental = Tables<"rentals">;
 
@@ -84,6 +85,12 @@ export default function RentalDetailsDialog({
               <DollarSign className="h-4 w-4" />
               תשלומים
             </TabsTrigger>
+            {rental.booking_id && (
+              <TabsTrigger value="documents" className="gap-2">
+                <ScrollText className="h-4 w-4" />
+                מסמכים
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="details" className="space-y-4">
@@ -246,6 +253,16 @@ export default function RentalDetailsDialog({
                 </div>
               )}
           </TabsContent>
+
+          {rental.booking_id && (
+            <TabsContent value="documents" className="space-y-4">
+              <DocumentsList
+                bookingId={rental.booking_id}
+                customerName={rental.customer_name}
+                showActions={false}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>

@@ -31,6 +31,7 @@ import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
+import DocumentsList from "@/components/shared/DocumentsList";
 import type { Database } from "@/integrations/supabase/types";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -865,58 +866,11 @@ export default function Bookings() {
               {/* Documents Status */}
               <div className="border rounded-lg p-4">
                 <h3 className="font-semibold mb-4">מסמכים וחתימות</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-blue-600" />
-                      <span className="font-medium">חוזה השכרה</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {viewingBooking.contract_signed ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <span className="text-green-600 font-medium">נחתם</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">טרם נחתם</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-purple-600" />
-                      <span className="font-medium">תצהיר קבלת רכב</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {viewingBooking.declaration_signed ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <span className="text-green-600 font-medium">נחתם</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">טרם נחתם</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-muted rounded">
-                    <div className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-red-600" />
-                      <span className="font-medium">כתב ויתור</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {viewingBooking.waiver_signed ? (
-                        <>
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                          <span className="text-green-600 font-medium">נחתם</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">טרם נחתם</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                <DocumentsList
+                  bookingId={viewingBooking.id}
+                  customerPhone={customers.find(c => c.id === viewingBooking.customer_id)?.phone}
+                  customerName={viewingBooking.customer_name}
+                />
               </div>
 
               {/* Payment Info */}

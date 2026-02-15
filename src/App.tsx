@@ -36,6 +36,7 @@ import CalendarView from "@/components/calendar/CalendarView";
 import Sign from "@/pages/Sign";
 import SignDocument from "@/pages/SignDocument";
 import TabletSignatures from "@/pages/TabletSignatures";
+import Documents from "@/pages/Documents";
 import VehiclePhotos from "@/pages/VehiclePhotos";
 import NotFound from "@/pages/NotFound";
 
@@ -87,6 +88,7 @@ const App = () => (
             <Route path="/traffic-tickets" element={<ProtectedRoute requireRole><MainLayout><TrafficTickets /></MainLayout></ProtectedRoute>} />
             <Route path="/accidents" element={<ProtectedRoute requireRole><MainLayout><Accidents /></MainLayout></ProtectedRoute>} />
             <Route path="/highway-bills" element={<ProtectedRoute requireRole><MainLayout><HighwayBills /></MainLayout></ProtectedRoute>} />
+            <Route path="/documents" element={<ProtectedRoute requireRole><MainLayout><Documents /></MainLayout></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute requireRole><MainLayout><CalendarView /></MainLayout></ProtectedRoute>} />
 
             {/* Public pages */}

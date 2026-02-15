@@ -126,6 +126,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       status: string;
       rentalType: "daily" | "weekly" | "monthly";
       endTime?: string | null;
+      startTime?: string | null;
     };
   };
 
@@ -152,6 +153,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         status: "פעיל" as const,
         rentalType,
         endTime: rental.planned_end_time as string | null,
+        startTime: rental.start_time as string | null,
       };
 
       const startDate = parseISO(rental.start_date);
@@ -164,20 +166,22 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
     }
 
-    // Check bookings
-    const booking = bookings.find(b => {
+    // Check bookings - find ALL matching bookings for this day/vehicle
+    const matchingBookings = bookings.filter(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
       if (!matchById && !matchByDetails) return false;
+      if (b.status === "בוטל" || b.status === "הושלם") return false;
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
-    if (booking) {
+    // For each matching booking, check if it occupies THIS specific slot
+    for (const booking of matchingBookings) {
       const bookingType = getRentalType(booking.start_date, booking.end_date);
-      if (hideMonthly && bookingType === "monthly") return { status: "free" };
-      if (hideWeekly && bookingType === "weekly") return { status: "free" };
+      if (hideMonthly && bookingType === "monthly") continue;
+      if (hideWeekly && bookingType === "weekly") continue;
 
       const event = {
         type: "booking" as const,
@@ -185,6 +189,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         status: booking.status,
         rentalType: bookingType,
         endTime: booking.end_time as string | null,
+        startTime: booking.start_time as string | null,
       };
 
       const startDate = parseISO(booking.start_date);
@@ -194,7 +199,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       const startHour = parseHour(booking.start_time);
       const endHour = parseHour(booking.end_time);
 
-      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      const result = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      if (result.status !== "free") return result;
     }
 
     return { status: "free" };
@@ -401,7 +407,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                     };
 
                     if (slotData.status === "full" && slotData.event) {
-                      const timeStr = slotData.event.endTime ? slotData.event.endTime.slice(0, 5) : "";
+                      const sTime = slotData.event.startTime?.slice(0, 5);
+                      const eTime = slotData.event.endTime?.slice(0, 5);
+                      // Show the most informative time: for non-standard starts show start, otherwise show end
+                      const timeStr = (sTime && sTime !== "09:00" && sTime !== "10:00") ? sTime : (eTime || "");
                       return (
                         <td key={slotKey} className="border p-0 h-8">
                           <div

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Copy, Send, ExternalLink, Eye, FileText, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import DocumentContent from "@/components/signing/DocumentContent";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +28,7 @@ interface DocumentsListProps {
 export default function DocumentsList({ bookingId, customerPhone, customerName, showActions = true }: DocumentsListProps) {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewingSignature, setViewingSignature] = useState<string | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<any | null>(null);
 
   useEffect(() => {
     loadDocuments();
@@ -103,10 +104,10 @@ export default function DocumentsList({ bookingId, customerPhone, customerName, 
               )}
 
               <div className="flex gap-2 flex-wrap">
-                {isSigned && doc.signature_data && (
-                  <Button size="sm" variant="outline" onClick={() => setViewingSignature(doc.signature_data)}>
+                {isSigned && (
+                  <Button size="sm" variant="outline" onClick={() => setViewingDoc(doc)}>
                     <Eye className="w-3 h-3 ml-1" />
-                    צפה בחתימה
+                    צפה במסמך
                   </Button>
                 )}
                 {showActions && !isSigned && (
@@ -133,15 +134,34 @@ export default function DocumentsList({ bookingId, customerPhone, customerName, 
         })}
       </div>
 
-      {/* Signature preview dialog */}
-      <Dialog open={!!viewingSignature} onOpenChange={() => setViewingSignature(null)}>
-        <DialogContent className="max-w-md">
+      {/* Document preview dialog */}
+      <Dialog open={!!viewingDoc} onOpenChange={() => setViewingDoc(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
-            <DialogTitle>חתימה</DialogTitle>
+            <DialogTitle>{viewingDoc ? DOC_LABELS[viewingDoc.document_type] : "מסמך"}</DialogTitle>
           </DialogHeader>
-          {viewingSignature && (
-            <div className="border rounded-lg p-4 bg-white">
-              <img src={viewingSignature} alt="חתימה" className="w-full" />
+          {viewingDoc && (
+            <div className="space-y-4">
+              {/* Document content with filled details */}
+              <div className="border rounded-lg p-4 bg-white">
+                <DocumentContent
+                  documentType={viewingDoc.document_type}
+                  details={viewingDoc.rental_details || {}}
+                />
+              </div>
+
+              {/* Signature */}
+              {viewingDoc.signature_data && (
+                <div className="border rounded-lg p-4 bg-white space-y-2">
+                  <h3 className="font-semibold text-sm">חתימת הלקוח:</h3>
+                  <img src={viewingDoc.signature_data} alt="חתימה" className="w-full max-w-[300px] mx-auto" />
+                  {viewingDoc.signed_at && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      נחתם בתאריך: {new Date(viewingDoc.signed_at).toLocaleString("he-IL")}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

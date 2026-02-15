@@ -422,11 +422,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                     if (slotData.status === "partial" && slotData.event) {
                       return (
                         <td key={slotKey} className="border p-0 h-8">
-                          <div className="h-full flex">
+                          <div className="h-full flex flex-row-reverse">
                             <div
                               onClick={handleClick}
                               className={cn(
-                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border-l cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
                                 getStatusColor(slotData.event.status)
                               )}
                               title={`${slotData.event.customerName} - ${slotData.event.status}`}

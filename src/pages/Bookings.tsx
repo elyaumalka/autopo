@@ -207,12 +207,16 @@ export default function Bookings() {
   const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => {
     if (booking) {
       // יש הזמנה קיימת - פתח לעריכה
-      const existingBooking = bookings.find(b => 
-        b.vehicle_id === vehicle.id && 
-        b.start_date <= format(date, "yyyy-MM-dd") && 
-        b.end_date >= format(date, "yyyy-MM-dd") &&
-        b.status !== "בוטל" && b.status !== "הושלם"
-      );
+      // Use the booking ID passed from the calendar to find the exact booking
+      const existingBooking = booking.id 
+        ? bookings.find(b => b.id === booking.id)
+        : bookings.find(b => 
+            b.vehicle_id === vehicle.id && 
+            b.start_date <= format(date, "yyyy-MM-dd") && 
+            b.end_date >= format(date, "yyyy-MM-dd") &&
+            b.status !== "בוטל" && b.status !== "הושלם" &&
+            b.customer_name === booking.customerName
+          );
       if (existingBooking) {
         setSelectedBooking(existingBooking);
         setFormData(existingBooking);

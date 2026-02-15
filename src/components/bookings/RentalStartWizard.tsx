@@ -171,8 +171,32 @@ export default function RentalStartWizard({
     }
   };
 
+  // Check if customer details are incomplete
+  const missingFields: string[] = [];
+  if (customer) {
+    if (!customer.first_name || customer.first_name === "-") missingFields.push("שם פרטי");
+    if (!customer.last_name || customer.last_name === "-") missingFields.push("שם משפחה");
+    if (!customer.phone || customer.phone === "0000000000") missingFields.push("טלפון");
+    if (!customer.email) missingFields.push("אימייל");
+    if (!customer.license_front_url) missingFields.push("צילום רישיון (קדמי)");
+    if (!customer.license_back_url) missingFields.push("צילום רישיון (אחורי)");
+  }
+  const isCustomerIncomplete = missingFields.length > 0;
+
   return (
     <div className="space-y-6">
+      {/* Customer incomplete warning */}
+      {isCustomerIncomplete && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm space-y-2">
+          <p className="font-bold text-red-700">⚠️ יש להשלים את פרטי הלקוח לפני התחלת השכרה</p>
+          <p className="text-red-600">שדות חסרים:</p>
+          <ul className="list-disc list-inside text-red-600">
+            {missingFields.map(f => <li key={f}>{f}</li>)}
+          </ul>
+          <p className="text-red-600">נא לעדכן את פרטי הלקוח בעמוד <strong>לקוחות</strong> ולחזור.</p>
+        </div>
+      )}
+
       {/* Progress Steps */}
       <div className="flex items-center justify-center gap-2 mb-6">
         {[1, 2, 3].map((s) => (
@@ -360,7 +384,7 @@ export default function RentalStartWizard({
         </Button>
 
         {step < 3 ? (
-          <Button onClick={() => setStep(step + 1)} className="bg-cyan-600 hover:bg-cyan-700">
+          <Button onClick={() => setStep(step + 1)} className="bg-cyan-600 hover:bg-cyan-700" disabled={isCustomerIncomplete}>
             הבא
             <ChevronLeft className="w-4 h-4 mr-1" />
           </Button>

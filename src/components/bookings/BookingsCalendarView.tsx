@@ -286,7 +286,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
           <Button
             variant={viewMode === "weekly" ? "default" : "outline"}
             size="sm"
-            onClick={() => setViewMode("weekly")}
+            onClick={() => { setViewMode("weekly"); setVisibleDays(7); }}
           >
             שבועי
           </Button>

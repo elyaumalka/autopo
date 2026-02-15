@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Check, Loader2, Trash2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import logoImg from "@/assets/logo.jpg";
+import DocumentContent from "@/components/signing/DocumentContent";
 
 const DOC_LABELS: Record<string, string> = {
   contract: "חוזה השכרה",
@@ -11,11 +12,6 @@ const DOC_LABELS: Record<string, string> = {
   declaration: "תצהיר נהג",
 };
 
-const DOC_TEMPLATES: Record<string, string> = {
-  contract: "/templates/contract.pdf",
-  waiver: "/templates/waiver.pdf",
-  declaration: "/templates/declaration.pdf",
-};
 
 export default function SignDocument() {
   const [params] = useSearchParams();
@@ -214,7 +210,7 @@ export default function SignDocument() {
           </div>
         </div>
 
-        {/* PDF Preview */}
+        {/* Document Content */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="p-3 border-b">
             <h2 className="font-semibold text-gray-700 flex items-center gap-2">
@@ -222,11 +218,9 @@ export default function SignDocument() {
               תוכן המסמך
             </h2>
           </div>
-          <iframe
-            src={DOC_TEMPLATES[doc?.document_type] || ""}
-            className="w-full h-[400px]"
-            title="מסמך"
-          />
+          <div className="p-4 max-h-[500px] overflow-y-auto">
+            <DocumentContent documentType={doc?.document_type} details={details} />
+          </div>
         </div>
 
         {/* Signature */}

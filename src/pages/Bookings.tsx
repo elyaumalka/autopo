@@ -51,6 +51,7 @@ export default function Bookings() {
   const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle; defaultStartTime?: string } | null>(null);
   const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
   const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
+  const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -160,6 +161,7 @@ export default function Bookings() {
     setFormData({});
     setStep(1);
     setSelectedBooking(null);
+    setShowVehicleSwap(false);
   };
 
   const isVehicleAvailable = (vehicleId: string, startDate: string, endDate: string, excludeBookingId?: string) => {
@@ -571,37 +573,74 @@ export default function Bookings() {
 
             {step === 2 && (
               <div className="space-y-4">
-                <h3 className="font-semibold">רכבים זמינים בתאריכים הנבחרים</h3>
-                
-                {getAvailableVehicles().length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    אין רכבים זמינים בתאריכים אלו
-                  </div>
+                {selectedBooking && formData.vehicle_id && !showVehicleSwap ? (
+                  <>
+                    <h3 className="font-semibold">רכב משויך להזמנה</h3>
+                    {(() => {
+                      const currentVehicle = vehicles.find(v => v.id === formData.vehicle_id);
+                      return currentVehicle ? (
+                        <Card className="p-4 border-2 border-accent bg-accent/10">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{currentVehicle.manufacturer} {currentVehicle.model}</p>
+                              <p className="text-sm text-muted-foreground">{currentVehicle.license_plate} | {currentVehicle.vehicle_type}</p>
+                            </div>
+                            <div className="text-left">
+                              <p className="font-bold text-accent">₪{currentVehicle.daily_rate}/יום</p>
+                              <p className="text-sm text-muted-foreground">₪{currentVehicle.monthly_rate}/חודש</p>
+                            </div>
+                          </div>
+                        </Card>
+                      ) : null;
+                    })()}
+                    <Button variant="outline" onClick={() => setShowVehicleSwap(true)} className="w-full">
+                      החלפת רכב
+                    </Button>
+                  </>
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto">
-                    {getAvailableVehicles().map(vehicle => (
-                      <Card
-                        key={vehicle.id}
-                        className={`p-4 cursor-pointer transition-all ${
-                          formData.vehicle_id === vehicle.id 
-                            ? 'border-2 border-accent bg-accent/10' 
-                            : 'hover:border-accent/50'
-                        }`}
-                        onClick={() => setFormData({ ...formData, vehicle_id: vehicle.id })}
-                      >
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">{vehicle.manufacturer} {vehicle.model}</p>
-                            <p className="text-sm text-muted-foreground">{vehicle.license_plate} | {vehicle.vehicle_type}</p>
-                          </div>
-                          <div className="text-left">
-                            <p className="font-bold text-accent">₪{vehicle.daily_rate}/יום</p>
-                            <p className="text-sm text-muted-foreground">₪{vehicle.monthly_rate}/חודש</p>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
+                  <>
+                    <h3 className="font-semibold">
+                      {showVehicleSwap ? "בחר רכב חלופי" : "רכבים זמינים בתאריכים הנבחרים"}
+                    </h3>
+                    {showVehicleSwap && (
+                      <Button variant="ghost" size="sm" onClick={() => setShowVehicleSwap(false)}>
+                        ← חזרה לרכב הנוכחי
+                      </Button>
+                    )}
+                    {getAvailableVehicles().length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        אין רכבים זמינים בתאריכים אלו
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3 max-h-80 overflow-y-auto">
+                        {getAvailableVehicles().map(vehicle => (
+                          <Card
+                            key={vehicle.id}
+                            className={`p-4 cursor-pointer transition-all ${
+                              formData.vehicle_id === vehicle.id 
+                                ? 'border-2 border-accent bg-accent/10' 
+                                : 'hover:border-accent/50'
+                            }`}
+                            onClick={() => {
+                              setFormData({ ...formData, vehicle_id: vehicle.id });
+                              setShowVehicleSwap(false);
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="font-medium">{vehicle.manufacturer} {vehicle.model}</p>
+                                <p className="text-sm text-muted-foreground">{vehicle.license_plate} | {vehicle.vehicle_type}</p>
+                              </div>
+                              <div className="text-left">
+                                <p className="font-bold text-accent">₪{vehicle.daily_rate}/יום</p>
+                                <p className="text-sm text-muted-foreground">₪{vehicle.monthly_rate}/חודש</p>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 <div className="flex flex-col gap-3">

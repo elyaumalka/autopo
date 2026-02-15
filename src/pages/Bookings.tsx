@@ -789,7 +789,7 @@ export default function Bookings() {
                   </div>
                   {selectedBooking && selectedBooking.status !== "הושלם" && selectedBooking.status !== "בוטל" && (() => {
                     const cust = customers.find(c => c.id === (formData.customer_id || selectedBooking.customer_id));
-                    const incomplete = cust && (!cust.phone || cust.phone === "0000000000" || !cust.email || !cust.license_front_url || !cust.license_back_url);
+                    const incomplete = cust && (!cust.phone || cust.phone === "0000000000" || !cust.license_front_url || !cust.license_back_url);
                     return (
                       <>
                         {incomplete && (

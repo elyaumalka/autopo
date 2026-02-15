@@ -424,12 +424,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                             <div
                               onClick={handleClick}
                               className={cn(
-                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity truncate",
+                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
                                 getStatusColor(slotData.event.status)
                               )}
                               title={`${slotData.event.customerName} - ${slotData.event.status}`}
                             >
-                              {slotData.event.customerName.split(" ")[0]?.slice(0, 3)}
+                              <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
+                              {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
                             </div>
                             <button
                               onClick={() => {

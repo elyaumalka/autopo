@@ -1,12 +1,13 @@
-import { useState, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ChevronRight, ChevronLeft, Loader2, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Check, ChevronRight, ChevronLeft, Loader2, Trash2, Send, Copy, RefreshCw, FileText, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
@@ -23,6 +24,12 @@ interface RentalStartWizardProps {
   onCancel: () => void;
 }
 
+const DOC_LABELS: Record<string, string> = {
+  contract: "חוזה השכרה",
+  waiver: "כתב ויתור השתתפות עצמית",
+  declaration: "תצהיר נהג",
+};
+
 export default function RentalStartWizard({
   booking,
   customer,
@@ -37,6 +44,11 @@ export default function RentalStartWizard({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [signatureData, setSignatureData] = useState<string | null>(null);
 
+  // Document signing state
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [generatingDocs, setGeneratingDocs] = useState(false);
+
   const [formData, setFormData] = useState({
     start_km: vehicle?.current_km || 0,
     start_time: format(new Date(), "HH:mm"),
@@ -47,6 +59,98 @@ export default function RentalStartWizard({
     declaration_signed: false,
     waiver_signed: false,
   });
+
+  // Load existing documents when reaching step 2
+  useEffect(() => {
+    if (step === 2) {
+      loadDocuments();
+    }
+  }, [step]);
+
+  const loadDocuments = async () => {
+    setLoadingDocs(true);
+    try {
+      const { data, error } = await supabase
+        .from("document_signatures")
+        .select("*")
+        .eq("booking_id", booking.id);
+      
+      if (error) throw error;
+      setDocuments(data || []);
+
+      // Sync checkbox state with signed documents
+      if (data) {
+        const updates: Record<string, boolean> = {};
+        data.forEach((d: any) => {
+          if (d.status === "signed") {
+            if (d.document_type === "contract") updates.contract_signed = true;
+            if (d.document_type === "waiver") updates.waiver_signed = true;
+            if (d.document_type === "declaration") updates.declaration_signed = true;
+          }
+        });
+        if (Object.keys(updates).length > 0) {
+          setFormData(prev => ({ ...prev, ...updates }));
+        }
+      }
+    } catch (e) {
+      console.error("Error loading documents:", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const generateDocuments = async () => {
+    setGeneratingDocs(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sign-document", {
+        body: { action: "create", booking_id: booking.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setDocuments(Array.isArray(data) ? data : []);
+      toast({ title: "מסמכים נוצרו בהצלחה!" });
+    } catch (e: any) {
+      console.error("Error generating documents:", e);
+      toast({ title: "שגיאה ביצירת מסמכים", variant: "destructive" });
+    } finally {
+      setGeneratingDocs(false);
+    }
+  };
+
+  const getSigningUrl = (doc: any) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/sign-document?token=${doc.signing_token}`;
+  };
+
+  const copyLink = (doc: any) => {
+    navigator.clipboard.writeText(getSigningUrl(doc));
+    toast({ title: "הלינק הועתק!" });
+  };
+
+  const sendWhatsApp = (doc: any) => {
+    if (!customer?.phone) {
+      toast({ title: "אין מספר טלפון ללקוח", variant: "destructive" });
+      return;
+    }
+    const phone = customer.phone.replace(/^0/, "972");
+    const text = encodeURIComponent(
+      `שלום ${customer.first_name},\nנא לחתום על ${DOC_LABELS[doc.document_type]}:\n${getSigningUrl(doc)}`
+    );
+    window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+  };
+
+  const sendAllWhatsApp = () => {
+    if (!customer?.phone) {
+      toast({ title: "אין מספר טלפון ללקוח", variant: "destructive" });
+      return;
+    }
+    const phone = customer.phone.replace(/^0/, "972");
+    const links = documents.map(d => `• ${DOC_LABELS[d.document_type]}: ${getSigningUrl(d)}`).join("\n");
+    const text = encodeURIComponent(
+      `שלום ${customer.first_name},\nנא לחתום על המסמכים הבאים:\n\n${links}`
+    );
+    window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+  };
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     setIsDrawing(true);
@@ -108,7 +212,6 @@ export default function RentalStartWizard({
       const totalCost = formData.base_cost;
       const remainingPayment = totalCost - formData.paid_amount;
 
-      // Create rental
       const { error: rentalError } = await supabase.from("rentals").insert({
         booking_id: booking.id,
         customer_id: booking.customer_id,
@@ -131,7 +234,6 @@ export default function RentalStartWizard({
 
       if (rentalError) throw rentalError;
 
-      // Update booking status
       const { error: bookingError } = await supabase
         .from("bookings")
         .update({
@@ -144,7 +246,6 @@ export default function RentalStartWizard({
 
       if (bookingError) throw bookingError;
 
-      // Update vehicle status and km
       if (vehicle) {
         const { error: vehicleError } = await supabase
           .from("vehicles")
@@ -177,7 +278,6 @@ export default function RentalStartWizard({
     if (!customer.first_name || customer.first_name === "-") missingFields.push("שם פרטי");
     if (!customer.last_name || customer.last_name === "-") missingFields.push("שם משפחה");
     if (!customer.phone || customer.phone === "0000000000") missingFields.push("טלפון");
-    
     if (!customer.license_front_url) missingFields.push("צילום רישיון (קדמי)");
     if (!customer.license_back_url) missingFields.push("צילום רישיון (אחורי)");
   }
@@ -292,39 +392,123 @@ export default function RentalStartWizard({
       {/* Step 2: Documents */}
       {step === 2 && (
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">מסמכים לחתימה</h3>
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <Checkbox
-                checked={formData.contract_signed}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, contract_signed: !!checked })
-                }
-              />
-              <span>חוזה השכרה נחתם</span>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <Checkbox
-                checked={formData.declaration_signed}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, declaration_signed: !!checked })
-                }
-              />
-              <span>תצהיר קבלת רכב נחתם</span>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <Checkbox
-                checked={formData.waiver_signed}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, waiver_signed: !!checked })
-                }
-              />
-              <span>כתב ויתור נחתם</span>
-            </div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">מסמכים לחתימה</h3>
+            {documents.length === 0 ? (
+              <Button
+                size="sm"
+                onClick={generateDocuments}
+                disabled={generatingDocs}
+                className="bg-cyan-600 hover:bg-cyan-700"
+              >
+                {generatingDocs ? (
+                  <Loader2 className="w-4 h-4 ml-1 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 ml-1" />
+                )}
+                הפק מסמכים
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={loadDocuments}>
+                  <RefreshCw className="w-4 h-4 ml-1" />
+                  רענן
+                </Button>
+                <Button size="sm" variant="outline" onClick={sendAllWhatsApp}>
+                  <Send className="w-4 h-4 ml-1" />
+                  שלח הכל בוואטסאפ
+                </Button>
+              </div>
+            )}
           </div>
+
+          {loadingDocs ? (
+            <div className="text-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-cyan-600" />
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500 text-center py-4">
+                לחץ על "הפק מסמכים" כדי ליצור את המסמכים עם פרטי ההזמנה
+              </p>
+              {/* Fallback checkboxes */}
+              {["contract", "waiver", "declaration"].map((type) => {
+                const fieldKey = `${type === "contract" ? "contract" : type === "waiver" ? "waiver" : "declaration"}_signed` as keyof typeof formData;
+                return (
+                  <div key={type} className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                    <Checkbox
+                      checked={!!formData[fieldKey]}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, [fieldKey]: !!checked })
+                      }
+                    />
+                    <span>{DOC_LABELS[type]} נחתם</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {documents.map((doc) => {
+                const isSigned = doc.status === "signed";
+                const fieldKey = `${doc.document_type}_signed` as keyof typeof formData;
+                return (
+                  <div key={doc.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={isSigned || !!formData[fieldKey]}
+                          disabled={isSigned}
+                          onCheckedChange={(checked) =>
+                            setFormData({ ...formData, [fieldKey]: !!checked })
+                          }
+                        />
+                        <span className="font-medium">{DOC_LABELS[doc.document_type]}</span>
+                      </div>
+                      <Badge variant={isSigned ? "success" : "warning"}>
+                        {isSigned ? "נחתם ✓" : "ממתין לחתימה"}
+                      </Badge>
+                    </div>
+                    
+                    {!isSigned && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => copyLink(doc)}
+                        >
+                          <Copy className="w-3 h-3 ml-1" />
+                          העתק לינק
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => sendWhatsApp(doc)}
+                        >
+                          <Send className="w-3 h-3 ml-1" />
+                          וואטסאפ
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => window.open(getSigningUrl(doc), "_blank")}
+                        >
+                          <ExternalLink className="w-3 h-3 ml-1" />
+                          פתח
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {isSigned && doc.signed_at && (
+                      <p className="text-xs text-gray-500">
+                        נחתם בתאריך: {new Date(doc.signed_at).toLocaleString("he-IL")}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

@@ -342,6 +342,72 @@ export type Database = {
         }
         Relationships: []
       }
+      document_signatures: {
+        Row: {
+          booking_id: string
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          document_type: string
+          id: string
+          rental_details: Json | null
+          signature_data: string | null
+          signed_at: string | null
+          signed_pdf_url: string | null
+          signing_token: string
+          status: string
+          updated_at: string
+          vehicle_details: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          document_type: string
+          id?: string
+          rental_details?: Json | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_pdf_url?: string | null
+          signing_token?: string
+          status?: string
+          updated_at?: string
+          vehicle_details?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          document_type?: string
+          id?: string
+          rental_details?: Json | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_pdf_url?: string | null
+          signing_token?: string
+          status?: string
+          updated_at?: string
+          vehicle_details?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_signatures_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_signatures_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number

@@ -787,23 +787,33 @@ export default function Bookings() {
                       {selectedBooking ? "עדכון הזמנה" : "יצירת הזמנה"}
                     </Button>
                   </div>
-                  {selectedBooking && selectedBooking.status !== "הושלם" && selectedBooking.status !== "בוטל" && (
-                    <Button
-                      onClick={() => {
-                        // Save first, then open rental wizard
-                        handleSubmit();
-                        setTimeout(() => {
-                          setWizardBooking(selectedBooking);
-                          setRentalWizardOpen(true);
-                        }, 500);
-                      }}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      disabled={createMutation.isPending || updateMutation.isPending}
-                    >
-                      <CheckCircle className="w-4 h-4 ml-2" />
-                      שמור והתחל השכרה
-                    </Button>
-                  )}
+                  {selectedBooking && selectedBooking.status !== "הושלם" && selectedBooking.status !== "בוטל" && (() => {
+                    const cust = customers.find(c => c.id === (formData.customer_id || selectedBooking.customer_id));
+                    const incomplete = cust && (!cust.phone || cust.phone === "0000000000" || !cust.email || !cust.license_front_url || !cust.license_back_url);
+                    return (
+                      <>
+                        {incomplete && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                            ⚠️ לא ניתן להתחיל השכרה - יש להשלים פרטי לקוח (טלפון, אימייל, צילומי רישיון) בעמוד לקוחות
+                          </div>
+                        )}
+                        <Button
+                          onClick={() => {
+                            handleSubmit();
+                            setTimeout(() => {
+                              setWizardBooking(selectedBooking);
+                              setRentalWizardOpen(true);
+                            }, 500);
+                          }}
+                          className="w-full bg-green-600 hover:bg-green-700"
+                          disabled={createMutation.isPending || updateMutation.isPending || !!incomplete}
+                        >
+                          <CheckCircle className="w-4 h-4 ml-2" />
+                          שמור והתחל השכרה
+                        </Button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             )}

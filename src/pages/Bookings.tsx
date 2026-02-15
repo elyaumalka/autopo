@@ -673,15 +673,34 @@ export default function Bookings() {
                   />
                 </div>
 
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setStep(2)}>חזרה</Button>
-                  <Button 
-                    onClick={handleSubmit}
-                    className="flex-1"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                  >
-                    {selectedBooking ? "עדכון" : "יצירת הזמנה"}
-                  </Button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <Button variant="outline" onClick={() => setStep(2)}>חזרה</Button>
+                    <Button 
+                      onClick={handleSubmit}
+                      className="flex-1"
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                    >
+                      {selectedBooking ? "שמור שינויים" : "יצירת הזמנה"}
+                    </Button>
+                  </div>
+                  {selectedBooking && selectedBooking.status !== "הושלם" && selectedBooking.status !== "בוטל" && (
+                    <Button
+                      onClick={() => {
+                        // Save first, then open rental wizard
+                        handleSubmit();
+                        setTimeout(() => {
+                          setWizardBooking(selectedBooking);
+                          setRentalWizardOpen(true);
+                        }, 500);
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                    >
+                      <CheckCircle className="w-4 h-4 ml-2" />
+                      שמור והתחל השכרה
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

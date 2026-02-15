@@ -82,6 +82,7 @@ export default function QuickBookingDialog({
     );
   });
 
+  // Auto-calculate end date and time when rental type or start time changes
   const calculateEndDate = () => {
     if (!date) return "";
     const startDate = new Date(date);
@@ -102,13 +103,31 @@ export default function QuickBookingDialog({
     }
   };
 
+  const calculateDefaultEndTime = (type: string, start: string) => {
+    if (type === "חצי יום") {
+      // Half day: start + ~6 hours, cap at end of day
+      const h = parseInt(start.split(":")[0]) || 10;
+      const endH = Math.min(h + 6, 23);
+      return `${String(endH).padStart(2, "0")}:00`;
+    }
+    // For all other types, return time = start time
+    return start;
+  };
+
+  // Update end time automatically when rental type or start time changes
+  React.useEffect(() => {
+    if (rentalType !== "עד תאריך") {
+      setCustomEndTime(calculateDefaultEndTime(rentalType, startTime));
+    }
+  }, [rentalType, startTime]);
+
   const getBookingData = (): BookingData => {
     const selectedCustomer = customerType === "existing" 
       ? customers.find(c => c.id === customerId)
       : null;
 
-    // Calculate end time - use start time for standard rentals, custom for custom dates
-    const endTime = rentalType === "עד תאריך" ? customEndTime : startTime;
+    // Always use customEndTime (which is auto-calculated but editable)
+    const endTime = customEndTime;
 
     return {
       customer_id: customerId || null,
@@ -281,24 +300,14 @@ export default function QuickBookingDialog({
           </div>
 
           {rentalType === "עד תאריך" && (
-            <div className="space-y-3">
-              <div>
-                <Label>תאריך סיום</Label>
-                <Input
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  min={date}
-                />
-              </div>
-              <div>
-                <Label>שעת סיום</Label>
-                <Input
-                  type="time"
-                  value={customEndTime}
-                  onChange={(e) => setCustomEndTime(e.target.value)}
-                />
-              </div>
+            <div>
+              <Label>תאריך סיום</Label>
+              <Input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                min={date}
+              />
             </div>
           )}
 
@@ -307,6 +316,15 @@ export default function QuickBookingDialog({
               תאריך סיום משוער: {calculateEndDate() ? format(new Date(calculateEndDate()), "dd/MM/yyyy") : "-"}
             </div>
           )}
+
+          <div>
+            <Label>שעת החזרה</Label>
+            <Input
+              type="time"
+              value={customEndTime}
+              onChange={(e) => setCustomEndTime(e.target.value)}
+            />
+          </div>
 
           <div>
             <Label>מחיר</Label>

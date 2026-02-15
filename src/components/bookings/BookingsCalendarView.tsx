@@ -43,8 +43,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
   const [visibleDays, setVisibleDays] = useState(7);
 
   // Zoom controls - change number of visible days
-  const handleZoomIn = () => setVisibleDays((prev) => Math.max(prev - 1, 3));
-  const handleZoomOut = () => setVisibleDays((prev) => Math.min(prev + 1, 14));
+  const handleZoomIn = () => setVisibleDays((prev) => Math.min(prev + 1, 14));
+  const handleZoomOut = () => setVisibleDays((prev) => Math.max(prev - 1, 3));
 
   // Get date range based on visible days
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });

@@ -238,12 +238,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       const sh = startHour ?? 9;
       const eh = endHour ?? 16;
       if (slot === "am") {
+        // AM = 9-16. If booking doesn't touch AM at all, free. If it covers to 16 or beyond, full. Otherwise partial.
         if (sh >= 16 || eh <= 9) return { status: "free" };
-        if (sh <= 9 && eh >= 16) return { status: "full", event };
+        if (eh >= 16) return { status: "full", event };
         return { status: "partial", event };
       } else {
+        // PM = 16+. If end at 16 or before, PM is free. Otherwise partial.
         if (eh <= 16) return { status: "free" };
-        if (sh <= 16) return { status: "partial", event };
         return { status: "partial", event };
       }
     }

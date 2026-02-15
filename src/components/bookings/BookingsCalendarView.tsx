@@ -122,6 +122,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
     status: "full" | "partial" | "free";
     event?: {
       type: "rental" | "booking";
+      id?: string;
       customerName: string;
       status: string;
       rentalType: "daily" | "weekly" | "monthly";
@@ -149,6 +150,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
       const event = {
         type: "rental" as const,
+        id: rental.id,
         customerName: rental.customer_name || "לקוח",
         status: "פעיל" as const,
         rentalType,
@@ -185,6 +187,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
       const event = {
         type: "booking" as const,
+        id: booking.id,
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
         rentalType: bookingType,
@@ -225,8 +228,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         // AM = 9-16. If end at 16 or later, AM is fully occupied. If end before 9, free. Otherwise partial.
         return h < 9 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
       } else {
-        // PM = 16+. If end at 16 or before, PM is free. Otherwise partial.
-        return h <= 16 ? { status: "free" } : { status: "partial", event };
+        // PM = 16+. If end at 17 or before, PM is free (booking essentially ends in AM zone).
+        return h <= 17 ? { status: "free" } : { status: "partial", event };
       }
     }
 
@@ -250,8 +253,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         if (eh >= 16) return { status: "full", event };
         return { status: "partial", event };
       } else {
-        // PM = 16+. If end at 16 or before, PM is free. Otherwise partial.
-        if (eh <= 16) return { status: "free" };
+        // PM = 16+. If end at 17 or before, PM is free. Otherwise partial.
+        if (eh <= 17) return { status: "free" };
         return { status: "partial", event };
       }
     }

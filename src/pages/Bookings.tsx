@@ -241,38 +241,62 @@ export default function Bookings() {
     }
   };
 
+  const createCustomerIfNeeded = async (bookingData: any) => {
+    // If no customer_id but has a name, create a minimal customer record
+    if (!bookingData.customer_id && bookingData.customer_name) {
+      const nameParts = bookingData.customer_name.trim().split(/\s+/);
+      const firstName = nameParts[0] || bookingData.customer_name;
+      const lastName = nameParts.slice(1).join(" ") || "-";
+      
+      const { data: newCustomer, error } = await supabase
+        .from("customers")
+        .insert({
+          first_name: firstName,
+          last_name: lastName,
+          phone: "0000000000",
+          id_number: "0000",
+          notes: "לקוח חדש - יש להשלים פרטים",
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Error creating customer:", error);
+        toast({ title: "שגיאה ביצירת לקוח", description: error.message, variant: "destructive" });
+        return null;
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      bookingData.customer_id = newCustomer.id;
+      bookingData.customer_name = `${firstName} ${lastName}`;
+      return newCustomer;
+    }
+    return null;
+  };
+
   const handleQuickBookingSubmit = async (bookingData: any) => {
-    // בדיקת זמינות
     if (!isVehicleAvailable(bookingData.vehicle_id, bookingData.start_date, bookingData.end_date)) {
-      toast({ 
-        title: "הרכב תפוס", 
-        description: "הרכב כבר תפוס בתאריכים אלו. אנא בחר תאריכים אחרים.",
-        variant: "destructive"
-      });
+      toast({ title: "הרכב תפוס", description: "הרכב כבר תפוס בתאריכים אלו.", variant: "destructive" });
       return;
     }
     
+    await createCustomerIfNeeded(bookingData);
     await createMutation.mutateAsync(bookingData);
     setQuickBookingOpen(false);
     setQuickBookingData(null);
   };
 
   const handleQuickBookingSubmitAndStart = async (bookingData: any) => {
-    // בדיקת זמינות
     if (!isVehicleAvailable(bookingData.vehicle_id, bookingData.start_date, bookingData.end_date)) {
-      toast({ 
-        title: "הרכב תפוס", 
-        description: "הרכב כבר תפוס בתאריכים אלו. אנא בחר תאריכים אחרים.",
-        variant: "destructive"
-      });
+      toast({ title: "הרכב תפוס", description: "הרכב כבר תפוס בתאריכים אלו.", variant: "destructive" });
       return;
     }
     
+    await createCustomerIfNeeded(bookingData);
     const newBooking = await createMutation.mutateAsync(bookingData);
     setQuickBookingOpen(false);
     setQuickBookingData(null);
     
-    // פתיחת אשף התחלת השכרה
     setWizardBooking(newBooking);
     setRentalWizardOpen(true);
   };

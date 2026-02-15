@@ -260,7 +260,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       <div className="bg-white rounded-lg border overflow-x-auto">
         <table 
           className="w-full border-collapse"
-          style={{ minWidth: `${visibleDays * 130 + 140}px` }}
         >
           <thead>
             <tr className="bg-muted/50">
@@ -270,20 +269,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                   key={day.toISOString()}
                   colSpan={2}
                   className={cn(
-                    "border p-2 text-center min-w-[100px]",
+                    "border p-1 text-center",
                     isSameDay(day, new Date()) && "bg-accent/20"
                   )}
                 >
-                  <div className="font-medium text-sm">
+                  <div className="font-medium text-xs">
                     {format(day, "EEEE", { locale: he })}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-[10px] text-muted-foreground">
                     {format(day, "dd.MM")}
                   </div>
                 </th>
               ))}
               {/* Vehicle Column Header */}
-              <th className="border p-2 text-right min-w-[140px] sticky right-0 bg-muted/50">
+              <th className="border p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">
                 רכב
               </th>
             </tr>
@@ -291,10 +290,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
               {/* Time Slots Headers */}
               {weekDays.map((day) => (
                 <>
-                  <th key={`${day.toISOString()}-am`} className="border p-1 text-xs text-center w-[50px]">
+                  <th key={`${day.toISOString()}-am`} className="border p-0.5 text-[10px] text-center">
                     9-16
                   </th>
-                  <th key={`${day.toISOString()}-pm`} className="border p-1 text-xs text-center w-[50px]">
+                  <th key={`${day.toISOString()}-pm`} className="border p-0.5 text-[10px] text-center">
                     16-9
                   </th>
                 </>
@@ -320,13 +319,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                     <>
                       <td
                         key={`${day.toISOString()}-${vehicle.id}-am`}
-                        className="border p-0.5 h-10"
+                        className="border p-0 h-8"
                       >
                         {event ? (
                           <div
                             onClick={handleCellClick}
                             className={cn(
-                              "h-full rounded px-1.5 py-0.5 text-xs font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity",
+                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
                               getStatusColor(event.status)
                             )}
                             title={`${event.customerName} - ${event.status}`}
@@ -336,21 +335,21 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                         ) : (
                           <button
                             onClick={handleCellClick}
-                            className="h-full w-full flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-muted/30 transition-colors"
+                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-2.5 w-2.5" />
                           </button>
                         )}
                       </td>
                       <td
                         key={`${day.toISOString()}-${vehicle.id}-pm`}
-                        className="border p-0.5 h-10"
+                        className="border p-0 h-8"
                       >
                         {event ? (
                           <div
                             onClick={handleCellClick}
                             className={cn(
-                              "h-full rounded px-1.5 py-0.5 text-xs font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity",
+                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
                               getStatusColor(event.status)
                             )}
                             title={`${event.customerName} - ${event.status}`}
@@ -360,9 +359,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                         ) : (
                           <button
                             onClick={handleCellClick}
-                            className="h-full w-full flex items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 hover:bg-muted/30 transition-colors"
+                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
                           >
-                            <Plus className="h-3 w-3" />
+                            <Plus className="h-2.5 w-2.5" />
                           </button>
                         )}
                       </td>
@@ -370,10 +369,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                   );
                 })}
                 {/* Vehicle Info */}
-                <td className="border p-2 sticky right-0 bg-white">
+                <td className="border p-1 sticky right-0 bg-white">
                   <div className="text-right">
-                    <div className="font-medium text-sm">{vehicle.license_plate}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="font-medium text-xs">{vehicle.license_plate}</div>
+                    <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
                       {vehicle.manufacturer} {vehicle.model}
                     </div>
                   </div>

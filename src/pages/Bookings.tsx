@@ -550,7 +550,7 @@ export default function Bookings() {
                       disabled={updateMutation.isPending}
                       className="w-full"
                     >
-                      שמור שינויים
+                      עדכון הזמנה
                     </Button>
                   )}
                 </div>
@@ -610,7 +610,7 @@ export default function Bookings() {
                       disabled={updateMutation.isPending}
                       className="w-full"
                     >
-                      שמור שינויים
+                      עדכון הזמנה
                     </Button>
                   )}
                 </div>
@@ -705,7 +705,7 @@ export default function Bookings() {
                       className="flex-1"
                       disabled={createMutation.isPending || updateMutation.isPending}
                     >
-                      {selectedBooking ? "שמור שינויים" : "יצירת הזמנה"}
+                      {selectedBooking ? "עדכון הזמנה" : "יצירת הזמנה"}
                     </Button>
                   </div>
                   {selectedBooking && selectedBooking.status !== "הושלם" && selectedBooking.status !== "בוטל" && (

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -110,17 +110,30 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
     return "daily";
   };
 
-  // Get booking/rental for a specific vehicle and day
-  const getVehicleEvent = (vehicle: Vehicle, day: Date) => {
-    const dayStr = format(day, "yyyy-MM-dd");
-    
-    // Check active rentals first - match by vehicle_id OR vehicle_details containing license plate
+  // Parse hour from time string like "10:00" -> 10
+  const parseHour = (time: string | null | undefined): number | null => {
+    if (!time) return null;
+    const h = parseInt(time.split(":")[0]);
+    return isNaN(h) ? null : h;
+  };
+
+  type SlotResult = {
+    status: "full" | "partial" | "free";
+    event?: {
+      type: "rental" | "booking";
+      customerName: string;
+      status: string;
+      rentalType: "daily" | "weekly" | "monthly";
+    };
+  };
+
+  // Get slot status for a specific vehicle, day, and time slot (am=9-16, pm=16-9)
+  const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
+    // Check active rentals first
     const rental = rentals.find(r => {
       const matchById = r.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
-      
       if (!matchById && !matchByDetails) return false;
-      
       const start = parseISO(r.start_date);
       const end = r.planned_end_date ? parseISO(r.planned_end_date) : addDays(start, 30);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
@@ -128,26 +141,31 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
     if (rental) {
       const rentalType = getRentalType(rental.start_date, rental.planned_end_date);
-      
-      // Apply filters
-      if (hideMonthly && rentalType === "monthly") return null;
-      if (hideWeekly && rentalType === "weekly") return null;
-      
-      return {
+      if (hideMonthly && rentalType === "monthly") return { status: "free" };
+      if (hideWeekly && rentalType === "weekly") return { status: "free" };
+
+      const event = {
         type: "rental" as const,
         customerName: rental.customer_name || "לקוח",
         status: "פעיל" as const,
         rentalType,
       };
+
+      const startDate = parseISO(rental.start_date);
+      const endDate = rental.planned_end_date ? parseISO(rental.planned_end_date) : addDays(startDate, 30);
+      const isStartDay = isSameDay(day, startDate);
+      const isEndDay = isSameDay(day, endDate);
+      const endHour = parseHour(rental.planned_end_time) ?? parseHour(rental.start_time);
+      const startHour = parseHour(rental.start_time);
+
+      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
     }
 
-    // Check bookings - match by vehicle_id OR vehicle_details containing license plate
+    // Check bookings
     const booking = bookings.find(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
-      
       if (!matchById && !matchByDetails) return false;
-      
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
@@ -155,20 +173,77 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
     if (booking) {
       const bookingType = getRentalType(booking.start_date, booking.end_date);
-      
-      // Apply filters
-      if (hideMonthly && bookingType === "monthly") return null;
-      if (hideWeekly && bookingType === "weekly") return null;
-      
-      return {
+      if (hideMonthly && bookingType === "monthly") return { status: "free" };
+      if (hideWeekly && bookingType === "weekly") return { status: "free" };
+
+      const event = {
         type: "booking" as const,
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
         rentalType: bookingType,
       };
+
+      const startDate = parseISO(booking.start_date);
+      const endDate = parseISO(booking.end_date);
+      const isStartDay = isSameDay(day, startDate);
+      const isEndDay = isSameDay(day, endDate);
+      const startHour = parseHour(booking.start_time);
+      const endHour = parseHour(booking.end_time);
+
+      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
     }
 
-    return null;
+    return { status: "free" };
+  };
+
+  // Compute whether a slot is full, partial, or free based on start/end day and times
+  const computeSlot = (
+    slot: "am" | "pm",
+    isStartDay: boolean,
+    isEndDay: boolean,
+    startHour: number | null,
+    endHour: number | null,
+    event: SlotResult["event"]
+  ): SlotResult => {
+    // Middle day - fully occupied
+    if (!isStartDay && !isEndDay) return { status: "full", event };
+
+    // End day only
+    if (isEndDay && !isStartDay) {
+      const h = endHour ?? 16; // default end at 16:00
+      if (slot === "am") {
+        return h <= 9 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
+      } else {
+        return h <= 16 ? { status: "free" } : { status: "partial", event };
+      }
+    }
+
+    // Start day only
+    if (isStartDay && !isEndDay) {
+      const h = startHour ?? 9; // default start at 9:00
+      if (slot === "am") {
+        return h >= 16 ? { status: "free" } : h <= 9 ? { status: "full", event } : { status: "partial", event };
+      } else {
+        return { status: "full", event };
+      }
+    }
+
+    // Same day start+end
+    if (isStartDay && isEndDay) {
+      const sh = startHour ?? 9;
+      const eh = endHour ?? 16;
+      if (slot === "am") {
+        if (sh >= 16 || eh <= 9) return { status: "free" };
+        if (sh <= 9 && eh >= 16) return { status: "full", event };
+        return { status: "partial", event };
+      } else {
+        if (eh <= 16) return { status: "free" };
+        if (sh <= 16) return { status: "partial", event };
+        return { status: "partial", event };
+      }
+    }
+
+    return { status: "full", event };
   };
 
   // Get status color
@@ -306,66 +381,81 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
               <tr key={vehicle.id} className="hover:bg-muted/20">
                 {/* Day Cells - RTL order */}
                 {weekDays.map((day) => {
-                  const event = getVehicleEvent(vehicle, day);
-                  const handleCellClick = () => {
-                    if (onCellClick) {
-                      onCellClick(day, vehicle, event ? { ...event, type: event.type } : undefined);
-                    } else if (!event && onNewBooking) {
-                      onNewBooking();
+                  const amSlot = getSlotStatus(vehicle, day, "am");
+                  const pmSlot = getSlotStatus(vehicle, day, "pm");
+
+                  const renderSlot = (slotData: SlotResult, slotKey: string) => {
+                    const handleClick = () => {
+                      if (onCellClick) {
+                        onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined);
+                      } else if (slotData.status === "free" && onNewBooking) {
+                        onNewBooking();
+                      }
+                    };
+
+                    if (slotData.status === "full" && slotData.event) {
+                      return (
+                        <td key={slotKey} className="border p-0 h-8">
+                          <div
+                            onClick={handleClick}
+                            className={cn(
+                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
+                              getStatusColor(slotData.event.status)
+                            )}
+                            title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                          >
+                            {slotData.event.customerName.split(" ")[0]}
+                          </div>
+                        </td>
+                      );
                     }
+
+                    if (slotData.status === "partial" && slotData.event) {
+                      return (
+                        <td key={slotKey} className="border p-0 h-8">
+                          <div className="h-full flex">
+                            <div
+                              onClick={handleClick}
+                              className={cn(
+                                "w-1/2 h-full rounded-r px-0.5 text-[10px] font-medium flex items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity truncate",
+                                getStatusColor(slotData.event.status)
+                              )}
+                              title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                            >
+                              {slotData.event.customerName.split(" ")[0]?.charAt(0)}
+                            </div>
+                            <button
+                              onClick={() => {
+                                if (onCellClick) onCellClick(day, vehicle, undefined);
+                                else if (onNewBooking) onNewBooking();
+                              }}
+                              className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                            >
+                              <Plus className="h-2.5 w-2.5" />
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    // Free
+                    return (
+                      <td key={slotKey} className="border p-0 h-8">
+                        <button
+                          onClick={handleClick}
+                          className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      </td>
+                    );
                   };
 
                   return (
-                    <>
-                      <td
-                        key={`${day.toISOString()}-${vehicle.id}-am`}
-                        className="border p-0 h-8"
-                      >
-                        {event ? (
-                          <div
-                            onClick={handleCellClick}
-                            className={cn(
-                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
-                              getStatusColor(event.status)
-                            )}
-                            title={`${event.customerName} - ${event.status}`}
-                          >
-                            {event.customerName.split(" ")[0]}
-                          </div>
-                        ) : (
-                          <button
-                            onClick={handleCellClick}
-                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </td>
-                      <td
-                        key={`${day.toISOString()}-${vehicle.id}-pm`}
-                        className="border p-0 h-8"
-                      >
-                        {event ? (
-                          <div
-                            onClick={handleCellClick}
-                            className={cn(
-                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
-                              getStatusColor(event.status)
-                            )}
-                            title={`${event.customerName} - ${event.status}`}
-                          >
-                            {event.customerName.split(" ")[0]}
-                          </div>
-                        ) : (
-                          <button
-                            onClick={handleCellClick}
-                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </td>
-                    </>
+                    <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`)}
+                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`)}
+                    </React.Fragment>
                   );
                 })}
                 {/* Vehicle Info */}

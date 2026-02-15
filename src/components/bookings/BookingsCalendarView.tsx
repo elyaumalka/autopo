@@ -124,6 +124,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
       customerName: string;
       status: string;
       rentalType: "daily" | "weekly" | "monthly";
+      endTime?: string | null;
     };
   };
 
@@ -149,6 +150,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         customerName: rental.customer_name || "לקוח",
         status: "פעיל" as const,
         rentalType,
+        endTime: rental.planned_end_time as string | null,
       };
 
       const startDate = parseISO(rental.start_date);
@@ -181,6 +183,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
         rentalType: bookingType,
+        endTime: booking.end_time as string | null,
       };
 
       const startDate = parseISO(booking.start_date);
@@ -210,10 +213,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
     // End day only
     if (isEndDay && !isStartDay) {
-      const h = endHour ?? 16; // default end at 16:00
+      const h = endHour ?? 16;
       if (slot === "am") {
-        return h <= 9 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
+        // AM = 9-16. If end at 16 or later, AM is fully occupied. If end before 9, free. Otherwise partial.
+        return h < 9 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
       } else {
+        // PM = 16+. If end at 16 or before, PM is free. Otherwise partial.
         return h <= 16 ? { status: "free" } : { status: "partial", event };
       }
     }
@@ -394,17 +399,19 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                     };
 
                     if (slotData.status === "full" && slotData.event) {
+                      const timeStr = slotData.event.endTime ? slotData.event.endTime.slice(0, 5) : "";
                       return (
                         <td key={slotKey} className="border p-0 h-8">
                           <div
                             onClick={handleClick}
                             className={cn(
-                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity truncate",
+                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
                               getStatusColor(slotData.event.status)
                             )}
-                            title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                            title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""}`}
                           >
-                            {slotData.event.customerName.split(" ")[0]}
+                            <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
+                            {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
                           </div>
                         </td>
                       );
@@ -417,12 +424,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                             <div
                               onClick={handleClick}
                               className={cn(
-                                "w-1/2 h-full rounded-r px-0.5 text-[10px] font-medium flex items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity truncate",
+                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex items-center justify-center border-r cursor-pointer hover:opacity-80 transition-opacity truncate",
                                 getStatusColor(slotData.event.status)
                               )}
                               title={`${slotData.event.customerName} - ${slotData.event.status}`}
                             >
-                              {slotData.event.customerName.split(" ")[0]?.charAt(0)}
+                              {slotData.event.customerName.split(" ")[0]?.slice(0, 3)}
                             </div>
                             <button
                               onClick={() => {

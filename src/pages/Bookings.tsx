@@ -534,14 +534,26 @@ export default function Bookings() {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={() => setStep(2)}
-                  disabled={!formData.customer_id || !formData.start_date || !formData.end_date}
-                  className="w-full"
-                >
-                  המשך
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button 
+                    onClick={() => setStep(2)}
+                    disabled={!formData.customer_id || !formData.start_date || !formData.end_date}
+                    className="w-full"
+                  >
+                    המשך
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                  </Button>
+                  {selectedBooking && (
+                    <Button
+                      variant="outline"
+                      onClick={handleSubmit}
+                      disabled={updateMutation.isPending}
+                      className="w-full"
+                    >
+                      שמור שינויים
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -580,15 +592,27 @@ export default function Bookings() {
                   </div>
                 )}
 
-                <div className="flex gap-3">
-                  <Button variant="outline" onClick={() => setStep(1)}>חזרה</Button>
-                  <Button 
-                    onClick={() => setStep(3)}
-                    disabled={!formData.vehicle_id}
-                    className="flex-1"
-                  >
-                    המשך
-                  </Button>
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <Button variant="outline" onClick={() => setStep(1)}>חזרה</Button>
+                    <Button 
+                      onClick={() => setStep(3)}
+                      disabled={!formData.vehicle_id}
+                      className="flex-1"
+                    >
+                      המשך
+                    </Button>
+                  </div>
+                  {selectedBooking && (
+                    <Button
+                      variant="outline"
+                      onClick={handleSubmit}
+                      disabled={updateMutation.isPending}
+                      className="w-full"
+                    >
+                      שמור שינויים
+                    </Button>
+                  )}
                 </div>
               </div>
             )}

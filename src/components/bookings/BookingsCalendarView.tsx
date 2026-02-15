@@ -371,11 +371,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
               {/* Time Slots Headers */}
               {weekDays.map((day) => (
                 <>
-                  <th key={`${day.toISOString()}-am`} className="border p-0.5 text-[10px] text-center">
-                    9-16
-                  </th>
                   <th key={`${day.toISOString()}-pm`} className="border p-0.5 text-[10px] text-center">
                     16-9
+                  </th>
+                  <th key={`${day.toISOString()}-am`} className="border p-0.5 text-[10px] text-center">
+                    9-16
                   </th>
                 </>
               ))}
@@ -462,8 +462,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`)}
                       {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`)}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`)}
                     </React.Fragment>
                   );
                 })}

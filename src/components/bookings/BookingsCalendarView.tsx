@@ -73,7 +73,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         .from("bookings")
         .select("*")
         .lte("start_date", format(weekEnd, "yyyy-MM-dd"))
-        .gte("end_date", format(weekStart, "yyyy-MM-dd"));
+        .gte("end_date", format(weekStart, "yyyy-MM-dd"))
+        .order("updated_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },

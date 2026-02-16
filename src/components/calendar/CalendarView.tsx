@@ -198,21 +198,22 @@ export default function CalendarView() {
   };
 
   const navigateToEvent = (event: CalendarEvent) => {
+    const id = event.id || "";
     switch (event.type) {
       case "rental":
-        navigate("/rentals");
+        navigate(`/rentals?edit=${id}`);
         break;
       case "booking":
-        navigate("/bookings");
+        navigate(`/bookings?edit=${id}`);
         break;
       case "maintenance":
-        navigate("/maintenance-tasks");
+        navigate(`/maintenance-tasks?edit=${id}`);
         break;
       case "collection":
-        navigate("/collection-tasks");
+        navigate(`/collection-tasks?edit=${id}`);
         break;
       case "general":
-        navigate("/general-tasks");
+        navigate(`/general-tasks?edit=${id}`);
         break;
     }
     setSelectedEvent(null);

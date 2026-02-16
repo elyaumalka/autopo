@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -35,6 +36,7 @@ type Vehicle = Tables<"vehicles">;
 
 export default function Rentals() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [endRentalDialog, setEndRentalDialog] = useState(false);
@@ -69,6 +71,18 @@ export default function Rentals() {
       return data as Vehicle[];
     },
   });
+
+  // Auto-open edit dialog from URL params (e.g. from calendar)
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && rentals.length > 0) {
+      const rental = rentals.find(r => r.id === editId);
+      if (rental) {
+        setEditingRental(rental);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [rentals, searchParams, setSearchParams]);
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {

@@ -2,13 +2,13 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, addWeeks, subWeeks, isWithinInterval, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ChevronRight, ChevronLeft, Car, Wrench, DollarSign, CheckSquare, Search, X, Eye, Pencil } from "lucide-react";
+import { ChevronRight, ChevronLeft, Car, Wrench, DollarSign, CheckSquare, Search, X, Eye, Pencil, CalendarDays } from "lucide-react";
 import { motion } from "framer-motion";
 import {
   Dialog,
@@ -27,6 +27,17 @@ interface CalendarEvent {
   raw?: any;
 }
 
+type ViewMode = "week" | "month";
+type EventType = "rental" | "booking" | "maintenance" | "collection" | "general";
+
+const EVENT_TYPE_CONFIG: Record<EventType, { label: string; colorDot: string }> = {
+  rental: { label: "השכרות פעילות", colorDot: "bg-blue-200" },
+  booking: { label: "הזמנות", colorDot: "bg-cyan-200" },
+  maintenance: { label: "משימות תפעול", colorDot: "bg-orange-200" },
+  collection: { label: "גבייה", colorDot: "bg-red-200" },
+  general: { label: "משימות כלליות", colorDot: "bg-purple-200" },
+};
+
 export default function CalendarView() {
   const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -35,6 +46,8 @@ export default function CalendarView() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [activeTypes, setActiveTypes] = useState<Set<EventType>>(new Set(["rental", "booking", "maintenance", "collection", "general"]));
 
   const { data: rentals = [] } = useQuery({
     queryKey: ["rentals"],
@@ -96,9 +109,13 @@ export default function CalendarView() {
     }
   });
 
+  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn: 0 });
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const days = viewMode === "week"
+    ? eachDayOfInterval({ start: weekStart, end: weekEnd })
+    : eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const matchesSearch = (event: CalendarEvent) => {
     if (!searchTerm) return true;
@@ -188,9 +205,24 @@ export default function CalendarView() {
       });
     });
 
-    return events.filter(matchesSearch);
+    return events.filter(e => activeTypes.has(e.type as EventType)).filter(matchesSearch);
   };
 
+  const toggleType = (type: EventType) => {
+    setActiveTypes(prev => {
+      const next = new Set(prev);
+      if (next.has(type)) { next.delete(type); } else { next.add(type); }
+      return next;
+    });
+  };
+
+  // Count all events (unfiltered) for legend badges
+  const totalCounts: Record<EventType, number> = { rental: 0, booking: 0, maintenance: 0, collection: 0, general: 0 };
+  rentals.forEach(() => totalCounts.rental++);
+  bookings.forEach(() => totalCounts.booking++);
+  maintenanceTasks.forEach(() => totalCounts.maintenance++);
+  collectionTasks.forEach(() => totalCounts.collection++);
+  generalTasks.forEach(() => totalCounts.general++);
   const selectedEvents = getEventsForDay(selectedDate);
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -231,9 +263,54 @@ export default function CalendarView() {
 
   return (
     <div>
-      <PageHeader title="לוח שנה" subtitle="תצוגה חודשית" />
+      <PageHeader title="לוח שנה" subtitle={viewMode === "week" ? "תצוגה שבועית" : "תצוגה חודשית"} />
 
-      {/* Filters */}
+      {/* View Mode + Today */}
+      <div className="flex flex-wrap gap-2 mb-3 items-center">
+        <div className="flex gap-1 border rounded-lg p-0.5">
+          <Button
+            size="sm"
+            variant={viewMode === "week" ? "default" : "ghost"}
+            onClick={() => setViewMode("week")}
+            className="text-xs h-7"
+          >
+            שבועי
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === "month" ? "default" : "ghost"}
+            onClick={() => setViewMode("month")}
+            className="text-xs h-7"
+          >
+            חודשי
+          </Button>
+        </div>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setCurrentDate(new Date()); setSelectedDate(new Date()); }}>
+          <CalendarDays className="w-3 h-3 ml-1" />
+          היום
+        </Button>
+      </div>
+
+      {/* Type Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(Object.entries(EVENT_TYPE_CONFIG) as [EventType, typeof EVENT_TYPE_CONFIG[EventType]][]).map(([type, config]) => (
+          <button
+            key={type}
+            onClick={() => toggleType(type)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              activeTypes.has(type)
+                ? `${config.colorDot} border-border`
+                : 'bg-muted/30 border-transparent text-muted-foreground opacity-50'
+            }`}
+          >
+            <div className={`w-2.5 h-2.5 rounded-full ${config.colorDot}`} />
+            {config.label}
+            <span className="bg-background/60 rounded-full px-1.5 text-[10px]">{totalCounts[type]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search & Date Filters */}
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -245,21 +322,9 @@ export default function CalendarView() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="w-[150px]"
-            placeholder="מתאריך"
-          />
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
           <span className="text-muted-foreground text-sm">עד</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="w-[150px]"
-            placeholder="עד תאריך"
-          />
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
         </div>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -274,13 +339,15 @@ export default function CalendarView() {
         <Card className="lg:col-span-2 p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(subMonths(currentDate, 1))}>
+            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(viewMode === "week" ? subWeeks(currentDate, 1) : subMonths(currentDate, 1))}>
               <ChevronRight className="w-5 h-5" />
             </Button>
             <h2 className="text-xl font-bold">
-              {format(currentDate, "MMMM yyyy", { locale: he })}
+              {viewMode === "week"
+                ? `${format(weekStart, "d MMM", { locale: he })} - ${format(weekEnd, "d MMM yyyy", { locale: he })}`
+                : format(currentDate, "MMMM yyyy", { locale: he })}
             </h2>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addMonths(currentDate, 1))}>
+            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(viewMode === "week" ? addWeeks(currentDate, 1) : addMonths(currentDate, 1))}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
           </div>
@@ -296,7 +363,7 @@ export default function CalendarView() {
 
           {/* Days grid */}
           <div className="grid grid-cols-7 gap-1">
-            {Array(monthStart.getDay()).fill(null).map((_, i) => (
+            {viewMode === "month" && Array(monthStart.getDay()).fill(null).map((_, i) => (
               <div key={`empty-${i}`} className="h-24 bg-muted/50 rounded-lg" />
             ))}
             
@@ -386,26 +453,19 @@ export default function CalendarView() {
           <div className="mt-6 pt-4 border-t">
             <p className="text-sm font-medium text-muted-foreground mb-2">מקרא צבעים</p>
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded bg-blue-100" />
-                <span>השכרות פעילות</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded bg-cyan-100" />
-                <span>הזמנות</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded bg-orange-100" />
-                <span>משימות תפעול</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded bg-red-100" />
-                <span>גבייה</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-3 h-3 rounded bg-purple-100" />
-                <span>משימות כלליות</span>
-              </div>
+              {(Object.entries(EVENT_TYPE_CONFIG) as [EventType, typeof EVENT_TYPE_CONFIG[EventType]][]).map(([type, config]) => (
+                <button
+                  key={type}
+                  onClick={() => toggleType(type)}
+                  className={`flex items-center gap-2 text-sm w-full text-right transition-opacity ${
+                    activeTypes.has(type) ? 'opacity-100' : 'opacity-40 line-through'
+                  }`}
+                >
+                  <div className={`w-3 h-3 rounded ${config.colorDot}`} />
+                  <span className="flex-1">{config.label}</span>
+                  <span className="text-xs text-muted-foreground">{totalCounts[type]}</span>
+                </button>
+              ))}
             </div>
           </div>
         </Card>

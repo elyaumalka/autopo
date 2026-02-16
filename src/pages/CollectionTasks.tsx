@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -40,6 +41,7 @@ interface CallHistoryItem {
 }
 
 export default function CollectionTasks() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<CollectionTask | null>(null);
   const [callDialog, setCallDialog] = useState(false);
@@ -67,6 +69,19 @@ export default function CollectionTasks() {
       return data as Customer[];
     }
   });
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && tasks.length > 0) {
+      const task = tasks.find(t => t.id === editId);
+      if (task) {
+        setSelectedTask(task);
+        setCollectionCustomerId(task.customer_id || "");
+        setIsOpen(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [tasks, searchParams, setSearchParams]);
 
   const createMutation = useMutation({
     mutationFn: async (data: TablesInsert<"collection_tasks">) => {

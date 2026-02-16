@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -44,6 +45,7 @@ const taskStatuses = ["ממתין", "בתהליך", "הושלם"] as const;
 
 export default function MaintenanceTasks() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<MaintenanceTask | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -71,6 +73,18 @@ export default function MaintenanceTasks() {
       return data as Vehicle[];
     },
   });
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && tasks.length > 0) {
+      const task = tasks.find(t => t.id === editId);
+      if (task) {
+        setSelectedTask(task);
+        setIsOpen(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [tasks, searchParams, setSearchParams]);
 
   const createMutation = useMutation({
     mutationFn: async (data: Partial<MaintenanceTask>) => {

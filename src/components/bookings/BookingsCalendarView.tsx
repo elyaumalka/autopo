@@ -37,17 +37,31 @@ interface BookingsCalendarViewProps {
 
 export default function BookingsCalendarView({ onNewBooking, onCellClick }: BookingsCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<"weekly" | "monthly">("weekly");
+  const [viewMode, setViewMode] = useState<"week" | "month" | "unlimited">("week");
   const [hideMonthly, setHideMonthly] = useState(false);
   const [hideWeekly, setHideWeekly] = useState(false);
-  const [visibleDays, setVisibleDays] = useState(7);
+  const [zoomLevel, setZoomLevel] = useState(100); // CSS zoom percentage
 
-  // Zoom controls - change number of visible days
-  const handleZoomIn = () => setVisibleDays((prev) => Math.min(prev + 1, 14));
-  const handleZoomOut = () => setVisibleDays((prev) => Math.max(prev - 1, 3));
+  // Zoom controls - CSS zoom
+  const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 150));
+  const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 50));
 
-  // Get date range based on visible days
-  const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+  // Get date range based on view mode
+  const getDateRange = () => {
+    if (viewMode === "week") {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      return { start, days: 7 };
+    } else if (viewMode === "month") {
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      return { start, days: 30 };
+    } else {
+      // unlimited - show 60 days
+      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
+      return { start, days: 60 };
+    }
+  };
+
+  const { start: weekStart, days: visibleDays } = getDateRange();
   const weekEnd = addDays(weekStart, visibleDays - 1);
   const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(weekStart, i)).reverse(); // RTL order
 
@@ -221,12 +235,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
     // Middle day - fully occupied
     if (!isStartDay && !isEndDay) return { status: "full", event };
 
-    // End day only
+  // End day only
     if (isEndDay && !isStartDay) {
       const h = endHour ?? 16;
       if (slot === "am") {
-        // AM = 9-16. If end at 16 or later, AM is fully occupied. If end before 9, free. Otherwise partial.
-        return h < 9 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
+        // AM = 9-16. If returns by 10:00 AM or earlier, don't occupy this day at all
+        return h <= 10 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
       } else {
         // PM = 16+. If end at 17 or before, PM is free (booking essentially ends in AM zone).
         return h <= 17 ? { status: "free" } : { status: "partial", event };
@@ -293,11 +307,25 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
         {/* View Toggle */}
         <div className="flex items-center gap-2">
           <Button
-            variant={viewMode === "weekly" ? "default" : "outline"}
+            variant={viewMode === "week" ? "default" : "outline"}
             size="sm"
-            onClick={() => { setViewMode("weekly"); setVisibleDays(7); }}
+            onClick={() => setViewMode("week")}
           >
             שבועי
+          </Button>
+          <Button
+            variant={viewMode === "month" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("month")}
+          >
+            חודשי
+          </Button>
+          <Button
+            variant={viewMode === "unlimited" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("unlimited")}
+          >
+            הכל
           </Button>
         </div>
 
@@ -337,22 +365,23 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
         {/* Zoom Controls */}
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={visibleDays >= 14}>
+          <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={zoomLevel <= 50}>
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm min-w-[40px] text-center">{visibleDays} ימים</span>
-          <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={visibleDays <= 3}>
+          <span className="text-sm min-w-[40px] text-center">{zoomLevel}%</span>
+          <Button variant="ghost" size="icon" onClick={handleZoomIn} disabled={zoomLevel >= 150}>
             <ZoomIn className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Calendar Grid */}
-      <div className="bg-white rounded-lg border overflow-x-auto">
+      <div className="bg-white rounded-lg border overflow-x-auto" style={{ maxHeight: '70vh' }}>
         <table 
           className="w-full border-collapse"
+          style={{ zoom: `${zoomLevel}%` }}
         >
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-muted/50">
               {/* Day Headers - RTL order */}
               {weekDays.map((day) => (
@@ -360,7 +389,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                   key={day.toISOString()}
                   colSpan={2}
                   className={cn(
-                    "border p-1 text-center",
+                    "border p-1 text-center bg-muted/50",
                     isSameDay(day, new Date()) && "bg-accent/20"
                   )}
                 >
@@ -380,14 +409,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
             <tr className="bg-muted/30">
               {/* Time Slots Headers */}
               {weekDays.map((day) => (
-                <>
-                  <th key={`${day.toISOString()}-pm`} className="border p-0.5 text-[10px] text-center">
+                <React.Fragment key={`${day.toISOString()}-slots`}>
+                  <th className="border p-0.5 text-[10px] text-center bg-muted/30">
                     16-9
                   </th>
-                  <th key={`${day.toISOString()}-am`} className="border p-0.5 text-[10px] text-center">
+                  <th className="border p-0.5 text-[10px] text-center bg-muted/30">
                     9-16
                   </th>
-                </>
+                </React.Fragment>
               ))}
               <th className="border p-1 sticky right-0 bg-muted/30"></th>
             </tr>

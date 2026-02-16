@@ -1,25 +1,40 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { ChevronRight, ChevronLeft, Car, Wrench, DollarSign, CheckSquare, LucideIcon } from "lucide-react";
+import { ChevronRight, ChevronLeft, Car, Wrench, DollarSign, CheckSquare, Search, X, Eye, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface CalendarEvent {
   type: string;
   title: string;
   subtitle: string;
   color: string;
-  icon: LucideIcon;
+  icon: React.ElementType;
+  id?: string;
+  raw?: any;
 }
 
 export default function CalendarView() {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [searchTerm, setSearchTerm] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   const { data: rentals = [] } = useQuery({
     queryKey: ["rentals"],
@@ -85,11 +100,22 @@ export default function CalendarView() {
   const monthEnd = endOfMonth(currentDate);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
+  const matchesSearch = (event: CalendarEvent) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return event.title.toLowerCase().includes(term) || event.subtitle.toLowerCase().includes(term);
+  };
+
+  const matchesDateRange = (date: Date) => {
+    if (dateFrom && date < parseISO(dateFrom)) return false;
+    if (dateTo && date > parseISO(dateTo)) return false;
+    return true;
+  };
+
   const getEventsForDay = (date: Date): CalendarEvent[] => {
     const events: CalendarEvent[] = [];
     const dateStr = format(date, "yyyy-MM-dd");
 
-    // Rentals (check if date is within rental period)
     rentals.forEach(rental => {
       if (rental.start_date && rental.planned_end_date) {
         const start = parseISO(rental.start_date);
@@ -100,13 +126,14 @@ export default function CalendarView() {
             title: rental.customer_name || "לקוח",
             subtitle: rental.vehicle_details || "",
             color: "bg-blue-100 text-blue-800",
-            icon: Car
+            icon: Car,
+            id: rental.id,
+            raw: rental,
           });
         }
       }
     });
 
-    // Bookings
     bookings.forEach(booking => {
       if (booking.start_date && booking.end_date) {
         const start = parseISO(booking.start_date);
@@ -117,55 +144,129 @@ export default function CalendarView() {
             title: booking.customer_name || "לקוח",
             subtitle: `הזמנה - ${booking.vehicle_details || ""}`,
             color: "bg-cyan-100 text-cyan-800",
-            icon: Car
+            icon: Car,
+            id: booking.id,
+            raw: booking,
           });
         }
       }
     });
 
-    // Maintenance tasks
     maintenanceTasks.filter(t => t.due_date === dateStr).forEach(task => {
       events.push({
         type: "maintenance",
         title: task.type,
         subtitle: task.vehicle_details || "",
         color: "bg-orange-100 text-orange-800",
-        icon: Wrench
+        icon: Wrench,
+        id: task.id,
+        raw: task,
       });
     });
 
-    // Collection tasks
     collectionTasks.filter(t => t.reminder_date === dateStr).forEach(task => {
       events.push({
         type: "collection",
         title: `גבייה - ${task.customer_name || "לקוח"}`,
         subtitle: `₪${task.amount}`,
         color: "bg-red-100 text-red-800",
-        icon: DollarSign
+        icon: DollarSign,
+        id: task.id,
+        raw: task,
       });
     });
 
-    // General tasks
     generalTasks.filter(t => t.due_date === dateStr).forEach(task => {
       events.push({
         type: "general",
         title: task.title,
         subtitle: task.type || "",
         color: "bg-purple-100 text-purple-800",
-        icon: CheckSquare
+        icon: CheckSquare,
+        id: task.id,
+        raw: task,
       });
     });
 
-    return events;
+    return events.filter(matchesSearch);
   };
 
   const selectedEvents = getEventsForDay(selectedDate);
 
+  const handleEventClick = (event: CalendarEvent) => {
+    setSelectedEvent(event);
+  };
+
+  const navigateToEvent = (event: CalendarEvent) => {
+    switch (event.type) {
+      case "rental":
+        navigate("/rentals");
+        break;
+      case "booking":
+        navigate("/bookings");
+        break;
+      case "maintenance":
+        navigate("/maintenance-tasks");
+        break;
+      case "collection":
+        navigate("/collection-tasks");
+        break;
+      case "general":
+        navigate("/general-tasks");
+        break;
+    }
+    setSelectedEvent(null);
+  };
+
   const dayNames = ["א'", "ב'", "ג'", "ד'", "ה'", "ו'", "ש'"];
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setDateFrom("");
+    setDateTo("");
+  };
+
+  const hasFilters = searchTerm || dateFrom || dateTo;
 
   return (
     <div>
       <PageHeader title="לוח שנה" subtitle="תצוגה חודשית" />
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="חיפוש לפי שם, רכב..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pr-9"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-[150px]"
+            placeholder="מתאריך"
+          />
+          <span className="text-muted-foreground text-sm">עד</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-[150px]"
+            placeholder="עד תאריך"
+          />
+        </div>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters}>
+            <X className="w-4 h-4 ml-1" />
+            נקה
+          </Button>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar */}
@@ -194,13 +295,13 @@ export default function CalendarView() {
 
           {/* Days grid */}
           <div className="grid grid-cols-7 gap-1">
-            {/* Empty cells for days before month starts */}
             {Array(monthStart.getDay()).fill(null).map((_, i) => (
               <div key={`empty-${i}`} className="h-24 bg-muted/50 rounded-lg" />
             ))}
             
             {days.map((day) => {
-              const events = getEventsForDay(day);
+              const inRange = matchesDateRange(day);
+              const events = inRange ? getEventsForDay(day) : [];
               const isSelected = isSameDay(day, selectedDate);
               const isToday = isSameDay(day, new Date());
 
@@ -213,6 +314,7 @@ export default function CalendarView() {
                     h-24 p-1 rounded-lg cursor-pointer border transition-all overflow-hidden
                     ${isSelected ? 'border-accent bg-accent/10' : 'border-transparent hover:border-border'}
                     ${isToday ? 'bg-accent/10' : 'bg-card'}
+                    ${!inRange ? 'opacity-40' : ''}
                   `}
                 >
                   <div className={`
@@ -225,7 +327,8 @@ export default function CalendarView() {
                     {events.slice(0, 3).map((event, i) => (
                       <div
                         key={i}
-                        className={`text-xs px-1 py-0.5 rounded truncate ${event.color}`}
+                        onClick={(e) => { e.stopPropagation(); handleEventClick(event); }}
+                        className={`text-xs px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${event.color}`}
                       >
                         {event.title}
                       </div>
@@ -260,16 +363,18 @@ export default function CalendarView() {
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
-                  className={`p-3 rounded-xl border ${event.color.replace('text-', 'border-').replace('100', '200')}`}
+                  onClick={() => handleEventClick(event)}
+                  className={`p-3 rounded-xl border cursor-pointer hover:shadow-md transition-shadow ${event.color.replace('text-', 'border-').replace('100', '200')}`}
                 >
                   <div className="flex items-start gap-3">
                     <div className={`p-2 rounded-lg ${event.color}`}>
                       <event.icon className="w-4 h-4" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium">{event.title}</p>
-                      <p className="text-sm text-muted-foreground">{event.subtitle}</p>
+                      <p className="text-sm text-muted-foreground truncate">{event.subtitle}</p>
                     </div>
+                    <Eye className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
                   </div>
                 </motion.div>
               ))}
@@ -304,6 +409,65 @@ export default function CalendarView() {
           </div>
         </Card>
       </div>
+
+      {/* Event Details Dialog */}
+      <Dialog open={!!selectedEvent} onOpenChange={() => setSelectedEvent(null)}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedEvent && <selectedEvent.icon className="w-5 h-5" />}
+              {selectedEvent?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-4">
+              <div className={`p-3 rounded-lg ${selectedEvent.color}`}>
+                <p className="font-medium">{selectedEvent.subtitle}</p>
+              </div>
+
+              {/* Event-specific details */}
+              {selectedEvent.type === "rental" && selectedEvent.raw && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">תאריך התחלה:</span><span>{selectedEvent.raw.start_date}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">תאריך סיום מתוכנן:</span><span>{selectedEvent.raw.planned_end_date || "-"}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">עלות:</span><span>₪{selectedEvent.raw.total_cost?.toLocaleString() || selectedEvent.raw.base_cost?.toLocaleString() || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">שולם:</span><span className="text-green-600">₪{selectedEvent.raw.paid_amount?.toLocaleString() || 0}</span></div>
+                </div>
+              )}
+
+              {selectedEvent.type === "booking" && selectedEvent.raw && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">תאריך התחלה:</span><span>{selectedEvent.raw.start_date}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">תאריך סיום:</span><span>{selectedEvent.raw.end_date}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">סטטוס:</span><span>{selectedEvent.raw.status}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">עלות:</span><span>₪{selectedEvent.raw.rental_cost?.toLocaleString() || 0}</span></div>
+                </div>
+              )}
+
+              {selectedEvent.type === "maintenance" && selectedEvent.raw && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">סוג:</span><span>{selectedEvent.raw.type}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">סטטוס:</span><span>{selectedEvent.raw.status}</span></div>
+                  {selectedEvent.raw.cost && <div className="flex justify-between"><span className="text-muted-foreground">עלות:</span><span>₪{selectedEvent.raw.cost?.toLocaleString()}</span></div>}
+                </div>
+              )}
+
+              {selectedEvent.type === "collection" && selectedEvent.raw && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">סכום:</span><span className="text-red-600 font-bold">₪{selectedEvent.raw.amount?.toLocaleString()}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">סטטוס:</span><span>{selectedEvent.raw.status}</span></div>
+                  {selectedEvent.raw.reason && <div className="flex justify-between"><span className="text-muted-foreground">סיבה:</span><span>{selectedEvent.raw.reason}</span></div>}
+                </div>
+              )}
+
+              <Button onClick={() => navigateToEvent(selectedEvent)} className="w-full">
+                <Pencil className="w-4 h-4 ml-2" />
+                עבור לעריכה
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

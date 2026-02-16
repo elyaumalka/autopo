@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
@@ -40,6 +41,7 @@ type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];
 
 export default function Bookings() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -101,6 +103,17 @@ export default function Bookings() {
       return data || [];
     }
   });
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && bookings.length > 0) {
+      const booking = bookings.find(b => b.id === editId);
+      if (booking) {
+        setViewingBooking(booking);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [bookings, searchParams, setSearchParams]);
 
   const createMutation = useMutation({
     mutationFn: async (data: Partial<Booking>) => {

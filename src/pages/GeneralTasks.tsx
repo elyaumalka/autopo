@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -34,6 +35,7 @@ const taskStatuses = ["ממתין", "בתהליך", "הושלם"] as const;
 const priorities = ["נמוכה", "בינונית", "גבוהה", "דחוף"] as const;
 
 export default function GeneralTasks() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<GeneralTask | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -55,6 +57,21 @@ export default function GeneralTasks() {
       return data as GeneralTask[];
     },
   });
+
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && tasks.length > 0) {
+      const task = tasks.find(t => t.id === editId);
+      if (task) {
+        setSelectedTask(task);
+        setFormType(task.type || "כללי");
+        setFormPriority(task.priority);
+        setFormStatus(task.status);
+        setIsOpen(true);
+        setSearchParams({}, { replace: true });
+      }
+    }
+  }, [tasks, searchParams, setSearchParams]);
 
   const createMutation = useMutation({
     mutationFn: async (data: Partial<GeneralTask>) => {

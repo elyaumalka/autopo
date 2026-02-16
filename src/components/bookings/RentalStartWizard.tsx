@@ -285,15 +285,15 @@ export default function RentalStartWizard({
 
   return (
     <div className="space-y-6">
-      {/* Customer incomplete warning */}
+      {/* Customer incomplete warning - no longer blocks */}
       {isCustomerIncomplete && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm space-y-2">
-          <p className="font-bold text-red-700">⚠️ יש להשלים את פרטי הלקוח לפני התחלת השכרה</p>
-          <p className="text-red-600">שדות חסרים:</p>
-          <ul className="list-disc list-inside text-red-600">
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm space-y-2">
+          <p className="font-bold text-yellow-700">⚠️ פרטי לקוח חסרים - מומלץ להשלים</p>
+          <p className="text-yellow-600">שדות חסרים:</p>
+          <ul className="list-disc list-inside text-yellow-600">
             {missingFields.map(f => <li key={f}>{f}</li>)}
           </ul>
-          <p className="text-red-600">נא לעדכן את פרטי הלקוח בעמוד <strong>לקוחות</strong> ולחזור.</p>
+          <p className="text-yellow-600 text-xs">ניתן להמשיך בתהליך ולהשלים פרטים מאוחר יותר בעמוד <strong>לקוחות</strong>.</p>
         </div>
       )}
 
@@ -332,6 +332,19 @@ export default function RentalStartWizard({
               <p className="font-semibold">
                 {vehicle?.manufacturer} {vehicle?.model}
               </p>
+              <p className="text-xs text-gray-400">{vehicle?.license_plate}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">תאריכים</p>
+              <p className="font-semibold text-sm">
+                {booking.start_date} {booking.start_time ? `(${booking.start_time.toString().slice(0,5)})` : ""} 
+                {" → "}
+                {booking.end_date} {booking.end_time ? `(${booking.end_time.toString().slice(0,5)})` : ""}
+              </p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-500">עלות</p>
+              <p className="font-semibold">₪{booking.rental_cost?.toLocaleString() || 0}</p>
             </div>
           </div>
 
@@ -568,7 +581,7 @@ export default function RentalStartWizard({
         </Button>
 
         {step < 3 ? (
-          <Button onClick={() => setStep(step + 1)} className="bg-cyan-600 hover:bg-cyan-700" disabled={isCustomerIncomplete}>
+          <Button onClick={() => setStep(step + 1)} className="bg-cyan-600 hover:bg-cyan-700">
             הבא
             <ChevronLeft className="w-4 h-4 mr-1" />
           </Button>

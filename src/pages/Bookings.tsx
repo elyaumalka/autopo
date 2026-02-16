@@ -207,8 +207,29 @@ export default function Bookings() {
 
   const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => {
     if (booking) {
-      // יש הזמנה קיימת - פתח לעריכה
-      // Use the booking ID passed from the calendar to find the exact booking
+      // Active rental - open end/edit dialog
+      if (booking.type === "rental" || booking.status === "פעיל") {
+        // Find the actual rental record
+        const rental = rentals.find(r => r.id === booking.id);
+        if (rental) {
+          // Find corresponding booking to open wizard for editing
+          const correspondingBooking = bookings.find(b => b.id === rental.booking_id);
+          if (correspondingBooking) {
+            setWizardBooking(correspondingBooking);
+            setRentalWizardOpen(true);
+            return;
+          }
+        }
+        // If it's an active booking (not yet a rental), go directly to start wizard
+        const existingBooking = bookings.find(b => b.id === booking.id);
+        if (existingBooking) {
+          setWizardBooking(existingBooking);
+          setRentalWizardOpen(true);
+          return;
+        }
+      }
+
+      // Reserved booking (מאושר/ממתין) - go directly to rental start wizard
       const existingBooking = booking.id 
         ? bookings.find(b => b.id === booking.id)
         : bookings.find(b => 
@@ -219,10 +240,17 @@ export default function Bookings() {
             b.customer_name === booking.customerName
           );
       if (existingBooking) {
-        setSelectedBooking(existingBooking);
-        setFormData(existingBooking);
-        setStep(1);
-        setIsOpen(true);
+        if (existingBooking.status === "מאושר" || existingBooking.status === "ממתין") {
+          // Go directly to rental start wizard
+          setWizardBooking(existingBooking);
+          setRentalWizardOpen(true);
+        } else {
+          // For other statuses, open edit dialog
+          setSelectedBooking(existingBooking);
+          setFormData(existingBooking);
+          setStep(1);
+          setIsOpen(true);
+        }
       }
     } else {
       // תא ריק - פתח שריון מהיר
@@ -794,8 +822,8 @@ export default function Bookings() {
                     return (
                       <>
                         {incomplete && (
-                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                            ⚠️ לא ניתן להתחיל השכרה - יש להשלים פרטי לקוח (טלפון, אימייל, צילומי רישיון) בעמוד לקוחות
+                          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-700">
+                            ⚠️ פרטי לקוח חסרים - מומלץ להשלים בעמוד לקוחות (ניתן להמשיך בכל אופן)
                           </div>
                         )}
                         <Button
@@ -807,7 +835,7 @@ export default function Bookings() {
                             }, 500);
                           }}
                           className="w-full bg-green-600 hover:bg-green-700"
-                          disabled={createMutation.isPending || updateMutation.isPending || !!incomplete}
+                          disabled={createMutation.isPending || updateMutation.isPending}
                         >
                           <CheckCircle className="w-4 h-4 ml-2" />
                           שמור והתחל השכרה

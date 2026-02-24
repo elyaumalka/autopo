@@ -9,6 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FileText, DollarSign, Calendar, Car, User, ScrollText } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
@@ -32,6 +39,7 @@ export default function RentalDetailsDialog({
 }: RentalDetailsDialogProps) {
   const queryClient = useQueryClient();
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   if (!rental) return null;
@@ -237,14 +245,26 @@ export default function RentalDetailsDialog({
               rental.remaining_payment > 0 && (
                 <div className="rounded-lg border p-4">
                   <Label className="mb-4 block font-medium">הוספת תשלום</Label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <Input
                       type="number"
                       placeholder="סכום"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-40"
+                      className="w-32"
                     />
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger className="w-36">
+                        <SelectValue placeholder="אמצעי תשלום" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="מזומן">מזומן</SelectItem>
+                        <SelectItem value="אשראי">אשראי</SelectItem>
+                        <SelectItem value="ביט">ביט</SelectItem>
+                        <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
+                        <SelectItem value="צ׳ק">צ׳ק</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <Button onClick={handleAddPayment} disabled={isUpdating}>
                       <DollarSign className="ml-2 h-4 w-4" />
                       הוסף תשלום

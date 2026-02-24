@@ -49,6 +49,8 @@ export default function Rentals() {
     end_km: 0,
     additional_charges: 0,
     additional_charges_details: "",
+    payment_method: "" as string,
+    collection_date: "",
   });
 
   const { data: rentals = [], isLoading } = useQuery({
@@ -107,6 +109,8 @@ export default function Rentals() {
       end_km: vehicle?.current_km || rental.start_km || 0,
       additional_charges: 0,
       additional_charges_details: "",
+      payment_method: "",
+      collection_date: "",
     });
     setEndRentalDialog(true);
   };
@@ -206,6 +210,7 @@ export default function Rentals() {
           amount: costs.remaining,
           reason: "יתרת תשלום השכרה",
           status: "פתוח",
+          payment_due_date: endData.collection_date || null,
         });
       }
 
@@ -485,6 +490,37 @@ export default function Rentals() {
                     setEndData({ ...endData, additional_charges_details: e.target.value })
                   }
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>אמצעי תשלום</Label>
+                  <Select
+                    value={endData.payment_method}
+                    onValueChange={(v) => setEndData({ ...endData, payment_method: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר אמצעי תשלום" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="מזומן">מזומן</SelectItem>
+                      <SelectItem value="אשראי">אשראי</SelectItem>
+                      <SelectItem value="ביט">ביט</SelectItem>
+                      <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
+                      <SelectItem value="צ׳ק">צ׳ק</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>תאריך גבייה (אם יש יתרה)</Label>
+                  <Input
+                    type="date"
+                    value={endData.collection_date}
+                    onChange={(e) =>
+                      setEndData({ ...endData, collection_date: e.target.value })
+                    }
+                  />
+                </div>
               </div>
 
               {/* Cost Summary */}

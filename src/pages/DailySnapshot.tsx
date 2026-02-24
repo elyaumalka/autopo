@@ -189,10 +189,18 @@ export default function DailySnapshot() {
 
         {/* === DAY VIEW === */}
         <TabsContent value="day" className="space-y-6">
-          {/* Date Selector - RTL aligned */}
-          <div className="flex items-center justify-center gap-3">
-            <Button variant="outline" size="icon" onClick={() => navigateDate(1)}>
-              <ChevronRight className="w-4 h-4" />
+          {/* Date Selector */}
+          <div className="flex items-center justify-center gap-3" dir="ltr">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
+            >
+              היום
+            </Button>
+
+            <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}>
+              <ChevronLeft className="w-4 h-4" />
             </Button>
 
             <div className="flex flex-col items-center gap-1">
@@ -205,16 +213,8 @@ export default function DailySnapshot() {
               />
             </div>
 
-            <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
-            >
-              היום
+            <Button variant="outline" size="icon" onClick={() => navigateDate(1)}>
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 
@@ -360,18 +360,18 @@ export default function DailySnapshot() {
 
         {/* === MONTH VIEW === */}
         <TabsContent value="month" className="space-y-4">
-          <div className="flex items-center justify-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => addMonths(prev, 1))}>
-              <ChevronRight className="w-4 h-4" />
+          <div className="flex items-center justify-center gap-4" dir="ltr">
+            <Button variant="secondary" size="sm" onClick={() => setMonthViewDate(new Date())}>
+              החודש
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => subMonths(prev, 1))}>
+              <ChevronLeft className="w-4 h-4" />
             </Button>
             <h2 className="text-xl font-bold min-w-[200px] text-center">
               {format(monthViewDate, "MMMM yyyy", { locale: he })}
             </h2>
-            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => subMonths(prev, 1))}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setMonthViewDate(new Date())}>
-              החודש
+            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => addMonths(prev, 1))}>
+              <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
 

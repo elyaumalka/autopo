@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowRight, ArrowLeft, Car, User, Clock, Phone, Trash2, Users, Calendar } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ArrowRight, ArrowLeft, Car, User, Clock, Phone, Trash2, Users, Calendar, ChevronRight, ChevronLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isToday, isSameMonth } from "date-fns";
 import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -25,6 +25,7 @@ export default function DailySnapshot() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [newCustomerId, setNewCustomerId] = useState("");
+  const [monthViewDate, setMonthViewDate] = useState(new Date());
   const queryClient = useQueryClient();
 
   const { data: rentals = [] } = useQuery({
@@ -94,10 +95,8 @@ export default function DailySnapshot() {
 
   const handleReassignCustomer = () => {
     if (!newCustomerId || !selectedBooking) return;
-    
     const customer = customers.find(c => c.id === newCustomerId);
     if (!customer) return;
-
     updateBookingMutation.mutate({
       id: selectedBooking.id,
       data: {
@@ -113,34 +112,44 @@ export default function DailySnapshot() {
     setEditDialogOpen(true);
   };
 
-  // רכבים שחוזרים בתאריך הנבחר
-  const returningVehicles = rentals.filter(r => {
-    if (r.status !== "פעיל") return false;
-    // Use planned end date for active rentals
-    return r.planned_end_date === selectedDate;
-  });
+  const getDayStats = (dateStr: string) => {
+    const returning = rentals.filter(r => r.status === "פעיל" && r.planned_end_date === dateStr).length;
+    const departing = bookings.filter(b => b.status === "מאושר" && b.start_date === dateStr).length;
 
-  // רכבים שיוצאים בתאריך הנבחר
-  const departingVehicles = bookings.filter(b => {
-    if (b.status !== "מאושר") return false;
-    return b.start_date === selectedDate;
-  });
+    const busyIds = new Set<string>();
+    rentals.forEach(r => {
+      if (r.status === "פעיל" && r.vehicle_id) {
+        if (r.start_date <= dateStr && (r.planned_end_date || "") >= dateStr) {
+          busyIds.add(r.vehicle_id);
+        }
+      }
+    });
+    bookings.forEach(b => {
+      if ((b.status === "מאושר" || b.status === "פעיל") && b.vehicle_id) {
+        if (b.start_date <= dateStr && b.end_date >= dateStr) {
+          busyIds.add(b.vehicle_id);
+        }
+      }
+    });
 
-  // רכבים תפוסים
+    const totalActive = vehicles.filter(v => v.status !== "נמכר" && v.status !== "לא פעיל").length;
+    const busy = busyIds.size;
+    const available = Math.max(0, totalActive - busy);
+
+    return { returning, departing, busy, available };
+  };
+
+  // Day view calculations
+  const returningVehicles = rentals.filter(r => r.status === "פעיל" && r.planned_end_date === selectedDate);
+  const departingVehicles = bookings.filter(b => b.status === "מאושר" && b.start_date === selectedDate);
+
   const busyVehicleIds = [...new Set([
     ...returningVehicles.map(r => r.vehicle_id),
     ...departingVehicles.map(b => b.vehicle_id),
-    ...rentals.filter(r => {
-      if (r.status !== "פעיל") return false;
-      return r.planned_end_date !== selectedDate;
-    }).map(r => r.vehicle_id)
+    ...rentals.filter(r => r.status === "פעיל" && r.planned_end_date !== selectedDate).map(r => r.vehicle_id)
   ])];
 
-  // רכבים פנויים
-  const availableVehicles = vehicles.filter(v => 
-    v.status === "זמין" && !busyVehicleIds.includes(v.id)
-  );
-
+  const availableVehicles = vehicles.filter(v => v.status === "זמין" && !busyVehicleIds.includes(v.id));
   const busyVehicles = vehicles.filter(v => busyVehicleIds.includes(v.id));
 
   const getCustomerPhone = (customerId: string | null) => {
@@ -156,205 +165,288 @@ export default function DailySnapshot() {
     setSelectedDate(format(newDate, "yyyy-MM-dd"));
   };
 
+  // Month grid
+  const monthStart = startOfMonth(monthViewDate);
+  const monthEnd = endOfMonth(monthViewDate);
+  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startDayOfWeek = getDay(monthStart); // 0=Sun
+
+  const dayNames = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+
   return (
-    <div>
+    <div dir="rtl">
       <PageHeader
         title="תמונת מצב יומית"
         subtitle="רכבים שחוזרים ויוצאים"
         icon={Calendar}
       />
 
-      {/* Date Selector */}
-      <div className="mb-6 flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigateDate(-1)}
-        >
-          <ArrowRight className="w-4 h-4" />
-        </Button>
-        
-        <div className="flex-1 max-w-xs">
-          <Label>בחר תאריך</Label>
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </div>
+      <Tabs defaultValue="day" className="space-y-4">
+        <TabsList className="grid w-full max-w-sm grid-cols-2">
+          <TabsTrigger value="day">תצוגת יום</TabsTrigger>
+          <TabsTrigger value="month">תצוגת חודש</TabsTrigger>
+        </TabsList>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigateDate(1)}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
+        {/* === DAY VIEW === */}
+        <TabsContent value="day" className="space-y-6">
+          {/* Date Selector - RTL aligned */}
+          <div className="flex items-center justify-center gap-3">
+            <Button variant="outline" size="icon" onClick={() => navigateDate(1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
 
-        <Button
-          variant="outline"
-          onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
-        >
-          היום
-        </Button>
-      </div>
+            <div className="flex flex-col items-center gap-1">
+              <Label className="text-sm text-muted-foreground">בחר תאריך</Label>
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-44 text-center"
+              />
+            </div>
 
-      <div className="text-center mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">
-          {format(parseISO(selectedDate), "EEEE, dd MMMM yyyy", { locale: he })}
-        </h2>
-      </div>
+            <Button variant="outline" size="icon" onClick={() => navigateDate(-1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Returning Vehicles */}
-        <div>
-          <div className="mb-4 flex items-center gap-2">
-            <ArrowRight className="w-5 h-5 text-red-600" />
-            <h3 className="text-xl font-semibold">רכבים שחוזרים ({returningVehicles.length})</h3>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedDate(format(new Date(), "yyyy-MM-dd"))}
+            >
+              היום
+            </Button>
           </div>
 
-          <div className="space-y-3">
-            {returningVehicles.length === 0 ? (
-              <Card className="p-6 text-center text-gray-500">
-                אין רכבים שחוזרים היום
-              </Card>
-            ) : (
-              returningVehicles.map((rental) => (
-                <Card key={rental.id} className="p-4 border-r-4 border-r-red-500">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Car className="w-4 h-4 text-gray-400" />
-                        <span className="font-semibold">{rental.vehicle_details}</span>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-foreground">
+              {format(parseISO(selectedDate), "EEEE, dd MMMM yyyy", { locale: he })}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Returning Vehicles */}
+            <div>
+              <div className="mb-4 flex items-center gap-2">
+                <ArrowRight className="w-5 h-5 text-destructive" />
+                <h3 className="text-xl font-semibold">רכבים שחוזרים ({returningVehicles.length})</h3>
+              </div>
+              <div className="space-y-3">
+                {returningVehicles.length === 0 ? (
+                  <Card className="p-6 text-center text-muted-foreground">אין רכבים שחוזרים היום</Card>
+                ) : (
+                  returningVehicles.map((rental) => (
+                    <Card key={rental.id} className="p-4 border-r-4 border-r-destructive">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Car className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-semibold">{rental.vehicle_details}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <User className="w-4 h-4" />
+                            <span>{rental.customer_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="w-4 h-4" />
+                            <span>{getCustomerPhone(rental.customer_id)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Clock className="w-4 h-4" />
+                          <span>{rental.planned_end_time || "-"}</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <User className="w-4 h-4" />
-                        <span>{rental.customer_name}</span>
+                      <div className="flex gap-2 text-xs text-muted-foreground mt-2">
+                        <span>התחיל: {rental.start_date}</span>
+                        <span>•</span>
+                        <span>ק"מ התחלה: {rental.start_km}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="w-4 h-4" />
-                        <span>{getCustomerPhone(rental.customer_id)}</span>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Departing Vehicles */}
+            <div>
+              <div className="mb-4 flex items-center gap-2">
+                <ArrowLeft className="w-5 h-5 text-green-600" />
+                <h3 className="text-xl font-semibold">רכבים שיוצאים ({departingVehicles.length})</h3>
+              </div>
+              <div className="space-y-3">
+                {departingVehicles.length === 0 ? (
+                  <Card className="p-6 text-center text-muted-foreground">אין רכבים שיוצאים היום</Card>
+                ) : (
+                  departingVehicles.map((booking) => (
+                    <Card key={booking.id} className="p-4 border-r-4 border-r-green-500">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Car className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-semibold">{booking.vehicle_details}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <User className="w-4 h-4" />
+                            <span>{booking.customer_name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="w-4 h-4" />
+                            <span>{getCustomerPhone(booking.customer_id)}</span>
+                          </div>
+                        </div>
+                        <div className="text-left">
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
+                            <Clock className="w-4 h-4" />
+                            <span>{booking.start_time || "-"}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => openReassignDialog(booking)} className="text-blue-600 h-7 w-7 p-0">
+                              <Users className="w-4 h-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteBooking(booking)} className="text-destructive h-7 w-7 p-0">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
                       </div>
+                      <div className="flex gap-2 text-xs text-muted-foreground mt-2">
+                        <span>עד: {booking.end_date}</span>
+                        <span>•</span>
+                        <span>סוג: {booking.rental_type || "-"}</span>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Vehicle Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-3 text-green-600">רכבים פנויים ({availableVehicles.length})</h3>
+              <div className="space-y-2">
+                {availableVehicles.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">אין רכבים פנויים</p>
+                ) : (
+                  availableVehicles.map(v => (
+                    <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-green-50 rounded">
+                      <Car className="w-4 h-4 text-green-600" />
+                      <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
                     </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-1 text-sm text-gray-600">
-                        <Clock className="w-4 h-4" />
-                        <span>{rental.planned_end_time || "-"}</span>
-                      </div>
+                  ))
+                )}
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <h3 className="text-lg font-semibold mb-3 text-destructive">רכבים תפוסים ({busyVehicles.length})</h3>
+              <div className="space-y-2">
+                {busyVehicles.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">אין רכבים תפוסים</p>
+                ) : (
+                  busyVehicles.map(v => (
+                    <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-red-50 rounded">
+                      <Car className="w-4 h-4 text-destructive" />
+                      <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
                     </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* === MONTH VIEW === */}
+        <TabsContent value="month" className="space-y-4">
+          <div className="flex items-center justify-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => addMonths(prev, 1))}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <h2 className="text-xl font-bold min-w-[200px] text-center">
+              {format(monthViewDate, "MMMM yyyy", { locale: he })}
+            </h2>
+            <Button variant="outline" size="icon" onClick={() => setMonthViewDate(prev => subMonths(prev, 1))}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setMonthViewDate(new Date())}>
+              החודש
+            </Button>
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap justify-center gap-4 text-xs">
+            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500 inline-block" /> חוזרים</div>
+            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> יוצאים</div>
+            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-500 inline-block" /> תפוסים</div>
+            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 inline-block" /> פנויים</div>
+          </div>
+
+          {/* Calendar Grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {/* Day headers */}
+            {dayNames.map(name => (
+              <div key={name} className="text-center text-sm font-semibold text-muted-foreground py-2">
+                {name}
+              </div>
+            ))}
+
+            {/* Empty cells before month start */}
+            {Array.from({ length: startDayOfWeek }).map((_, i) => (
+              <div key={`empty-${i}`} className="min-h-[100px]" />
+            ))}
+
+            {/* Day cells */}
+            {monthDays.map(day => {
+              const dateStr = format(day, "yyyy-MM-dd");
+              const stats = getDayStats(dateStr);
+              const today = isToday(day);
+              const isSelected = dateStr === selectedDate;
+
+              return (
+                <Card
+                  key={dateStr}
+                  className={`min-h-[100px] p-2 cursor-pointer transition-all hover:shadow-md ${
+                    today ? "ring-2 ring-primary" : ""
+                  } ${isSelected ? "bg-primary/5" : ""}`}
+                  onClick={() => setSelectedDate(dateStr)}
+                >
+                  <div className={`text-sm font-bold mb-2 ${today ? "text-primary" : "text-foreground"}`}>
+                    {format(day, "d")}
                   </div>
-                  <div className="flex gap-2 text-xs text-gray-500 mt-2">
-                    <span>התחיל: {rental.start_date}</span>
-                    <span>•</span>
-                    <span>ק"מ התחלה: {rental.start_km}</span>
+                  <div className="space-y-1">
+                    {stats.returning > 0 && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        <span className="text-muted-foreground">חוזרים</span>
+                        <span className="font-bold mr-auto">{stats.returning}</span>
+                      </div>
+                    )}
+                    {stats.departing > 0 && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                        <span className="text-muted-foreground">יוצאים</span>
+                        <span className="font-bold mr-auto">{stats.departing}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0" />
+                      <span className="text-muted-foreground">תפוסים</span>
+                      <span className="font-bold mr-auto">{stats.busy}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      <span className="text-muted-foreground">פנויים</span>
+                      <span className="font-bold mr-auto">{stats.available}</span>
+                    </div>
                   </div>
                 </Card>
-              ))
-            )}
+              );
+            })}
           </div>
-        </div>
-
-        {/* Departing Vehicles */}
-        <div>
-          <div className="mb-4 flex items-center gap-2">
-            <ArrowLeft className="w-5 h-5 text-green-600" />
-            <h3 className="text-xl font-semibold">רכבים שיוצאים ({departingVehicles.length})</h3>
-          </div>
-
-          <div className="space-y-3">
-            {departingVehicles.length === 0 ? (
-              <Card className="p-6 text-center text-gray-500">
-                אין רכבים שיוצאים היום
-              </Card>
-            ) : (
-              departingVehicles.map((booking) => (
-                <Card key={booking.id} className="p-4 border-r-4 border-r-green-500">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Car className="w-4 h-4 text-gray-400" />
-                        <span className="font-semibold">{booking.vehicle_details}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <User className="w-4 h-4" />
-                        <span>{booking.customer_name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Phone className="w-4 h-4" />
-                        <span>{getCustomerPhone(booking.customer_id)}</span>
-                      </div>
-                    </div>
-                    <div className="text-left">
-                      <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{booking.start_time || "-"}</span>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openReassignDialog(booking)}
-                          className="text-blue-600 h-7 w-7 p-0"
-                        >
-                          <Users className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleDeleteBooking(booking)}
-                          className="text-red-600 h-7 w-7 p-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 text-xs text-gray-500 mt-2">
-                    <span>עד: {booking.end_date}</span>
-                    <span>•</span>
-                    <span>סוג: {booking.rental_type || "-"}</span>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Vehicle Status */}
-      <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-3 text-green-600">רכבים פנויים ({availableVehicles.length})</h3>
-          <div className="space-y-2">
-            {availableVehicles.length === 0 ? (
-              <p className="text-gray-500 text-sm">אין רכבים פנויים</p>
-            ) : (
-              availableVehicles.map(v => (
-                <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-green-50 rounded">
-                  <Car className="w-4 h-4 text-green-600" />
-                  <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-3 text-red-600">רכבים תפוסים ({busyVehicles.length})</h3>
-          <div className="space-y-2">
-            {busyVehicles.length === 0 ? (
-              <p className="text-gray-500 text-sm">אין רכבים תפוסים</p>
-            ) : (
-              busyVehicles.map(v => (
-                <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-red-50 rounded">
-                  <Car className="w-4 h-4 text-red-600" />
-                  <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </Card>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Edit Customer Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -364,11 +456,10 @@ export default function DailySnapshot() {
           </DialogHeader>
           {selectedBooking && (
             <div className="space-y-4">
-              <div className="p-3 bg-gray-50 rounded">
-                <p className="text-sm text-gray-600">רכב: <strong>{selectedBooking.vehicle_details}</strong></p>
-                <p className="text-sm text-gray-600">לקוח נוכחי: <strong>{selectedBooking.customer_name}</strong></p>
+              <div className="p-3 bg-muted rounded">
+                <p className="text-sm text-muted-foreground">רכב: <strong>{selectedBooking.vehicle_details}</strong></p>
+                <p className="text-sm text-muted-foreground">לקוח נוכחי: <strong>{selectedBooking.customer_name}</strong></p>
               </div>
-
               <div>
                 <Label>בחר לקוח חדש</Label>
                 <CustomerSearchSelect
@@ -378,12 +469,11 @@ export default function DailySnapshot() {
                   placeholder="בחר לקוח"
                 />
               </div>
-
               <div className="flex gap-3 pt-4">
-                <Button 
+                <Button
                   onClick={handleReassignCustomer}
                   disabled={!newCustomerId || newCustomerId === selectedBooking.customer_id}
-                  className="flex-1 bg-cyan-600 hover:bg-cyan-700"
+                  className="flex-1"
                 >
                   עדכון לקוח
                 </Button>

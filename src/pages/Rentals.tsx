@@ -49,6 +49,7 @@ export default function Rentals() {
     end_km: 0,
     additional_charges: 0,
     additional_charges_details: "",
+    payment_amount: 0,
     payment_method: "" as string,
     collection_date: "",
   });
@@ -109,6 +110,7 @@ export default function Rentals() {
       end_km: vehicle?.current_km || rental.start_km || 0,
       additional_charges: 0,
       additional_charges_details: "",
+      payment_amount: 0,
       payment_method: "",
       collection_date: "",
     });
@@ -126,7 +128,8 @@ export default function Rentals() {
     const extraKmCost = extraKm * (vehicle?.extra_km_price || 0);
     const additionalCharges = endData.additional_charges || 0;
     const totalCost = (selectedRental.base_cost || 0) + extraKmCost + additionalCharges;
-    const remaining = totalCost - (selectedRental.paid_amount || 0);
+    const totalPaid = (selectedRental.paid_amount || 0) + (endData.payment_amount || 0);
+    const remaining = totalCost - totalPaid;
 
     return { extraKm, extraKmCost, totalCost, remaining };
   };
@@ -149,7 +152,9 @@ export default function Rentals() {
     const vehicle = findVehicleForRental(selectedRental);
 
     try {
-      // Update rental
+      const totalPaid = (selectedRental.paid_amount || 0) + (endData.payment_amount || 0);
+      const remaining = costs.remaining > 0 ? costs.remaining : 0;
+
       const { error: rentalError } = await supabase
         .from("rentals")
         .update({
@@ -161,7 +166,8 @@ export default function Rentals() {
           additional_charges: endData.additional_charges,
           additional_charges_details: endData.additional_charges_details,
           total_cost: costs.totalCost,
-          remaining_payment: costs.remaining,
+          paid_amount: totalPaid,
+          remaining_payment: remaining,
           status: "הושלם",
         })
         .eq("id", selectedRental.id);
@@ -494,6 +500,16 @@ export default function Rentals() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <Label>סכום תשלום עכשיו (₪)</Label>
+                  <Input
+                    type="number"
+                    value={endData.payment_amount}
+                    onChange={(e) =>
+                      setEndData({ ...endData, payment_amount: parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div>
                   <Label>אמצעי תשלום</Label>
                   <Select
                     value={endData.payment_method}
@@ -511,8 +527,11 @@ export default function Rentals() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {calculateCosts().remaining > 0 && (
                 <div>
-                  <Label>תאריך גבייה (אם יש יתרה)</Label>
+                  <Label>תאריך גבייה ליתרה</Label>
                   <Input
                     type="date"
                     value={endData.collection_date}
@@ -521,7 +540,7 @@ export default function Rentals() {
                     }
                   />
                 </div>
-              </div>
+              )}
 
               {/* Cost Summary */}
               <div className="p-4 bg-cyan-50 rounded-lg space-y-2">
@@ -541,13 +560,23 @@ export default function Rentals() {
                   <span>סה"כ:</span>
                   <span>₪{calculateCosts().totalCost?.toLocaleString() || 0}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>שולם:</span>
-                  <span>₪{selectedRental.paid_amount?.toLocaleString() || 0}</span>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>שולם מראש:</span>
+                  <span>₪{(selectedRental.paid_amount || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between font-bold text-red-600">
+                {endData.payment_amount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>תשלום עכשיו:</span>
+                    <span>₪{endData.payment_amount.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-lg pt-1 border-t">
+                  <span>סה"כ שולם:</span>
+                  <span className="text-green-700">₪{((selectedRental.paid_amount || 0) + (endData.payment_amount || 0)).toLocaleString()}</span>
+                </div>
+                <div className={`flex justify-between font-bold ${calculateCosts().remaining > 0 ? "text-red-600" : "text-green-700"}`}>
                   <span>נותר לתשלום:</span>
-                  <span>₪{calculateCosts().remaining?.toLocaleString() || 0}</span>
+                  <span>₪{Math.max(0, calculateCosts().remaining).toLocaleString()}</span>
                 </div>
               </div>
 

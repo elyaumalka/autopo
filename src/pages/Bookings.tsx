@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle } from "lucide-react";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
@@ -49,6 +49,7 @@ type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];
+type MaintenanceTask = Database["public"]["Tables"]["maintenance_tasks"]["Row"];
 
 export default function Bookings() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -67,6 +68,16 @@ export default function Bookings() {
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [deleteConfirmBooking, setDeleteConfirmBooking] = useState<Booking | null>(null);
   const [endConfirmBooking, setEndConfirmBooking] = useState<Booking | null>(null);
+  const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
+  const [maintenanceVehicle, setMaintenanceVehicle] = useState<Vehicle | null>(null);
+  const [maintenanceDate, setMaintenanceDate] = useState("");
+  const [maintenanceData, setMaintenanceData] = useState({
+    type: "טיפול תקופתי" as string,
+    due_date: "",
+    description: "",
+    notes: "",
+    activate_now: false,
+  });
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -111,6 +122,18 @@ export default function Bookings() {
       const { data, error } = await supabase
         .from("rentals")
         .select("*");
+      if (error) throw error;
+      return data || [];
+    }
+  });
+
+  const { data: maintenanceTasks = [] } = useQuery({
+    queryKey: ["maintenance_tasks"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("maintenance_tasks")
+        .select("*")
+        .neq("status", "הושלם");
       if (error) throw error;
       return data || [];
     }
@@ -262,6 +285,50 @@ export default function Bookings() {
       toast({ title: "שגיאה בסיום הזמנה", description: error.message, variant: "destructive" });
     }
   });
+
+  const maintenanceMutation = useMutation({
+    mutationFn: async () => {
+      if (!maintenanceVehicle) throw new Error("לא נבחר רכב");
+      const vehicle = maintenanceVehicle;
+      const { error } = await supabase.from("maintenance_tasks").insert({
+        vehicle_id: vehicle.id,
+        vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
+        type: maintenanceData.type as any,
+        due_date: maintenanceData.due_date || null,
+        description: maintenanceData.description || null,
+        notes: maintenanceData.notes || null,
+        status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
+      });
+      if (error) throw error;
+
+      if (maintenanceData.activate_now) {
+        await supabase.from("vehicles").update({ status: "בטיפול" }).eq("id", vehicle.id);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      setMaintenanceDialogOpen(false);
+      setMaintenanceVehicle(null);
+      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", description: "", notes: "", activate_now: false });
+      toast({ title: "משימת טיפול נוצרה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה ביצירת משימה", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const handleOpenMaintenanceDialog = (vehicle: Vehicle, date?: string) => {
+    setMaintenanceVehicle(vehicle);
+    setMaintenanceData({
+      type: "טיפול תקופתי",
+      due_date: date || format(new Date(), "yyyy-MM-dd"),
+      description: "",
+      notes: "",
+      activate_now: false,
+    });
+    setMaintenanceDialogOpen(true);
+  };
 
   const resetForm = () => {
     setFormData({});
@@ -594,6 +661,8 @@ export default function Bookings() {
             <BookingsCalendarView 
               onNewBooking={() => { resetForm(); setIsOpen(true); }}
               onCellClick={handleCalendarCellClick}
+              onMaintenanceClick={(vehicle, date) => handleOpenMaintenanceDialog(vehicle, date)}
+              maintenanceTasks={maintenanceTasks}
             />
           </div>
         </TabsContent>
@@ -630,6 +699,12 @@ export default function Bookings() {
               data={filteredBookings}
               isLoading={isLoading}
               emptyMessage="לא נמצאו הזמנות"
+              rowClassName={(row: Booking) => {
+                if (row.status === "הושלם") return "bg-muted/40 opacity-70";
+                if (row.status === "בוטל") return "bg-red-50/50 opacity-60 line-through";
+                if (row.status === "פעיל") return "bg-yellow-50/50";
+                return "";
+              }}
             />
           </div>
         </TabsContent>
@@ -1175,6 +1250,94 @@ export default function Bookings() {
               onComplete={handleWizardComplete}
               onCancel={() => { setRentalWizardOpen(false); setWizardBooking(null); }}
             />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance Reservation Dialog */}
+      <Dialog open={maintenanceDialogOpen} onOpenChange={(open) => { if (!open) setMaintenanceDialogOpen(false); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <div className="flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                שריון לטיפול / תיקון
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {maintenanceVehicle && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted rounded-lg text-sm">
+                <div><strong>רכב:</strong> {maintenanceVehicle.manufacturer} {maintenanceVehicle.model} - {maintenanceVehicle.license_plate}</div>
+              </div>
+
+              <div>
+                <Label>סוג טיפול</Label>
+                <Select value={maintenanceData.type} onValueChange={(v) => setMaintenanceData({ ...maintenanceData, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="טיפול תקופתי">טיפול תקופתי</SelectItem>
+                    <SelectItem value="החלפת שמן">החלפת שמן</SelectItem>
+                    <SelectItem value="צמיגים">צמיגים</SelectItem>
+                    <SelectItem value="בלמים">בלמים</SelectItem>
+                    <SelectItem value="טסט">טסט</SelectItem>
+                    <SelectItem value="חידוש רישוי">חידוש רישוי</SelectItem>
+                    <SelectItem value="ביטוח">ביטוח</SelectItem>
+                    <SelectItem value="אחר">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>תאריך</Label>
+                <Input
+                  type="date"
+                  value={maintenanceData.due_date}
+                  onChange={(e) => setMaintenanceData({ ...maintenanceData, due_date: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>תיאור (מה צריך לעשות / מי הנהג)</Label>
+                <Textarea
+                  value={maintenanceData.description}
+                  onChange={(e) => setMaintenanceData({ ...maintenanceData, description: e.target.value })}
+                  placeholder="פירוט הטיפול..."
+                />
+              </div>
+
+              <div>
+                <Label>הערות נוספות</Label>
+                <Textarea
+                  value={maintenanceData.notes}
+                  onChange={(e) => setMaintenanceData({ ...maintenanceData, notes: e.target.value })}
+                  placeholder="הערות..."
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={maintenanceData.activate_now}
+                  onCheckedChange={(checked) => setMaintenanceData({ ...maintenanceData, activate_now: checked === true })}
+                />
+                <Label className="cursor-pointer">הפעל מיד (הרכב ייחסם כ"בטיפול")</Label>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  onClick={() => maintenanceMutation.mutate()}
+                  disabled={maintenanceMutation.isPending}
+                  className="flex-1"
+                >
+                  <Wrench className="w-4 h-4 ml-2" />
+                  {maintenanceData.activate_now ? "צור והפעל" : "שמור שריון"}
+                </Button>
+                <Button variant="outline" onClick={() => setMaintenanceDialogOpen(false)}>
+                  ביטול
+                </Button>
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

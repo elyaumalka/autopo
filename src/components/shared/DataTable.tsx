@@ -20,6 +20,7 @@ export interface DataTableProps<T> {
   isLoading?: boolean;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  rowClassName?: (row: T) => string;
 }
 
 export function DataTable<T extends { id?: string }>({
@@ -28,6 +29,7 @@ export function DataTable<T extends { id?: string }>({
   isLoading,
   onRowClick,
   emptyMessage = "לא נמצאו נתונים",
+  rowClassName,
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
@@ -84,7 +86,7 @@ export function DataTable<T extends { id?: string }>({
               <tr 
                 key={row.id || i} 
                 onClick={() => onRowClick?.(row)}
-                className={`border-b transition-colors hover:bg-muted/50 ${onRowClick ? "cursor-pointer" : ""}`}
+                className={`border-b transition-colors hover:bg-muted/50 ${onRowClick ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
               >
                 {columns.map((col, j) => (
                   <td key={j} className="px-3 py-3 align-middle text-right whitespace-nowrap">

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench } from "lucide-react";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Clock, Calendar as CalendarIcon } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
@@ -78,6 +78,13 @@ export default function Bookings() {
     notes: "",
     activate_now: false,
   });
+  // Calendar action menu state
+  const [calendarActionBooking, setCalendarActionBooking] = useState<Booking | null>(null);
+  const [calendarActionRental, setCalendarActionRental] = useState<Rental | null>(null);
+  const [calendarActionOpen, setCalendarActionOpen] = useState(false);
+  // Extend rental state
+  const [extendDialogOpen, setExtendDialogOpen] = useState(false);
+  const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "" });
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -214,10 +221,8 @@ export default function Bookings() {
 
   const deleteMutation = useMutation({
     mutationFn: async (booking: Booking) => {
-      // First delete linked rental if exists
       const linkedRental = rentals.find(r => r.booking_id === booking.id);
       if (linkedRental) {
-        // Also update vehicle status back to available
         if (linkedRental.vehicle_id && linkedRental.status === "פעיל") {
           await supabase.from("vehicles").update({ status: "זמין" }).eq("id", linkedRental.vehicle_id);
         }
@@ -225,7 +230,6 @@ export default function Bookings() {
         if (rentalError) throw rentalError;
       }
 
-      // Also free up vehicle if booking was active
       if (booking.vehicle_id && booking.status === "פעיל") {
         await supabase.from("vehicles").update({ status: "זמין" }).eq("id", booking.vehicle_id);
       }
@@ -238,6 +242,7 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       setDeleteConfirmBooking(null);
+      setCalendarActionOpen(false);
       toast({ title: "ההזמנה נמחקה בהצלחה" });
     },
     onError: (error) => {
@@ -247,14 +252,12 @@ export default function Bookings() {
 
   const endBookingMutation = useMutation({
     mutationFn: async (booking: Booking) => {
-      // Update booking status to completed
       const { error: bookingError } = await supabase
         .from("bookings")
         .update({ status: "הושלם" } as any)
         .eq("id", booking.id);
       if (bookingError) throw bookingError;
 
-      // Update linked rental if exists
       const linkedRental = rentals.find(r => r.booking_id === booking.id);
       if (linkedRental) {
         const now = new Date();
@@ -269,7 +272,6 @@ export default function Bookings() {
         if (rentalError) throw rentalError;
       }
 
-      // Free up vehicle
       if (booking.vehicle_id) {
         await supabase.from("vehicles").update({ status: "זמין" }).eq("id", booking.vehicle_id);
       }
@@ -279,10 +281,44 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       setEndConfirmBooking(null);
+      setCalendarActionOpen(false);
       toast({ title: "ההזמנה הסתיימה בהצלחה" });
     },
     onError: (error) => {
       toast({ title: "שגיאה בסיום הזמנה", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Extend rental mutation
+  const extendMutation = useMutation({
+    mutationFn: async ({ booking, rental, newEndDate, newEndTime }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string }) => {
+      // Update booking end date
+      const { error: bookingError } = await supabase
+        .from("bookings")
+        .update({ end_date: newEndDate, end_time: newEndTime || null } as any)
+        .eq("id", booking.id);
+      if (bookingError) throw bookingError;
+
+      // Update linked rental
+      if (rental) {
+        const { error: rentalError } = await supabase
+          .from("rentals")
+          .update({ planned_end_date: newEndDate, planned_end_time: newEndTime || null } as any)
+          .eq("id", rental.id);
+        if (rentalError) throw rentalError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+      setExtendDialogOpen(false);
+      setCalendarActionOpen(false);
+      toast({ title: "ההזמנה הוארכה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה בהארכת הזמנה", description: error.message, variant: "destructive" });
     }
   });
 
@@ -379,43 +415,35 @@ export default function Bookings() {
 
   const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => {
     if (booking) {
+      // Find the actual booking record
+      let foundBooking: Booking | undefined;
+      let foundRental: Rental | undefined;
+
       if (booking.type === "rental" || booking.status === "פעיל") {
-        const rental = rentals.find(r => r.id === booking.id);
-        if (rental) {
-          const correspondingBooking = bookings.find(b => b.id === rental.booking_id);
-          if (correspondingBooking) {
-            setWizardBooking(correspondingBooking);
-            setRentalWizardOpen(true);
-            return;
-          }
+        foundRental = rentals.find(r => r.id === booking.id);
+        if (foundRental) {
+          foundBooking = bookings.find(b => b.id === foundRental!.booking_id);
         }
-        const existingBooking = bookings.find(b => b.id === booking.id);
-        if (existingBooking) {
-          setWizardBooking(existingBooking);
-          setRentalWizardOpen(true);
-          return;
+        if (!foundBooking) {
+          foundBooking = bookings.find(b => b.id === booking.id);
         }
+      } else {
+        foundBooking = booking.id 
+          ? bookings.find(b => b.id === booking.id)
+          : bookings.find(b => 
+              b.vehicle_id === vehicle.id && 
+              b.start_date <= format(date, "yyyy-MM-dd") && 
+              b.end_date >= format(date, "yyyy-MM-dd") &&
+              b.status !== "בוטל" && b.status !== "הושלם" &&
+              b.customer_name === booking.customerName
+            );
       }
 
-      const existingBooking = booking.id 
-        ? bookings.find(b => b.id === booking.id)
-        : bookings.find(b => 
-            b.vehicle_id === vehicle.id && 
-            b.start_date <= format(date, "yyyy-MM-dd") && 
-            b.end_date >= format(date, "yyyy-MM-dd") &&
-            b.status !== "בוטל" && b.status !== "הושלם" &&
-            b.customer_name === booking.customerName
-          );
-      if (existingBooking) {
-        if (existingBooking.status === "מאושר" || existingBooking.status === "ממתין") {
-          setWizardBooking(existingBooking);
-          setRentalWizardOpen(true);
-        } else {
-          setSelectedBooking(existingBooking);
-          setFormData(existingBooking);
-          setStep(1);
-          setIsOpen(true);
-        }
+      if (foundBooking) {
+        // Open action menu instead of directly opening wizard
+        setCalendarActionBooking(foundBooking);
+        setCalendarActionRental(foundRental || rentals.find(r => r.booking_id === foundBooking!.id) || null);
+        setCalendarActionOpen(true);
       }
     } else {
       let defaultStartTime = "09:00";
@@ -549,7 +577,8 @@ export default function Bookings() {
           {row.status === "פעיל" && (
             <Button 
               size="sm" 
-              variant="warning"
+              variant="outline"
+              className="text-orange-600 border-orange-300 hover:bg-orange-50"
               onClick={() => setEndConfirmBooking(row)}
             >
               <XCircle className="w-4 h-4 ml-1" />
@@ -628,7 +657,6 @@ export default function Bookings() {
     }
   ];
 
-  // Current vehicle for editing
   const currentEditVehicle = formData.vehicle_id ? vehicles.find(v => v.id === formData.vehicle_id) : null;
 
   return (
@@ -710,6 +738,191 @@ export default function Bookings() {
         </TabsContent>
       </Tabs>
 
+      {/* Calendar Action Menu Dialog */}
+      <Dialog open={calendarActionOpen} onOpenChange={(open) => { if (!open) { setCalendarActionOpen(false); setCalendarActionBooking(null); setCalendarActionRental(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {calendarActionBooking?.status === "פעיל" ? "השכרה פעילה" : "הזמנה משוריינת"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {calendarActionBooking && (
+            <div className="space-y-4">
+              {/* Booking info summary */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">לקוח:</span>
+                  <span className="font-medium">{calendarActionBooking.customer_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">רכב:</span>
+                  <span className="font-medium">{calendarActionBooking.vehicle_details}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">תאריכים:</span>
+                  <span className="font-medium">
+                    {calendarActionBooking.start_date} {calendarActionBooking.start_time ? `(${calendarActionBooking.start_time.toString().slice(0,5)})` : ""}
+                    {" → "}
+                    {calendarActionBooking.end_date} {calendarActionBooking.end_time ? `(${calendarActionBooking.end_time.toString().slice(0,5)})` : ""}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">סטטוס:</span>
+                  <StatusBadge status={calendarActionBooking.status} />
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-1 gap-2">
+                {/* Reserved booking actions */}
+                {(calendarActionBooking.status === "מאושר" || calendarActionBooking.status === "ממתין") && (
+                  <>
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setWizardBooking(calendarActionBooking);
+                        setRentalWizardOpen(true);
+                      }}
+                    >
+                      <CheckCircle className="w-4 h-4 ml-2" />
+                      התחל השכרה
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        handleEditBooking(calendarActionBooking);
+                      }}
+                    >
+                      <Edit className="w-4 h-4 ml-2" />
+                      ערוך הזמנה
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setDeleteConfirmBooking(calendarActionBooking);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 ml-2" />
+                      מחק הזמנה
+                    </Button>
+                  </>
+                )}
+
+                {/* Active rental actions */}
+                {calendarActionBooking.status === "פעיל" && (
+                  <>
+                    <Button
+                      variant="outline"
+                      className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+                      onClick={() => {
+                        setExtendData({
+                          new_end_date: calendarActionBooking.end_date,
+                          new_end_time: calendarActionBooking.end_time?.toString().slice(0,5) || "",
+                        });
+                        setExtendDialogOpen(true);
+                      }}
+                    >
+                      <CalendarIcon className="w-4 h-4 ml-2" />
+                      הארך השכרה
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setEndConfirmBooking(calendarActionBooking);
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 ml-2" />
+                      סיים השכרה
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        handleEditBooking(calendarActionBooking);
+                      }}
+                    >
+                      <Edit className="w-4 h-4 ml-2" />
+                      ערוך פרטים
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setDeleteConfirmBooking(calendarActionBooking);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 ml-2" />
+                      מחק
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Extend Rental Dialog */}
+      <Dialog open={extendDialogOpen} onOpenChange={(open) => { if (!open) setExtendDialogOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>הארכת השכרה</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 bg-muted/50 rounded-lg text-sm">
+              <div><strong>לקוח:</strong> {calendarActionBooking?.customer_name}</div>
+              <div><strong>רכב:</strong> {calendarActionBooking?.vehicle_details}</div>
+              <div><strong>תאריך סיום נוכחי:</strong> {calendarActionBooking?.end_date} {calendarActionBooking?.end_time?.toString().slice(0,5) || ""}</div>
+            </div>
+            <div>
+              <Label>תאריך סיום חדש</Label>
+              <Input
+                type="date"
+                value={extendData.new_end_date}
+                onChange={(e) => setExtendData({ ...extendData, new_end_date: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>שעת סיום חדשה</Label>
+              <Input
+                type="time"
+                value={extendData.new_end_time}
+                onChange={(e) => setExtendData({ ...extendData, new_end_time: e.target.value })}
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button
+                className="flex-1"
+                disabled={!extendData.new_end_date || extendMutation.isPending}
+                onClick={() => {
+                  if (calendarActionBooking) {
+                    extendMutation.mutate({
+                      booking: calendarActionBooking,
+                      rental: calendarActionRental,
+                      newEndDate: extendData.new_end_date,
+                      newEndTime: extendData.new_end_time,
+                    });
+                  }
+                }}
+              >
+                {extendMutation.isPending ? "מעדכן..." : "עדכן תאריך"}
+              </Button>
+              <Button variant="outline" onClick={() => setExtendDialogOpen(false)}>ביטול</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Quick Booking Dialog */}
       {quickBookingData && (
         <QuickBookingDialog
@@ -737,7 +950,7 @@ export default function Bookings() {
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Progress Steps - only show step 2 (vehicle) for new bookings or vehicle swap */}
+            {/* Progress Steps */}
             {!selectedBooking ? (
               <div className="flex items-center justify-between mb-6">
                 {["תאריכים", "רכב", "פרטים"].map((s, i) => (
@@ -1165,9 +1378,7 @@ export default function Bookings() {
               )}
 
               <div className="flex gap-3">
-                <Button onClick={() => setViewingBooking(null)} className="flex-1">
-                  סגור
-                </Button>
+                <Button onClick={() => setViewingBooking(null)} className="flex-1">סגור</Button>
                 <Button variant="outline" onClick={() => {
                   handleEditBooking(viewingBooking);
                   setViewingBooking(null);
@@ -1175,7 +1386,7 @@ export default function Bookings() {
                   עריכה
                 </Button>
                 {viewingBooking.status === "פעיל" && (
-                  <Button variant="warning" onClick={() => {
+                  <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => {
                     setEndConfirmBooking(viewingBooking);
                     setViewingBooking(null);
                   }}>

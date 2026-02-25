@@ -60,14 +60,14 @@ export default function RentalStartWizard({
     waiver_signed: false,
   });
 
-  // Load existing documents when reaching step 2
+  // Load existing documents when reaching step 2, auto-generate if none exist
   useEffect(() => {
     if (step === 2) {
-      loadDocuments();
+      loadAndAutoGenerate();
     }
   }, [step]);
 
-  const loadDocuments = async () => {
+  const loadAndAutoGenerate = async () => {
     setLoadingDocs(true);
     try {
       const { data, error } = await supabase
@@ -76,10 +76,13 @@ export default function RentalStartWizard({
         .eq("booking_id", booking.id);
       
       if (error) throw error;
-      setDocuments(data || []);
-
-      // Sync checkbox state with signed documents
-      if (data) {
+      
+      if (!data || data.length === 0) {
+        // Auto-generate documents
+        await generateDocuments();
+      } else {
+        setDocuments(data);
+        // Sync checkbox state
         const updates: Record<string, boolean> = {};
         data.forEach((d: any) => {
           if (d.status === "signed") {
@@ -92,6 +95,22 @@ export default function RentalStartWizard({
           setFormData(prev => ({ ...prev, ...updates }));
         }
       }
+    } catch (e) {
+      console.error("Error loading documents:", e);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const loadDocuments = async () => {
+    setLoadingDocs(true);
+    try {
+      const { data, error } = await supabase
+        .from("document_signatures")
+        .select("*")
+        .eq("booking_id", booking.id);
+      if (error) throw error;
+      setDocuments(data || []);
     } catch (e) {
       console.error("Error loading documents:", e);
     } finally {

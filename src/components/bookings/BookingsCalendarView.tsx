@@ -8,7 +8,8 @@ import {
   ChevronLeft, 
   ZoomIn, 
   ZoomOut, 
-  Plus 
+  Plus,
+  Wrench
 } from "lucide-react";
 import { 
   format, 
@@ -29,13 +30,16 @@ import type { Database } from "@/integrations/supabase/types";
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];
+type MaintenanceTask = Database["public"]["Tables"]["maintenance_tasks"]["Row"];
 
 interface BookingsCalendarViewProps {
   onNewBooking?: () => void;
   onCellClick?: (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => void;
+  onMaintenanceClick?: (vehicle: Vehicle, date?: string) => void;
+  maintenanceTasks?: MaintenanceTask[];
 }
 
-export default function BookingsCalendarView({ onNewBooking, onCellClick }: BookingsCalendarViewProps) {
+export default function BookingsCalendarView({ onNewBooking, onCellClick, onMaintenanceClick, maintenanceTasks = [] }: BookingsCalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<"week" | "month" | "unlimited">("week");
   const [hideMonthly, setHideMonthly] = useState(false);
@@ -218,6 +222,28 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
 
       const result = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
       if (result.status !== "free") return result;
+    }
+
+    // Check maintenance tasks
+    const maintenance = maintenanceTasks.find(m => {
+      if (m.vehicle_id !== vehicle.id) return false;
+      if (!m.due_date) return false;
+      return isSameDay(day, parseISO(m.due_date));
+    });
+
+    if (maintenance) {
+      return {
+        status: "full",
+        event: {
+          type: "booking" as const,
+          id: maintenance.id,
+          customerName: maintenance.type || "טיפול",
+          status: "בטיפול",
+          rentalType: "daily",
+          endTime: null,
+          startTime: null,
+        }
+      };
     }
 
     return { status: "free" };
@@ -511,10 +537,21 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick }: Book
                 })}
                 {/* Vehicle Info */}
                 <td className="border p-1 sticky right-0 bg-white">
-                  <div className="text-right">
-                    <div className="font-medium text-xs">{vehicle.license_plate}</div>
-                    <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
-                      {vehicle.manufacturer} {vehicle.model}
+                  <div className="flex items-center gap-1">
+                    {onMaintenanceClick && (
+                      <button
+                        onClick={() => onMaintenanceClick(vehicle)}
+                        className="p-0.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
+                        title="שריון לטיפול"
+                      >
+                        <Wrench className="h-3 w-3" />
+                      </button>
+                    )}
+                    <div className="text-right flex-1">
+                      <div className="font-medium text-xs">{vehicle.license_plate}</div>
+                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                        {vehicle.manufacturer} {vehicle.model}
+                      </div>
                     </div>
                   </div>
                 </td>

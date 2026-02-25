@@ -44,13 +44,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
   const [viewMode, setViewMode] = useState<"week" | "month" | "unlimited">("week");
   const [hideMonthly, setHideMonthly] = useState(false);
   const [hideWeekly, setHideWeekly] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(100); // CSS zoom percentage
+  const [zoomLevel, setZoomLevel] = useState(100);
 
-  // Zoom controls - CSS zoom
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 150));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 50));
 
-  // Get date range based on view mode
   const getDateRange = () => {
     if (viewMode === "week") {
       const start = startOfWeek(currentDate, { weekStartsOn: 0 });
@@ -59,7 +57,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const start = startOfWeek(currentDate, { weekStartsOn: 0 });
       return { start, days: 30 };
     } else {
-      // unlimited - show 60 days
       const start = startOfWeek(currentDate, { weekStartsOn: 0 });
       return { start, days: 60 };
     }
@@ -67,9 +64,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
   const { start: weekStart, days: visibleDays } = getDateRange();
   const weekEnd = addDays(weekStart, visibleDays - 1);
-  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(weekStart, i)).reverse(); // RTL order
+  const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(weekStart, i)).reverse();
 
-  // Fetch all vehicles
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-all"],
     queryFn: async () => {
@@ -83,7 +79,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     },
   });
 
-  // Fetch bookings for the week
   const { data: bookings = [] } = useQuery({
     queryKey: ["bookings-week", weekStart.toISOString()],
     queryFn: async () => {
@@ -98,7 +93,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     },
   });
 
-  // Fetch active rentals
   const { data: rentals = [] } = useQuery({
     queryKey: ["rentals-active"],
     queryFn: async () => {
@@ -111,25 +105,21 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     },
   });
 
-  // Helper to match vehicle by license plate (from vehicle_details string)
   const matchVehicleToDetails = (vehicleLicensePlate: string, details: string | null) => {
     if (!details) return false;
     return details.includes(vehicleLicensePlate);
   };
 
-  // Helper to determine rental type based on duration
   const getRentalType = (startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
-    if (!endDate) return "monthly"; // No end date = monthly
+    if (!endDate) return "monthly";
     const start = parseISO(startDate);
     const end = parseISO(endDate);
     const days = differenceInDays(end, start);
-    
     if (days >= 25) return "monthly";
     if (days >= 6) return "weekly";
     return "daily";
   };
 
-  // Parse hour from time string like "10:00" -> 10
   const parseHour = (time: string | null | undefined): number | null => {
     if (!time) return null;
     const h = parseInt(time.split(":")[0]);
@@ -149,7 +139,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     };
   };
 
-  // Get slot status for a specific vehicle, day, and time slot (am=9-16, pm=16-9)
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
     // Check active rentals first
     const rental = rentals.find(r => {
@@ -186,7 +175,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
     }
 
-    // Check bookings - find ALL matching bookings for this day/vehicle
+    // Check bookings
     const matchingBookings = bookings.filter(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
@@ -197,7 +186,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
-    // For each matching booking, check if it occupies THIS specific slot
     for (const booking of matchingBookings) {
       const bookingType = getRentalType(booking.start_date, booking.end_date);
       if (hideMonthly && bookingType === "monthly") continue;
@@ -249,7 +237,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return { status: "free" };
   };
 
-  // Compute whether a slot is full, partial, or free based on start/end day and times
+  // Compute whether a slot is full, partial, or free
   const computeSlot = (
     slot: "am" | "pm",
     isStartDay: boolean,
@@ -261,24 +249,24 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     // Middle day - fully occupied
     if (!isStartDay && !isEndDay) return { status: "full", event };
 
-  // End day only
+    // End day only
     if (isEndDay && !isStartDay) {
       const h = endHour ?? 16;
       if (slot === "am") {
-        // AM = 9-16. If returns by 10:00 AM or earlier, don't occupy this day at all
         return h <= 10 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
       } else {
-        // PM = 16+. If end at 17 or before, PM is free (booking essentially ends in AM zone).
         return h <= 17 ? { status: "free" } : { status: "partial", event };
       }
     }
 
     // Start day only
     if (isStartDay && !isEndDay) {
-      const h = startHour ?? 9; // default start at 9:00
+      const h = startHour ?? 9;
       if (slot === "am") {
         return h >= 16 ? { status: "free" } : h <= 9 ? { status: "full", event } : { status: "partial", event };
       } else {
+        // PM slot (16:00-09:00). If start is late (>=20), only occupies tail end → partial
+        if (h >= 20) return { status: "partial", event };
         return { status: "full", event };
       }
     }
@@ -288,13 +276,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const sh = startHour ?? 9;
       const eh = endHour ?? 16;
       if (slot === "am") {
-        // AM = 9-16. If booking doesn't touch AM at all, free. If it covers to 16 or beyond, full. Otherwise partial.
         if (sh >= 16 || eh <= 9) return { status: "free" };
         if (eh >= 16) return { status: "full", event };
         return { status: "partial", event };
       } else {
-        // PM = 16+. If end at 17 or before, PM is free. Otherwise partial.
         if (eh <= 17) return { status: "free" };
+        if (sh >= 20) return { status: "partial", event };
         return { status: "partial", event };
       }
     }
@@ -302,7 +289,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return { status: "full", event };
   };
 
-  // Get status color
   const getStatusColor = (status: string) => {
     switch (status) {
       case "פעיל":
@@ -330,66 +316,34 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        {/* View Toggle */}
         <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === "week" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("week")}
-          >
-            שבועי
-          </Button>
-          <Button
-            variant={viewMode === "month" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("month")}
-          >
-            חודשי
-          </Button>
-          <Button
-            variant={viewMode === "unlimited" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("unlimited")}
-          >
-            הכל
-          </Button>
+          <Button variant={viewMode === "week" ? "default" : "outline"} size="sm" onClick={() => setViewMode("week")}>שבועי</Button>
+          <Button variant={viewMode === "month" ? "default" : "outline"} size="sm" onClick={() => setViewMode("month")}>חודשי</Button>
+          <Button variant={viewMode === "unlimited" ? "default" : "outline"} size="sm" onClick={() => setViewMode("unlimited")}>הכל</Button>
         </div>
 
-        {/* Date Navigation */}
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>
-            היום
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>היום</Button>
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, -visibleDays))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <span className="text-sm font-medium min-w-[140px] text-center">
-            {formatDateRange()}
-          </span>
+          <span className="text-sm font-medium min-w-[140px] text-center">{formatDateRange()}</span>
           <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, visibleDays))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Filters */}
         <div className="flex items-center gap-4 text-sm">
           <label className="flex items-center gap-2 cursor-pointer">
-            <Checkbox
-              checked={hideWeekly}
-              onCheckedChange={(checked) => setHideWeekly(checked === true)}
-            />
+            <Checkbox checked={hideWeekly} onCheckedChange={(checked) => setHideWeekly(checked === true)} />
             <span>הסתר שבועי</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <Checkbox
-              checked={hideMonthly}
-              onCheckedChange={(checked) => setHideMonthly(checked === true)}
-            />
+            <Checkbox checked={hideMonthly} onCheckedChange={(checked) => setHideMonthly(checked === true)} />
             <span>הסתר חודשי</span>
           </label>
         </div>
 
-        {/* Zoom Controls */}
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={handleZoomOut} disabled={zoomLevel <= 50}>
             <ZoomOut className="h-4 w-4" />
@@ -409,13 +363,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         >
           <thead className="sticky top-0 z-10">
             <tr className="bg-muted/50">
-              {/* Day Headers - RTL order */}
               {weekDays.map((day) => (
                 <th
                   key={day.toISOString()}
                   colSpan={2}
                   className={cn(
-                    "border p-1 text-center bg-muted/50",
+                    "border p-1 text-center bg-muted/50 border-l-2 border-l-foreground/20",
                     isSameDay(day, new Date()) && "bg-accent/20"
                   )}
                 >
@@ -427,16 +380,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   </div>
                 </th>
               ))}
-              {/* Vehicle Column Header */}
-              <th className="border p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">
-                רכב
-              </th>
+              <th className="border p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">רכב</th>
             </tr>
             <tr className="bg-muted/30">
-              {/* Time Slots Headers */}
               {weekDays.map((day) => (
                 <React.Fragment key={`${day.toISOString()}-slots`}>
-                  <th className="border p-0.5 text-[10px] text-center bg-muted/30">
+                  <th className="border p-0.5 text-[10px] text-center bg-muted/30 border-l-2 border-l-foreground/20">
                     16-9
                   </th>
                   <th className="border p-0.5 text-[10px] text-center bg-muted/30">
@@ -450,12 +399,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           <tbody>
             {vehicles.map((vehicle) => (
               <tr key={vehicle.id} className="hover:bg-muted/20">
-                {/* Day Cells - RTL order */}
                 {weekDays.map((day) => {
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
+                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm", isDayStart: boolean) => {
                     const handleClick = () => {
                       if (onCellClick) {
                         onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
@@ -464,13 +412,15 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       }
                     };
 
+                    // Day separator: thicker left border on PM slot (first column of each day in RTL)
+                    const daySeparatorClass = isDayStart ? "border-l-2 border-l-foreground/20" : "";
+
                     if (slotData.status === "full" && slotData.event) {
                       const sTime = slotData.event.startTime?.slice(0, 5);
                       const eTime = slotData.event.endTime?.slice(0, 5);
-                      // Show the most informative time: for non-standard starts show start, otherwise show end
                       const timeStr = (sTime && sTime !== "09:00" && sTime !== "10:00") ? sTime : (eTime || "");
                       return (
-                        <td key={slotKey} className="border p-0 h-8">
+                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
                           <div
                             onClick={handleClick}
                             className={cn(
@@ -488,7 +438,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     if (slotData.status === "partial" && slotData.event) {
                       return (
-                        <td key={slotKey} className="border p-0 h-8">
+                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
                           <div className="h-full flex flex-row-reverse">
                             <div
                               onClick={handleClick}
@@ -517,7 +467,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     // Free
                     return (
-                      <td key={slotKey} className="border p-0 h-8">
+                      <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
                         <button
                           onClick={handleClick}
                           className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
@@ -530,8 +480,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
+                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm", true)}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am", false)}
                     </React.Fragment>
                   );
                 })}

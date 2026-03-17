@@ -734,13 +734,16 @@ export default function Bookings() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {calendarActionBooking?.status === "פעיל" ? "השכרה פעילה" : "הזמנה משוריינת"}
+              {(calendarActionRental?.status || calendarActionBooking?.status) === "פעיל"
+                ? "השכרה פעילה"
+                : (calendarActionRental?.status || calendarActionBooking?.status) === "הושלם"
+                ? "השכרה שהושלמה"
+                : "הזמנה משוריינת"}
             </DialogTitle>
           </DialogHeader>
 
           {calendarActionBooking && (
             <div className="space-y-4">
-              {/* Booking info summary */}
               <div className="p-4 bg-muted/50 rounded-lg space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">לקוח:</span>
@@ -760,13 +763,11 @@ export default function Bookings() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">סטטוס:</span>
-                  <StatusBadge status={calendarActionBooking.status} />
+                  <StatusBadge status={calendarActionRental?.status || calendarActionBooking.status} />
                 </div>
               </div>
 
-              {/* Action buttons */}
               <div className="grid grid-cols-1 gap-2">
-                {/* Reserved booking actions */}
                 {(calendarActionBooking.status === "מאושר" || calendarActionBooking.status === "ממתין") && (
                   <>
                     <Button
@@ -805,8 +806,7 @@ export default function Bookings() {
                   </>
                 )}
 
-                {/* Active rental actions */}
-                {calendarActionBooking.status === "פעיל" && (
+                {(calendarActionRental?.status || calendarActionBooking.status) === "פעיל" && (
                   <>
                     <Button
                       variant="outline"
@@ -825,10 +825,7 @@ export default function Bookings() {
                     <Button
                       variant="outline"
                       className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
-                      onClick={() => {
-                        setCalendarActionOpen(false);
-                        setEndConfirmBooking(calendarActionBooking);
-                      }}
+                      onClick={() => openEndRentalDialog(calendarActionBooking, calendarActionRental)}
                     >
                       <XCircle className="w-4 h-4 ml-2" />
                       סיים השכרה
@@ -844,19 +841,43 @@ export default function Bookings() {
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך פרטים
                     </Button>
+                  </>
+                )}
+
+                {(calendarActionRental?.status || calendarActionBooking.status) === "הושלם" && (
+                  <>
                     <Button
-                      variant="destructive"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => openEndRentalDialog(calendarActionBooking, calendarActionRental)}
+                    >
+                      חיוב יתרה / עדכון סיום
+                    </Button>
+                    <Button
+                      variant="outline"
                       className="w-full"
                       onClick={() => {
                         setCalendarActionOpen(false);
-                        setDeleteConfirmBooking(calendarActionBooking);
+                        handleEditBooking(calendarActionBooking);
                       }}
                     >
-                      <Trash2 className="w-4 h-4 ml-2" />
-                      מחק
+                      <Edit className="w-4 h-4 ml-2" />
+                      ערוך הזמנה
                     </Button>
                   </>
                 )}
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => {
+                    setCalendarActionOpen(false);
+                    setDeleteConfirmBooking(calendarActionBooking);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  מחק
+                </Button>
               </div>
             </div>
           )}

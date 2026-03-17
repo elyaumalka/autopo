@@ -440,7 +440,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     if (slotData.status === "partial" && slotData.event) {
                       return (
-                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div className="h-full flex flex-row-reverse">
                             <div
                               onClick={handleClick}

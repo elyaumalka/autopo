@@ -490,21 +490,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                 })}
                 {/* Vehicle Info */}
                 <td className="border-2 border-foreground/20 p-1 sticky right-0 bg-white">
-                  <div className="flex items-center gap-1">
-                    {onMaintenanceClick && (
-                      <button
-                        onClick={() => onMaintenanceClick(vehicle)}
-                        className="p-0.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors"
-                        title="שריון לטיפול"
-                      >
-                        <Wrench className="h-3 w-3" />
-                      </button>
-                    )}
-                    <div className="text-right flex-1">
-                      <div className="font-medium text-xs">{vehicle.license_plate}</div>
-                      <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
-                        {vehicle.manufacturer} {vehicle.model}
-                      </div>
+                  <div className="text-right">
+                    <div className="font-medium text-xs">{vehicle.license_plate}</div>
+                    <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                      {vehicle.manufacturer} {vehicle.model}
                     </div>
                   </div>
                 </td>

@@ -370,6 +370,20 @@ export default function QuickBookingDialog({
                 שמור והמשך להפעלת השכרה
               </Button>
             )}
+            {onMaintenanceClick && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                onClick={() => {
+                  onClose();
+                  onMaintenanceClick();
+                }}
+              >
+                <Wrench className="w-4 h-4 ml-2" />
+                שריון לטיפול
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

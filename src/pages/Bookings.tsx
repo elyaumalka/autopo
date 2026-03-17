@@ -341,10 +341,12 @@ export default function Bookings() {
   });
 
   const handleOpenMaintenanceDialog = (vehicle: Vehicle, date?: string) => {
+    const selectedDate = date || format(new Date(), "yyyy-MM-dd");
     setMaintenanceVehicle(vehicle);
     setMaintenanceData({
       type: "טיפול תקופתי",
-      due_date: date || format(new Date(), "yyyy-MM-dd"),
+      due_date: selectedDate,
+      end_date: selectedDate,
       description: "",
       notes: "",
       activate_now: false,

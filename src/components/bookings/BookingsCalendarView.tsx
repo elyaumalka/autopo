@@ -382,7 +382,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   </div>
                 </th>
               ))}
-              <th className="border p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">רכב</th>
+              <th className="border-2 border-foreground/20 p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">רכב</th>
             </tr>
             <tr className="bg-muted/30">
               {weekDays.map((day) => (

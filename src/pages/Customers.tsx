@@ -295,20 +295,58 @@ export default function Customers() {
       cell: (row: Customer) => getCustomerRentals(row.id).length
     },
     {
+      header: "רישיון",
+      cell: (row: Customer) => (
+        <div className="flex items-center gap-1">
+          {row.license_front_url && row.license_back_url ? (
+            <span className="text-green-600 text-xs font-medium">✓ הועלה</span>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7 text-cyan-600"
+              onClick={() => {
+                const url = `${window.location.origin}/customer-upload?token=${(row as any).upload_token}`;
+                const phone = row.phone?.replace(/^0/, "972");
+                const text = encodeURIComponent(`שלום ${row.first_name},\nנא להעלות תמונות רישיון נהיגה:\n${url}`);
+                window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+              }}
+            >
+              <Send className="w-3 h-3 ml-1" />
+              שלח קישור
+            </Button>
+          )}
+        </div>
+      )
+    },
+    {
       header: "פעולות",
       cell: (row: Customer) => (
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => handleView(row)}>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="icon" onClick={() => handleView(row)} title="צפייה">
             <Eye className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(row)}>
+          <Button variant="ghost" size="icon" onClick={() => handleEdit(row)} title="עריכה">
             <Edit className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="העתק קישור העלאת רישיון"
+            onClick={() => {
+              const url = `${window.location.origin}/customer-upload?token=${(row as any).upload_token}`;
+              navigator.clipboard.writeText(url);
+              toast({ title: "הקישור הועתק!" });
+            }}
+          >
+            <Link className="w-4 h-4" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-red-500 hover:text-red-700"
+            className="text-destructive hover:text-destructive"
             onClick={() => deleteMutation.mutate(row.id)}
+            title="מחיקה"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

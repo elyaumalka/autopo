@@ -181,7 +181,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
       if (!matchById && !matchByDetails) return false;
-      if (b.status === "בוטל" || b.status === "הושלם") return false;
+      if (b.status === "בוטל") return false;
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);

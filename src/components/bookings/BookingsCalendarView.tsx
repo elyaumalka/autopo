@@ -405,7 +405,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm", isDayStart: boolean) => {
+                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
                     const handleClick = () => {
                       if (onCellClick) {
                         onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });

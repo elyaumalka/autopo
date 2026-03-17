@@ -167,10 +167,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       };
 
       const startDate = parseISO(rental.start_date);
-      const endDate = rental.planned_end_date ? parseISO(rental.planned_end_date) : addDays(startDate, 30);
+      const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
+      const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
       const isStartDay = isSameDay(day, startDate);
       const isEndDay = isSameDay(day, endDate);
-      const endHour = parseHour(rental.planned_end_time) ?? parseHour(rental.start_time);
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time) ?? parseHour(rental.start_time);
       const startHour = parseHour(rental.start_time);
 
       return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);

@@ -435,7 +435,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                     if (slotData.status === "full" && slotData.event) {
                       const sTime = slotData.event.startTime?.slice(0, 5);
                       const eTime = slotData.event.endTime?.slice(0, 5);
-                      const timeStr = (sTime && sTime !== "09:00" && sTime !== "10:00") ? sTime : (eTime || "");
+                      // Show start time on cells so we know when customer arrives
+                      const timeStr = sTime || eTime || "";
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div

@@ -532,6 +532,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
           <span>בטיפול</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300"></div>
+          <span>הושלם</span>
+        </div>
       </div>
     </div>
   );

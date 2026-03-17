@@ -278,8 +278,11 @@ export default function RentalStartWizard({
       }
 
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
 
       toast({ title: "ההשכרה התחילה בהצלחה!" });
       onComplete();

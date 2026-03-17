@@ -97,6 +97,7 @@ const App = () => (
             <Route path="/sign-document" element={<SignDocument />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
             <Route path="/vehicle-photos" element={<VehiclePhotos />} />
+            <Route path="/customer-upload" element={<CustomerUpload />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
             <Route path="/today-rentals" element={
               <ProtectedRoute requireRole>

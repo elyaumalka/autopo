@@ -251,56 +251,23 @@ export default function Bookings() {
     }
   });
 
-  const endBookingMutation = useMutation({
-    mutationFn: async (booking: Booking) => {
-      const { error: bookingError } = await supabase
-        .from("bookings")
-        .update({ status: "הושלם" } as any)
-        .eq("id", booking.id);
-      if (bookingError) throw bookingError;
-
-      const linkedRental = rentals.find(r => r.booking_id === booking.id);
-      if (linkedRental) {
-        const now = new Date();
-        const { error: rentalError } = await supabase
-          .from("rentals")
-          .update({
-            status: "הושלם",
-            actual_end_date: format(now, "yyyy-MM-dd"),
-            actual_end_time: format(now, "HH:mm"),
-          } as any)
-          .eq("id", linkedRental.id);
-        if (rentalError) throw rentalError;
-      }
-
-      if (booking.vehicle_id) {
-        await supabase.from("vehicles").update({ status: "זמין" }).eq("id", booking.vehicle_id);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["rentals"] });
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-      setEndConfirmBooking(null);
-      setCalendarActionOpen(false);
-      toast({ title: "ההזמנה הסתיימה בהצלחה" });
-    },
-    onError: (error) => {
-      toast({ title: "שגיאה בסיום הזמנה", description: error.message, variant: "destructive" });
-    }
-  });
+  const openEndRentalDialog = (booking: Booking, rentalOverride?: Rental | null) => {
+    const linkedRental = rentalOverride ?? rentals.find((r) => r.booking_id === booking.id) ?? null;
+    setEndDialogBooking(booking);
+    setEndDialogRental(linkedRental);
+    setEndDialogOpen(true);
+    setCalendarActionOpen(false);
+  };
 
   // Extend rental mutation
   const extendMutation = useMutation({
     mutationFn: async ({ booking, rental, newEndDate, newEndTime }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string }) => {
-      // Update booking end date
       const { error: bookingError } = await supabase
         .from("bookings")
         .update({ end_date: newEndDate, end_time: newEndTime || null } as any)
         .eq("id", booking.id);
       if (bookingError) throw bookingError;
 
-      // Update linked rental
       if (rental) {
         const { error: rentalError } = await supabase
           .from("rentals")
@@ -326,16 +293,34 @@ export default function Bookings() {
   const maintenanceMutation = useMutation({
     mutationFn: async () => {
       if (!maintenanceVehicle) throw new Error("לא נבחר רכב");
+      if (!maintenanceData.due_date) throw new Error("יש לבחור תאריך התחלה");
+
+      const startDate = parseISO(maintenanceData.due_date);
+      const endDate = parseISO(maintenanceData.end_date || maintenanceData.due_date);
+
+      if (isAfter(startDate, endDate)) {
+        throw new Error("תאריך הסיום חייב להיות אחרי תאריך ההתחלה");
+      }
+
+      const dates: string[] = [];
+      let cursor = startDate;
+      while (!isAfter(cursor, endDate)) {
+        dates.push(format(cursor, "yyyy-MM-dd"));
+        cursor = addDays(cursor, 1);
+      }
+
       const vehicle = maintenanceVehicle;
-      const { error } = await supabase.from("maintenance_tasks").insert({
+      const rows = dates.map((date) => ({
         vehicle_id: vehicle.id,
         vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
         type: maintenanceData.type as any,
-        due_date: maintenanceData.due_date || null,
+        due_date: date,
         description: maintenanceData.description || null,
         notes: maintenanceData.notes || null,
         status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
-      });
+      }));
+
+      const { error } = await supabase.from("maintenance_tasks").insert(rows as any);
       if (error) throw error;
 
       if (maintenanceData.activate_now) {
@@ -347,8 +332,8 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       setMaintenanceDialogOpen(false);
       setMaintenanceVehicle(null);
-      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", description: "", notes: "", activate_now: false });
-      toast({ title: "משימת טיפול נוצרה בהצלחה" });
+      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", end_date: "", description: "", notes: "", activate_now: false });
+      toast({ title: "שריון טיפול נשמר בהצלחה" });
     },
     onError: (error) => {
       toast({ title: "שגיאה ביצירת משימה", description: error.message, variant: "destructive" });

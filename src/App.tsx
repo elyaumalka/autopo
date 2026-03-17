@@ -38,6 +38,7 @@ import SignDocument from "@/pages/SignDocument";
 import TabletSignatures from "@/pages/TabletSignatures";
 import Documents from "@/pages/Documents";
 import VehiclePhotos from "@/pages/VehiclePhotos";
+import CustomerUpload from "@/pages/CustomerUpload";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();

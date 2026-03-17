@@ -33,6 +33,7 @@ interface QuickBookingDialogProps {
   onClose: () => void;
   onSubmit: (bookingData: BookingData) => void;
   onSubmitAndStart?: (bookingData: BookingData) => void;
+  onMaintenanceClick?: () => void;
   date: string;
   vehicle: Vehicle | null;
   customers: Customer[];

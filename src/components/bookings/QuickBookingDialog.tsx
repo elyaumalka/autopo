@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CheckCircle2, Check, ChevronsUpDown } from "lucide-react";
+import { CheckCircle2, Check, ChevronsUpDown, Wrench } from "lucide-react";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 

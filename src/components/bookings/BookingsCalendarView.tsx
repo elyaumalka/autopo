@@ -365,14 +365,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           <thead className="sticky top-0 z-10">
             <tr className="bg-muted/50">
               {weekDays.map((day) => (
-                <th
-                  key={day.toISOString()}
-                  colSpan={2}
-                  className={cn(
-                    "border p-1 text-center bg-muted/50 border-l-2 border-l-foreground/20",
-                    isSameDay(day, new Date()) && "bg-accent/20"
-                  )}
-                >
+              <th
+                key={day.toISOString()}
+                colSpan={2}
+                className={cn(
+                  "border-2 border-foreground/20 p-1 text-center bg-muted/50",
+                  isSameDay(day, new Date()) && "bg-accent/20"
+                )}
+              >
                   <div className="font-medium text-xs">
                     {format(day, "EEEE", { locale: he })}
                   </div>

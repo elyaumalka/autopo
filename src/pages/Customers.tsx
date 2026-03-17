@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, Search, Phone, Edit, Trash2, Eye, Upload, Loader2, Sparkles, FileText, ExternalLink } from "lucide-react";
+import { Users, Search, Phone, Edit, Trash2, Eye, Upload, Loader2, Sparkles, FileText, ExternalLink, Copy, Send, CreditCard, Link } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";

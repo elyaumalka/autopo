@@ -1397,12 +1397,12 @@ export default function Bookings() {
                 }}>
                   עריכה
                 </Button>
-                {viewingBooking.status === "פעיל" && (
+                {(viewingBooking.status === "פעיל" || viewingBooking.status === "הושלם") && (
                   <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => {
-                    setEndConfirmBooking(viewingBooking);
+                    openEndRentalDialog(viewingBooking);
                     setViewingBooking(null);
                   }}>
-                    סיים הזמנה
+                    {viewingBooking.status === "הושלם" ? "חיוב יתרה" : "סיים הזמנה"}
                   </Button>
                 )}
               </div>

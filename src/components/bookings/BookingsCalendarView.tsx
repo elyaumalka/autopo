@@ -251,39 +251,53 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     // Middle day - fully occupied
     if (!isStartDay && !isEndDay) return { status: "full", event };
 
-    // End day only
-    if (isEndDay && !isStartDay) {
-      const h = endHour ?? 16;
+    // Same day start+end (e.g. half-day)
+    if (isStartDay && isEndDay) {
+      const sh = startHour ?? 9;
+      const eh = endHour ?? 16;
       if (slot === "am") {
-        return h <= 10 ? { status: "free" } : h >= 16 ? { status: "full", event } : { status: "partial", event };
+        // AM = 9-16. If booking is entirely in PM range, AM is free
+        if (sh >= 16) return { status: "free" };
+        // If ends before AM starts, free
+        if (eh <= 9) return { status: "free" };
+        return { status: "full", event };
       } else {
-        return h <= 17 ? { status: "free" } : { status: "partial", event };
+        // PM = 16-9 next day. If booking ends before PM, free
+        if (eh <= 16) return { status: "free" };
+        return { status: "full", event };
       }
     }
 
-    // Start day only
+    // Start day only - car is taken from startHour onward
     if (isStartDay && !isEndDay) {
       const h = startHour ?? 9;
       if (slot === "am") {
-        return h >= 16 ? { status: "free" } : h <= 9 ? { status: "full", event } : { status: "partial", event };
+        // AM = 9-16. If starts at/after 16, AM is free
+        if (h >= 16) return { status: "free" };
+        // Car is taken during AM hours → full
+        return { status: "full", event };
       } else {
-        // PM slot (16:00-09:00). If start is late (>=20), only occupies tail end → partial
+        // PM = 16-9. Car is always gone in PM on start day
+        // If very late start (>=20), show partial to allow another booking before
         if (h >= 20) return { status: "partial", event };
         return { status: "full", event };
       }
     }
 
-    // Same day start+end
-    if (isStartDay && isEndDay) {
-      const sh = startHour ?? 9;
-      const eh = endHour ?? 16;
+    // End day only - car returns at endHour
+    if (isEndDay && !isStartDay) {
+      const h = endHour ?? 16;
       if (slot === "am") {
-        if (sh >= 16 || eh <= 9) return { status: "free" };
-        if (eh >= 16) return { status: "full", event };
+        // AM = 9-16. If returns early morning (<=10), AM is free
+        if (h <= 10) return { status: "free" };
+        // If returns during PM hours, AM fully occupied
+        if (h >= 16) return { status: "full", event };
+        // Returns mid-AM → partial (car returns during this slot)
         return { status: "partial", event };
       } else {
-        if (eh <= 17) return { status: "free" };
-        if (sh >= 20) return { status: "partial", event };
+        // PM = 16-9. If returns before PM, free
+        if (h <= 16) return { status: "free" };
+        // Returns during PM → partial
         return { status: "partial", event };
       }
     }

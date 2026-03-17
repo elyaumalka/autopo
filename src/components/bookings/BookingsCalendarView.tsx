@@ -152,7 +152,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     if (rental) {
-      const rentalType = getRentalType(rental.start_date, rental.planned_end_date);
+      const rentalType = getRentalType(rental.start_date, rental.actual_end_date || rental.planned_end_date);
       if (hideMonthly && rentalType === "monthly") return { status: "free" };
       if (hideWeekly && rentalType === "weekly") return { status: "free" };
 

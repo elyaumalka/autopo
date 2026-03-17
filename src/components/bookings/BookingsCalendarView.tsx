@@ -469,7 +469,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     // Free
                     return (
-                      <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                      <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                         <button
                           onClick={handleClick}
                           className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"

@@ -395,7 +395,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   </th>
                 </React.Fragment>
               ))}
-              <th className="border p-1 sticky right-0 bg-muted/30"></th>
+              <th className="border-2 border-foreground/20 p-1 sticky right-0 bg-muted/30"></th>
             </tr>
           </thead>
           <tbody>

@@ -508,8 +508,11 @@ export default function Bookings() {
     setRentalWizardOpen(false);
     setWizardBooking(null);
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
     queryClient.invalidateQueries({ queryKey: ["rentals"] });
+    queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
     queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
   };
 
   const filteredBookings = bookings.filter(b => {

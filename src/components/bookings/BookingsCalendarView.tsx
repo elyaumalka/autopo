@@ -160,9 +160,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         type: "rental" as const,
         id: rental.id,
         customerName: rental.customer_name || "לקוח",
-        status: "פעיל" as const,
+        status: rental.status,
         rentalType,
-        endTime: rental.planned_end_time as string | null,
+        endTime: (rental.actual_end_time || rental.planned_end_time) as string | null,
         startTime: rental.start_time as string | null,
       };
 

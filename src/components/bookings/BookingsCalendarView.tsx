@@ -99,7 +99,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const { data, error } = await supabase
         .from("rentals")
         .select("*")
-        .eq("status", "פעיל");
+        .in("status", ["פעיל", "הושלם"])
+        .order("updated_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },

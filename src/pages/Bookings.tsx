@@ -721,7 +721,8 @@ export default function Bookings() {
               rowClassName={(row: Booking) => {
                 if (row.status === "הושלם") return "bg-muted/40 opacity-70";
                 if (row.status === "בוטל") return "bg-red-50/50 opacity-60 line-through";
-                if (row.status === "פעיל") return "bg-yellow-50/50";
+                if (row.status === "פעיל") return "bg-green-50/50";
+                if (row.status === "מאושר" || row.status === "ממתין") return "bg-yellow-50/50";
                 return "";
               }}
             />

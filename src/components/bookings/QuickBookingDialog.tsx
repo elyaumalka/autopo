@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CheckCircle2, Check, ChevronsUpDown } from "lucide-react";
+import { CheckCircle2, Check, ChevronsUpDown, Wrench } from "lucide-react";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -33,6 +33,7 @@ interface QuickBookingDialogProps {
   onClose: () => void;
   onSubmit: (bookingData: BookingData) => void;
   onSubmitAndStart?: (bookingData: BookingData) => void;
+  onMaintenanceClick?: () => void;
   date: string;
   vehicle: Vehicle | null;
   customers: Customer[];
@@ -57,7 +58,8 @@ export default function QuickBookingDialog({
   isOpen, 
   onClose, 
   onSubmit,
-  onSubmitAndStart, 
+  onSubmitAndStart,
+  onMaintenanceClick,
   date, 
   vehicle,
   customers,
@@ -366,6 +368,20 @@ export default function QuickBookingDialog({
               >
                 <CheckCircle2 className="w-4 h-4 ml-2" />
                 שמור והמשך להפעלת השכרה
+              </Button>
+            )}
+            {onMaintenanceClick && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                onClick={() => {
+                  onClose();
+                  onMaintenanceClick();
+                }}
+              >
+                <Wrench className="w-4 h-4 ml-2" />
+                שריון לטיפול
               </Button>
             )}
           </div>

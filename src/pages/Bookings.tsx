@@ -945,6 +945,11 @@ export default function Bookings() {
           }}
           onSubmit={handleQuickBookingSubmit}
           onSubmitAndStart={handleQuickBookingSubmitAndStart}
+          onMaintenanceClick={() => {
+            if (quickBookingData?.vehicle) {
+              handleOpenMaintenanceDialog(quickBookingData.vehicle, quickBookingData.date);
+            }
+          }}
           date={quickBookingData.date}
           vehicle={quickBookingData.vehicle}
           customers={customers}

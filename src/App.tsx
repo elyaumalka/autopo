@@ -38,6 +38,7 @@ import SignDocument from "@/pages/SignDocument";
 import TabletSignatures from "@/pages/TabletSignatures";
 import Documents from "@/pages/Documents";
 import VehiclePhotos from "@/pages/VehiclePhotos";
+import CustomerUpload from "@/pages/CustomerUpload";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -96,6 +97,7 @@ const App = () => (
             <Route path="/sign-document" element={<SignDocument />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
             <Route path="/vehicle-photos" element={<VehiclePhotos />} />
+            <Route path="/customer-upload" element={<CustomerUpload />} />
             <Route path="/tablet-signatures" element={<TabletSignatures />} />
             <Route path="/today-rentals" element={
               <ProtectedRoute requireRole>

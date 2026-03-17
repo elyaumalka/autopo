@@ -291,6 +291,8 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          card_expiry: string | null
+          card_last4: string | null
           city: string | null
           created_at: string
           email: string | null
@@ -302,12 +304,17 @@ export type Database = {
           license_front_url: string | null
           notes: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
+          payment_provider: string | null
+          payment_token: string | null
           phone: string
           status: Database["public"]["Enums"]["customer_status"]
           updated_at: string
+          upload_token: string | null
         }
         Insert: {
           address?: string | null
+          card_expiry?: string | null
+          card_last4?: string | null
           city?: string | null
           created_at?: string
           email?: string | null
@@ -319,12 +326,17 @@ export type Database = {
           license_front_url?: string | null
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_provider?: string | null
+          payment_token?: string | null
           phone: string
           status?: Database["public"]["Enums"]["customer_status"]
           updated_at?: string
+          upload_token?: string | null
         }
         Update: {
           address?: string | null
+          card_expiry?: string | null
+          card_last4?: string | null
           city?: string | null
           created_at?: string
           email?: string | null
@@ -336,9 +348,12 @@ export type Database = {
           license_front_url?: string | null
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_provider?: string | null
+          payment_token?: string | null
           phone?: string
           status?: Database["public"]["Enums"]["customer_status"]
           updated_at?: string
+          upload_token?: string | null
         }
         Relationships: []
       }

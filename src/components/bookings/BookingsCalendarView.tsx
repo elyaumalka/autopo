@@ -99,7 +99,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const { data, error } = await supabase
         .from("rentals")
         .select("*")
-        .eq("status", "פעיל");
+        .in("status", ["פעיל", "הושלם"])
+        .order("updated_at", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -151,7 +152,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     if (rental) {
-      const rentalType = getRentalType(rental.start_date, rental.planned_end_date);
+      const rentalType = getRentalType(rental.start_date, rental.actual_end_date || rental.planned_end_date);
       if (hideMonthly && rentalType === "monthly") return { status: "free" };
       if (hideWeekly && rentalType === "weekly") return { status: "free" };
 
@@ -159,17 +160,18 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         type: "rental" as const,
         id: rental.id,
         customerName: rental.customer_name || "לקוח",
-        status: "פעיל" as const,
+        status: rental.status,
         rentalType,
-        endTime: rental.planned_end_time as string | null,
+        endTime: (rental.actual_end_time || rental.planned_end_time) as string | null,
         startTime: rental.start_time as string | null,
       };
 
       const startDate = parseISO(rental.start_date);
-      const endDate = rental.planned_end_date ? parseISO(rental.planned_end_date) : addDays(startDate, 30);
+      const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
+      const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
       const isStartDay = isSameDay(day, startDate);
       const isEndDay = isSameDay(day, endDate);
-      const endHour = parseHour(rental.planned_end_time) ?? parseHour(rental.start_time);
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time) ?? parseHour(rental.start_time);
       const startHour = parseHour(rental.start_time);
 
       return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
@@ -180,7 +182,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
       if (!matchById && !matchByDetails) return false;
-      if (b.status === "בוטל" || b.status === "הושלם") return false;
+      if (b.status === "בוטל") return false;
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
@@ -364,14 +366,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           <thead className="sticky top-0 z-10">
             <tr className="bg-muted/50">
               {weekDays.map((day) => (
-                <th
-                  key={day.toISOString()}
-                  colSpan={2}
-                  className={cn(
-                    "border p-1 text-center bg-muted/50 border-l-2 border-l-foreground/20",
-                    isSameDay(day, new Date()) && "bg-accent/20"
-                  )}
-                >
+              <th
+                key={day.toISOString()}
+                colSpan={2}
+                className={cn(
+                  "border-2 border-foreground/20 p-1 text-center bg-muted/50",
+                  isSameDay(day, new Date()) && "bg-accent/20"
+                )}
+              >
                   <div className="font-medium text-xs">
                     {format(day, "EEEE", { locale: he })}
                   </div>
@@ -380,20 +382,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   </div>
                 </th>
               ))}
-              <th className="border p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">רכב</th>
+              <th className="border-2 border-foreground/20 p-1 text-right min-w-[100px] sticky right-0 bg-muted/50">רכב</th>
             </tr>
             <tr className="bg-muted/30">
               {weekDays.map((day) => (
                 <React.Fragment key={`${day.toISOString()}-slots`}>
-                  <th className="border p-0.5 text-[10px] text-center bg-muted/30 border-l-2 border-l-foreground/20">
+                  <th className="border border-y-2 border-l-2 border-r border-foreground/20 p-0.5 text-[10px] text-center bg-muted/30">
                     16-9
                   </th>
-                  <th className="border p-0.5 text-[10px] text-center bg-muted/30">
+                  <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-muted/30">
                     9-16
                   </th>
                 </React.Fragment>
               ))}
-              <th className="border p-1 sticky right-0 bg-muted/30"></th>
+              <th className="border-2 border-foreground/20 p-1 sticky right-0 bg-muted/30"></th>
             </tr>
           </thead>
           <tbody>
@@ -403,7 +405,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm", isDayStart: boolean) => {
+                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
                     const handleClick = () => {
                       if (onCellClick) {
                         onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
@@ -412,15 +414,16 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       }
                     };
 
-                    // Day separator: thicker left border on PM slot (first column of each day in RTL)
-                    const daySeparatorClass = isDayStart ? "border-l-2 border-l-foreground/20" : "";
+                    const daySeparatorClass = slotType === "pm"
+                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                      : "border border-y-2 border-r-2 border-l border-foreground/20";
 
                     if (slotData.status === "full" && slotData.event) {
                       const sTime = slotData.event.startTime?.slice(0, 5);
                       const eTime = slotData.event.endTime?.slice(0, 5);
                       const timeStr = (sTime && sTime !== "09:00" && sTime !== "10:00") ? sTime : (eTime || "");
                       return (
-                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div
                             onClick={handleClick}
                             className={cn(
@@ -438,7 +441,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     if (slotData.status === "partial" && slotData.event) {
                       return (
-                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div className="h-full flex flex-row-reverse">
                             <div
                               onClick={handleClick}
@@ -467,7 +470,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                     // Free
                     return (
-                      <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                      <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                         <button
                           onClick={handleClick}
                           className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
@@ -480,13 +483,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm", true)}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am", false)}
+                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
                     </React.Fragment>
                   );
                 })}
                 {/* Vehicle Info */}
-                <td className="border p-1 sticky right-0 bg-white">
+                <td className="border-2 border-foreground/20 p-1 sticky right-0 bg-white">
                   <div className="flex items-center gap-1">
                     {onMaintenanceClick && (
                       <button
@@ -529,6 +532,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         <div className="flex items-center gap-1.5">
           <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
           <span>בטיפול</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300"></div>
+          <span>הושלם</span>
         </div>
       </div>
     </div>

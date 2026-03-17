@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays } from "date-fns";
+import { format, addDays, isAfter, parseISO } from "date-fns";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -26,10 +26,11 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
+import EndRentalDialog from "@/components/bookings/EndRentalDialog";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import DocumentsList from "@/components/shared/DocumentsList";
@@ -67,22 +68,22 @@ export default function Bookings() {
   const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [deleteConfirmBooking, setDeleteConfirmBooking] = useState<Booking | null>(null);
-  const [endConfirmBooking, setEndConfirmBooking] = useState<Booking | null>(null);
+  const [endDialogBooking, setEndDialogBooking] = useState<Booking | null>(null);
+  const [endDialogRental, setEndDialogRental] = useState<Rental | null>(null);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
   const [maintenanceVehicle, setMaintenanceVehicle] = useState<Vehicle | null>(null);
-  const [maintenanceDate, setMaintenanceDate] = useState("");
   const [maintenanceData, setMaintenanceData] = useState({
     type: "טיפול תקופתי" as string,
     due_date: "",
+    end_date: "",
     description: "",
     notes: "",
     activate_now: false,
   });
-  // Calendar action menu state
   const [calendarActionBooking, setCalendarActionBooking] = useState<Booking | null>(null);
   const [calendarActionRental, setCalendarActionRental] = useState<Rental | null>(null);
   const [calendarActionOpen, setCalendarActionOpen] = useState(false);
-  // Extend rental state
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
   const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "" });
   const queryClient = useQueryClient();
@@ -250,56 +251,23 @@ export default function Bookings() {
     }
   });
 
-  const endBookingMutation = useMutation({
-    mutationFn: async (booking: Booking) => {
-      const { error: bookingError } = await supabase
-        .from("bookings")
-        .update({ status: "הושלם" } as any)
-        .eq("id", booking.id);
-      if (bookingError) throw bookingError;
-
-      const linkedRental = rentals.find(r => r.booking_id === booking.id);
-      if (linkedRental) {
-        const now = new Date();
-        const { error: rentalError } = await supabase
-          .from("rentals")
-          .update({
-            status: "הושלם",
-            actual_end_date: format(now, "yyyy-MM-dd"),
-            actual_end_time: format(now, "HH:mm"),
-          } as any)
-          .eq("id", linkedRental.id);
-        if (rentalError) throw rentalError;
-      }
-
-      if (booking.vehicle_id) {
-        await supabase.from("vehicles").update({ status: "זמין" }).eq("id", booking.vehicle_id);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["rentals"] });
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
-      setEndConfirmBooking(null);
-      setCalendarActionOpen(false);
-      toast({ title: "ההזמנה הסתיימה בהצלחה" });
-    },
-    onError: (error) => {
-      toast({ title: "שגיאה בסיום הזמנה", description: error.message, variant: "destructive" });
-    }
-  });
+  const openEndRentalDialog = (booking: Booking, rentalOverride?: Rental | null) => {
+    const linkedRental = rentalOverride ?? rentals.find((r) => r.booking_id === booking.id) ?? null;
+    setEndDialogBooking(booking);
+    setEndDialogRental(linkedRental);
+    setEndDialogOpen(true);
+    setCalendarActionOpen(false);
+  };
 
   // Extend rental mutation
   const extendMutation = useMutation({
     mutationFn: async ({ booking, rental, newEndDate, newEndTime }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string }) => {
-      // Update booking end date
       const { error: bookingError } = await supabase
         .from("bookings")
         .update({ end_date: newEndDate, end_time: newEndTime || null } as any)
         .eq("id", booking.id);
       if (bookingError) throw bookingError;
 
-      // Update linked rental
       if (rental) {
         const { error: rentalError } = await supabase
           .from("rentals")
@@ -325,16 +293,34 @@ export default function Bookings() {
   const maintenanceMutation = useMutation({
     mutationFn: async () => {
       if (!maintenanceVehicle) throw new Error("לא נבחר רכב");
+      if (!maintenanceData.due_date) throw new Error("יש לבחור תאריך התחלה");
+
+      const startDate = parseISO(maintenanceData.due_date);
+      const endDate = parseISO(maintenanceData.end_date || maintenanceData.due_date);
+
+      if (isAfter(startDate, endDate)) {
+        throw new Error("תאריך הסיום חייב להיות אחרי תאריך ההתחלה");
+      }
+
+      const dates: string[] = [];
+      let cursor = startDate;
+      while (!isAfter(cursor, endDate)) {
+        dates.push(format(cursor, "yyyy-MM-dd"));
+        cursor = addDays(cursor, 1);
+      }
+
       const vehicle = maintenanceVehicle;
-      const { error } = await supabase.from("maintenance_tasks").insert({
+      const rows = dates.map((date) => ({
         vehicle_id: vehicle.id,
         vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
         type: maintenanceData.type as any,
-        due_date: maintenanceData.due_date || null,
+        due_date: date,
         description: maintenanceData.description || null,
         notes: maintenanceData.notes || null,
         status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
-      });
+      }));
+
+      const { error } = await supabase.from("maintenance_tasks").insert(rows as any);
       if (error) throw error;
 
       if (maintenanceData.activate_now) {
@@ -346,8 +332,8 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       setMaintenanceDialogOpen(false);
       setMaintenanceVehicle(null);
-      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", description: "", notes: "", activate_now: false });
-      toast({ title: "משימת טיפול נוצרה בהצלחה" });
+      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", end_date: "", description: "", notes: "", activate_now: false });
+      toast({ title: "שריון טיפול נשמר בהצלחה" });
     },
     onError: (error) => {
       toast({ title: "שגיאה ביצירת משימה", description: error.message, variant: "destructive" });
@@ -355,10 +341,12 @@ export default function Bookings() {
   });
 
   const handleOpenMaintenanceDialog = (vehicle: Vehicle, date?: string) => {
+    const selectedDate = date || format(new Date(), "yyyy-MM-dd");
     setMaintenanceVehicle(vehicle);
     setMaintenanceData({
       type: "טיפול תקופתי",
-      due_date: date || format(new Date(), "yyyy-MM-dd"),
+      due_date: selectedDate,
+      end_date: selectedDate,
       description: "",
       notes: "",
       activate_now: false,
@@ -522,8 +510,11 @@ export default function Bookings() {
     setRentalWizardOpen(false);
     setWizardBooking(null);
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
     queryClient.invalidateQueries({ queryKey: ["rentals"] });
+    queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
     queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
   };
 
   const filteredBookings = bookings.filter(b => {
@@ -579,7 +570,7 @@ export default function Bookings() {
               size="sm" 
               variant="outline"
               className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              onClick={() => setEndConfirmBooking(row)}
+              onClick={() => openEndRentalDialog(row)}
             >
               <XCircle className="w-4 h-4 ml-1" />
               סיים
@@ -743,13 +734,16 @@ export default function Bookings() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
-              {calendarActionBooking?.status === "פעיל" ? "השכרה פעילה" : "הזמנה משוריינת"}
+              {(calendarActionRental?.status || calendarActionBooking?.status) === "פעיל"
+                ? "השכרה פעילה"
+                : (calendarActionRental?.status || calendarActionBooking?.status) === "הושלם"
+                ? "השכרה שהושלמה"
+                : "הזמנה משוריינת"}
             </DialogTitle>
           </DialogHeader>
 
           {calendarActionBooking && (
             <div className="space-y-4">
-              {/* Booking info summary */}
               <div className="p-4 bg-muted/50 rounded-lg space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">לקוח:</span>
@@ -769,13 +763,11 @@ export default function Bookings() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">סטטוס:</span>
-                  <StatusBadge status={calendarActionBooking.status} />
+                  <StatusBadge status={calendarActionRental?.status || calendarActionBooking.status} />
                 </div>
               </div>
 
-              {/* Action buttons */}
               <div className="grid grid-cols-1 gap-2">
-                {/* Reserved booking actions */}
                 {(calendarActionBooking.status === "מאושר" || calendarActionBooking.status === "ממתין") && (
                   <>
                     <Button
@@ -814,8 +806,7 @@ export default function Bookings() {
                   </>
                 )}
 
-                {/* Active rental actions */}
-                {calendarActionBooking.status === "פעיל" && (
+                {(calendarActionRental?.status || calendarActionBooking.status) === "פעיל" && (
                   <>
                     <Button
                       variant="outline"
@@ -834,10 +825,7 @@ export default function Bookings() {
                     <Button
                       variant="outline"
                       className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
-                      onClick={() => {
-                        setCalendarActionOpen(false);
-                        setEndConfirmBooking(calendarActionBooking);
-                      }}
+                      onClick={() => openEndRentalDialog(calendarActionBooking, calendarActionRental)}
                     >
                       <XCircle className="w-4 h-4 ml-2" />
                       סיים השכרה
@@ -853,19 +841,43 @@ export default function Bookings() {
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך פרטים
                     </Button>
+                  </>
+                )}
+
+                {(calendarActionRental?.status || calendarActionBooking.status) === "הושלם" && (
+                  <>
                     <Button
-                      variant="destructive"
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => openEndRentalDialog(calendarActionBooking, calendarActionRental)}
+                    >
+                      חיוב יתרה / עדכון סיום
+                    </Button>
+                    <Button
+                      variant="outline"
                       className="w-full"
                       onClick={() => {
                         setCalendarActionOpen(false);
-                        setDeleteConfirmBooking(calendarActionBooking);
+                        handleEditBooking(calendarActionBooking);
                       }}
                     >
-                      <Trash2 className="w-4 h-4 ml-2" />
-                      מחק
+                      <Edit className="w-4 h-4 ml-2" />
+                      ערוך הזמנה
                     </Button>
                   </>
                 )}
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => {
+                    setCalendarActionOpen(false);
+                    setDeleteConfirmBooking(calendarActionBooking);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  מחק
+                </Button>
               </div>
             </div>
           )}
@@ -1385,12 +1397,12 @@ export default function Bookings() {
                 }}>
                   עריכה
                 </Button>
-                {viewingBooking.status === "פעיל" && (
+                {(viewingBooking.status === "פעיל" || viewingBooking.status === "הושלם") && (
                   <Button variant="outline" className="text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => {
-                    setEndConfirmBooking(viewingBooking);
+                    openEndRentalDialog(viewingBooking);
                     setViewingBooking(null);
                   }}>
-                    סיים הזמנה
+                    {viewingBooking.status === "הושלם" ? "חיוב יתרה" : "סיים הזמנה"}
                   </Button>
                 )}
               </div>
@@ -1425,27 +1437,21 @@ export default function Bookings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* End Booking Confirmation Dialog */}
-      <AlertDialog open={!!endConfirmBooking} onOpenChange={(open) => { if (!open) setEndConfirmBooking(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>סיום הזמנה</AlertDialogTitle>
-            <AlertDialogDescription>
-              האם אתה בטוח שברצונך לסיים את ההזמנה של {endConfirmBooking?.customer_name}?
-              הרכב ישוחרר וההשכרה תסומן כהושלמה.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => endConfirmBooking && endBookingMutation.mutate(endConfirmBooking)}
-            >
-              סיים הזמנה
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EndRentalDialog
+        isOpen={endDialogOpen}
+        booking={endDialogBooking}
+        rental={endDialogRental}
+        vehicle={vehicles.find((v) => v.id === (endDialogRental?.vehicle_id || endDialogBooking?.vehicle_id)) || null}
+        onClose={() => {
+          setEndDialogOpen(false);
+          setEndDialogBooking(null);
+          setEndDialogRental(null);
+        }}
+        onSaved={() => {
+          setCalendarActionBooking(null);
+          setCalendarActionRental(null);
+        }}
+      />
 
       {/* Rental Start Wizard Dialog */}
       <Dialog open={rentalWizardOpen} onOpenChange={(open) => { if (!open) { setRentalWizardOpen(false); setWizardBooking(null); } }}>
@@ -1500,13 +1506,23 @@ export default function Bookings() {
                 </Select>
               </div>
 
-              <div>
-                <Label>תאריך</Label>
-                <Input
-                  type="date"
-                  value={maintenanceData.due_date}
-                  onChange={(e) => setMaintenanceData({ ...maintenanceData, due_date: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>מתאריך</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceData.due_date}
+                    onChange={(e) => setMaintenanceData({ ...maintenanceData, due_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>עד תאריך</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceData.end_date}
+                    onChange={(e) => setMaintenanceData({ ...maintenanceData, end_date: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div>

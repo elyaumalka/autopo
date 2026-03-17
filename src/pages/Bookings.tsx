@@ -570,7 +570,7 @@ export default function Bookings() {
               size="sm" 
               variant="outline"
               className="text-orange-600 border-orange-300 hover:bg-orange-50"
-              onClick={() => setEndConfirmBooking(row)}
+              onClick={() => openEndRentalDialog(row)}
             >
               <XCircle className="w-4 h-4 ml-1" />
               סיים

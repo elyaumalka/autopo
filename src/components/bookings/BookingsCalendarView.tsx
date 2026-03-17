@@ -386,10 +386,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             <tr className="bg-muted/30">
               {weekDays.map((day) => (
                 <React.Fragment key={`${day.toISOString()}-slots`}>
-                  <th className="border p-0.5 text-[10px] text-center bg-muted/30 border-l-2 border-l-foreground/20">
+                  <th className="border border-y-2 border-l-2 border-r border-foreground/20 p-0.5 text-[10px] text-center bg-muted/30">
                     16-9
                   </th>
-                  <th className="border p-0.5 text-[10px] text-center bg-muted/30">
+                  <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-muted/30">
                     9-16
                   </th>
                 </React.Fragment>

@@ -413,8 +413,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       }
                     };
 
-                    // Day separator: thicker left border on PM slot (first column of each day in RTL)
-                    const daySeparatorClass = isDayStart ? "border-l-2 border-l-foreground/20" : "";
+                    const daySeparatorClass = slotType === "pm"
+                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                      : "border border-y-2 border-r-2 border-l border-foreground/20";
 
                     if (slotData.status === "full" && slotData.event) {
                       const sTime = slotData.event.startTime?.slice(0, 5);

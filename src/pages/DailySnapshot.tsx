@@ -143,14 +143,33 @@ export default function DailySnapshot() {
   const returningVehicles = rentals.filter(r => r.status === "פעיל" && r.planned_end_date === selectedDate);
   const departingVehicles = bookings.filter(b => b.status === "מאושר" && b.start_date === selectedDate);
 
-  const busyVehicleIds = [...new Set([
-    ...returningVehicles.map(r => r.vehicle_id),
-    ...departingVehicles.map(b => b.vehicle_id),
-    ...rentals.filter(r => r.status === "פעיל" && r.planned_end_date !== selectedDate).map(r => r.vehicle_id)
-  ])];
+  // Busy = any vehicle with an active rental or confirmed booking spanning the selected date
+  const busyVehicleIds = new Set<string>();
+  rentals.forEach(r => {
+    if (r.status === "פעיל" && r.vehicle_id) {
+      const end = r.planned_end_date || "9999-12-31";
+      if (r.start_date <= selectedDate && end >= selectedDate) {
+        busyVehicleIds.add(r.vehicle_id);
+      }
+    }
+  });
+  bookings.forEach(b => {
+    if ((b.status === "מאושר" || b.status === "פעיל") && b.vehicle_id) {
+      if (b.start_date <= selectedDate && b.end_date >= selectedDate) {
+        busyVehicleIds.add(b.vehicle_id);
+      }
+    }
+  });
+  // Also mark vehicles in maintenance/accident as busy
+  vehicles.forEach(v => {
+    if (v.status === "בטיפול" || v.status === "תאונה") {
+      busyVehicleIds.add(v.id);
+    }
+  });
 
-  const availableVehicles = vehicles.filter(v => v.status === "זמין" && !busyVehicleIds.includes(v.id));
-  const busyVehicles = vehicles.filter(v => busyVehicleIds.includes(v.id));
+  const activeVehicles = vehicles.filter(v => v.status !== "נמכר" && v.status !== "לא פעיל");
+  const availableVehicles = activeVehicles.filter(v => !busyVehicleIds.has(v.id));
+  const busyVehicles = activeVehicles.filter(v => busyVehicleIds.has(v.id));
 
   const getCustomerPhone = (customerId: string | null) => {
     if (!customerId) return "-";

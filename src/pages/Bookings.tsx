@@ -1506,13 +1506,23 @@ export default function Bookings() {
                 </Select>
               </div>
 
-              <div>
-                <Label>תאריך</Label>
-                <Input
-                  type="date"
-                  value={maintenanceData.due_date}
-                  onChange={(e) => setMaintenanceData({ ...maintenanceData, due_date: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>מתאריך</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceData.due_date}
+                    onChange={(e) => setMaintenanceData({ ...maintenanceData, due_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>עד תאריך</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceData.end_date}
+                    onChange={(e) => setMaintenanceData({ ...maintenanceData, end_date: e.target.value })}
+                  />
+                </div>
               </div>
 
               <div>

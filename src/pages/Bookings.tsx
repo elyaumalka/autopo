@@ -2,78 +2,25 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays } from "date-fns";
-import { PageHeader } from "@/components/shared/PageHeader";
-import { DataTable } from "@/components/shared/DataTable";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Clock, Calendar as CalendarIcon } from "lucide-react";
+import { format, addDays, isAfter, parseISO } from "date-fns";
+...
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon } from "lucide-react";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
-import { toast } from "@/hooks/use-toast";
-import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
-import DocumentsList from "@/components/shared/DocumentsList";
-import type { Database } from "@/integrations/supabase/types";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-type Booking = Database["public"]["Tables"]["bookings"]["Row"];
-type Customer = Database["public"]["Tables"]["customers"]["Row"];
-type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
-type Rental = Database["public"]["Tables"]["rentals"]["Row"];
-type MaintenanceTask = Database["public"]["Tables"]["maintenance_tasks"]["Row"];
-
-export default function Bookings() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<Partial<Booking>>({});
-  const [viewingBooking, setViewingBooking] = useState<Booking | null>(null);
-  const [activeTab, setActiveTab] = useState("calendar");
-  const [quickBookingOpen, setQuickBookingOpen] = useState(false);
-  const [quickBookingData, setQuickBookingData] = useState<{ date: string; vehicle: Vehicle; defaultStartTime?: string } | null>(null);
-  const [rentalWizardOpen, setRentalWizardOpen] = useState(false);
-  const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
+import EndRentalDialog from "@/components/bookings/EndRentalDialog";
+...
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [deleteConfirmBooking, setDeleteConfirmBooking] = useState<Booking | null>(null);
-  const [endConfirmBooking, setEndConfirmBooking] = useState<Booking | null>(null);
+  const [endDialogBooking, setEndDialogBooking] = useState<Booking | null>(null);
+  const [endDialogRental, setEndDialogRental] = useState<Rental | null>(null);
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false);
   const [maintenanceVehicle, setMaintenanceVehicle] = useState<Vehicle | null>(null);
-  const [maintenanceDate, setMaintenanceDate] = useState("");
   const [maintenanceData, setMaintenanceData] = useState({
     type: "טיפול תקופתי" as string,
     due_date: "",
+    end_date: "",
     description: "",
     notes: "",
     activate_now: false,

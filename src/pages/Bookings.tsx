@@ -1437,27 +1437,21 @@ export default function Bookings() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* End Booking Confirmation Dialog */}
-      <AlertDialog open={!!endConfirmBooking} onOpenChange={(open) => { if (!open) setEndConfirmBooking(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>סיום הזמנה</AlertDialogTitle>
-            <AlertDialogDescription>
-              האם אתה בטוח שברצונך לסיים את ההזמנה של {endConfirmBooking?.customer_name}?
-              הרכב ישוחרר וההשכרה תסומן כהושלמה.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction 
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => endConfirmBooking && endBookingMutation.mutate(endConfirmBooking)}
-            >
-              סיים הזמנה
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EndRentalDialog
+        isOpen={endDialogOpen}
+        booking={endDialogBooking}
+        rental={endDialogRental}
+        vehicle={vehicles.find((v) => v.id === (endDialogRental?.vehicle_id || endDialogBooking?.vehicle_id)) || null}
+        onClose={() => {
+          setEndDialogOpen(false);
+          setEndDialogBooking(null);
+          setEndDialogRental(null);
+        }}
+        onSaved={() => {
+          setCalendarActionBooking(null);
+          setCalendarActionRental(null);
+        }}
+      />
 
       {/* Rental Start Wizard Dialog */}
       <Dialog open={rentalWizardOpen} onOpenChange={(open) => { if (!open) { setRentalWizardOpen(false); setWizardBooking(null); } }}>

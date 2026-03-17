@@ -488,7 +488,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   );
                 })}
                 {/* Vehicle Info */}
-                <td className="border p-1 sticky right-0 bg-white">
+                <td className="border-2 border-foreground/20 p-1 sticky right-0 bg-white">
                   <div className="flex items-center gap-1">
                     {onMaintenanceClick && (
                       <button

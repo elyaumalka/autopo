@@ -483,8 +483,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm", true)}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am", false)}
+                      {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
                     </React.Fragment>
                   );
                 })}

@@ -422,7 +422,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       const eTime = slotData.event.endTime?.slice(0, 5);
                       const timeStr = (sTime && sTime !== "09:00" && sTime !== "10:00") ? sTime : (eTime || "");
                       return (
-                        <td key={slotKey} className={cn("border p-0 h-8", daySeparatorClass)}>
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div
                             onClick={handleClick}
                             className={cn(

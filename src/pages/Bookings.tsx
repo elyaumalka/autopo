@@ -1448,7 +1448,7 @@ export default function Bookings() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ממתין">ממתין</SelectItem>
-                        <SelectItem value="מאושר">מאושר</SelectItem>
+                        <SelectItem value="מאושר">משוריין</SelectItem>
                         <SelectItem value="בוטל">בוטל</SelectItem>
                       </SelectContent>
                     </Select>

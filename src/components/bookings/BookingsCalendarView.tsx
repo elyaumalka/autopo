@@ -67,15 +67,21 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
   const weekDays = Array.from({ length: visibleDays }, (_, i) => addDays(weekStart, i)).reverse();
 
   const { data: vehicles = [] } = useQuery({
-    queryKey: ["vehicles-all"],
+    queryKey: ["vehicles-all", format(weekStart, "yyyy-MM-dd"), format(weekEnd, "yyyy-MM-dd")],
     queryFn: async () => {
+      // Get active vehicles + sold vehicles that were sold after the calendar start
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
-        .not("status", "eq", "נמכר")
         .order("license_plate");
       if (error) throw error;
-      return data || [];
+      const startStr = format(weekStart, "yyyy-MM-dd");
+      return (data || []).filter(v => {
+        if (v.status !== "נמכר") return true;
+        // Show sold vehicles only if sold_date is after the calendar start
+        const soldDate = (v as any).sold_date;
+        return soldDate && soldDate >= startStr;
+      });
     },
   });
 

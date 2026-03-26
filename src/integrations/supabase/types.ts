@@ -762,11 +762,14 @@ export type Database = {
           photos: Json | null
           planned_end_date: string | null
           planned_end_time: string | null
+          rate_per_unit: number | null
           remaining_payment: number | null
+          rental_type: string | null
           start_date: string
           start_km: number | null
           start_time: string | null
           status: Database["public"]["Enums"]["rental_status"]
+          toll_charges: number | null
           total_cost: number | null
           updated_at: string
           vehicle_details: string | null
@@ -794,11 +797,14 @@ export type Database = {
           photos?: Json | null
           planned_end_date?: string | null
           planned_end_time?: string | null
+          rate_per_unit?: number | null
           remaining_payment?: number | null
+          rental_type?: string | null
           start_date: string
           start_km?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["rental_status"]
+          toll_charges?: number | null
           total_cost?: number | null
           updated_at?: string
           vehicle_details?: string | null
@@ -826,11 +832,14 @@ export type Database = {
           photos?: Json | null
           planned_end_date?: string | null
           planned_end_time?: string | null
+          rate_per_unit?: number | null
           remaining_payment?: number | null
+          rental_type?: string | null
           start_date?: string
           start_km?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["rental_status"]
+          toll_charges?: number | null
           total_cost?: number | null
           updated_at?: string
           vehicle_details?: string | null
@@ -980,6 +989,7 @@ export type Database = {
           status: Database["public"]["Enums"]["vehicle_status"]
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
+          weekly_rate: number | null
           year: number | null
         }
         Insert: {
@@ -1002,6 +1012,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["vehicle_status"]
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
+          weekly_rate?: number | null
           year?: number | null
         }
         Update: {
@@ -1024,6 +1035,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["vehicle_status"]
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
+          weekly_rate?: number | null
           year?: number | null
         }
         Relationships: []

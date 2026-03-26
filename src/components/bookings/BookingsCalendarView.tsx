@@ -278,12 +278,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     if (isStartDay && !isEndDay) {
       const h = startHour ?? 9;
       if (slot === "am") {
-        // AM = 9-16. If starts at/after 16, AM is free
-        if (h >= 16) return { status: "free" };
-        // Car is taken during AM hours → full
+        // AM = 9-16. If pickup is at 14:00+, car is available most of morning → free
+        if (h >= 14) return { status: "free" };
+        // If pickup is 10-13, show partial (car available early morning)
+        if (h >= 10) return { status: "partial", event };
+        // Early morning pickup → full
         return { status: "full", event };
       } else {
-        // PM = 16-9. Car is always gone in PM on start day
+        // PM = 16-9 next day. Car is always gone in PM on start day
         // If very late start (>=20), show partial to allow another booking before
         if (h >= 20) return { status: "partial", event };
         return { status: "full", event };

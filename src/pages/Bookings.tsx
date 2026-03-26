@@ -1923,6 +1923,22 @@ export default function Bookings() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Documents Viewer Dialog */}
+      <Dialog open={docsViewerOpen} onOpenChange={(open) => { if (!open) { setDocsViewerOpen(false); setDocsViewerBookingId(null); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>מסמכים חתומים - {docsViewerCustomerName}</DialogTitle>
+          </DialogHeader>
+          {docsViewerBookingId && (
+            <DocumentsList
+              bookingId={docsViewerBookingId}
+              customerName={docsViewerCustomerName}
+              showActions={false}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

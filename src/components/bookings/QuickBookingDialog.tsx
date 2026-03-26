@@ -96,6 +96,10 @@ export default function QuickBookingDialog({
         return format(startDate, "yyyy-MM-dd");
       case "24 שעות":
         return format(addDays(startDate, 1), "yyyy-MM-dd");
+      case "יומיים":
+        return format(addDays(startDate, 2), "yyyy-MM-dd");
+      case "שישי-שבת":
+        return format(addDays(startDate, 2), "yyyy-MM-dd");
       case "שבוע":
         return format(addWeeks(startDate, 1), "yyyy-MM-dd");
       case "חודש":

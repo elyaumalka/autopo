@@ -90,6 +90,9 @@ export default function Bookings() {
   const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
   const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);
   const [maintenanceEditData, setMaintenanceEditData] = useState({ type: "", description: "", notes: "", end_date: "" });
+  const [docsViewerOpen, setDocsViewerOpen] = useState(false);
+  const [docsViewerBookingId, setDocsViewerBookingId] = useState<string | null>(null);
+  const [docsViewerCustomerName, setDocsViewerCustomerName] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({
@@ -935,6 +938,19 @@ export default function Bookings() {
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך פרטים
                     </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setDocsViewerBookingId(calendarActionBooking.id);
+                        setDocsViewerCustomerName(calendarActionBooking.customer_name);
+                        setDocsViewerOpen(true);
+                      }}
+                    >
+                      <FileText className="w-4 h-4 ml-2" />
+                      צפה במסמכים חתומים
+                    </Button>
                   </>
                 )}
 
@@ -958,9 +974,21 @@ export default function Bookings() {
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך הזמנה
                     </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setDocsViewerBookingId(calendarActionBooking.id);
+                        setDocsViewerCustomerName(calendarActionBooking.customer_name);
+                        setDocsViewerOpen(true);
+                      }}
+                    >
+                      <FileText className="w-4 h-4 ml-2" />
+                      צפה במסמכים חתומים
+                    </Button>
                   </>
                 )}
-
                 <Button
                   variant="destructive"
                   className="w-full"
@@ -1892,6 +1920,22 @@ export default function Bookings() {
                 <Button variant="outline" onClick={() => setMaintenanceEditOpen(false)}>ביטול</Button>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Documents Viewer Dialog */}
+      <Dialog open={docsViewerOpen} onOpenChange={(open) => { if (!open) { setDocsViewerOpen(false); setDocsViewerBookingId(null); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>מסמכים חתומים - {docsViewerCustomerName}</DialogTitle>
+          </DialogHeader>
+          {docsViewerBookingId && (
+            <DocumentsList
+              bookingId={docsViewerBookingId}
+              customerName={docsViewerCustomerName}
+              showActions={false}
+            />
           )}
         </DialogContent>
       </Dialog>

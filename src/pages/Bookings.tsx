@@ -917,6 +917,7 @@ export default function Bookings() {
                         setExtendData({
                           new_end_date: calendarActionBooking.end_date,
                           new_end_time: calendarActionBooking.end_time?.toString().slice(0,5) || "",
+                          new_cost: calendarActionBooking.rental_cost?.toString() || "",
                         });
                         setExtendDialogOpen(true);
                       }}

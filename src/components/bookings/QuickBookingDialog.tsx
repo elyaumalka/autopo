@@ -52,6 +52,12 @@ interface BookingData {
   rental_type: string;
   rental_cost: number;
   status: string;
+  billing_rate_type?: string | null;
+  billing_rate_amount?: number | null;
+  collection_date_type?: string | null;
+  collection_date?: string | null;
+  collection_frequency?: string | null;
+  future_payment_method?: string | null;
 }
 
 export default function QuickBookingDialog({ 

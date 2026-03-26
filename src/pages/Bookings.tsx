@@ -1132,6 +1132,11 @@ export default function Bookings() {
                     onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
                     placeholder="בחר לקוח"
                   />
+                  {selectedBooking && !formData.customer_id && formData.customer_name && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      לקוח נוכחי: <span className="font-medium">{formData.customer_name}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

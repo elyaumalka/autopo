@@ -118,7 +118,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return details.includes(vehicleLicensePlate);
   };
 
-  const getRentalType = (startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
+  const getRentalType = (billingRateType: string | null, startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
+    // Use billing_rate_type if set
+    if (billingRateType === "חודשי") return "monthly";
+    if (billingRateType === "שבועי") return "weekly";
+    if (billingRateType === "יומי") return "daily";
+    // Fallback to duration-based calculation
     if (!endDate) return "monthly";
     const start = parseISO(startDate);
     const end = parseISO(endDate);

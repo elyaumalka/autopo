@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Check, XCircle } from "lucide-react";
+import { calculateRentalCost, getRateForType, type RentalRateType } from "@/lib/rentalCalculations";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];
@@ -38,6 +39,9 @@ export default function EndRentalDialog({
     actual_end_date: "",
     actual_end_time: "",
     end_km: 0,
+    rental_type: "" as string,
+    rate_per_unit: 0,
+    toll_charges: 0,
     additional_charges: 0,
     additional_charges_details: "",
     payment_amount: 0,
@@ -51,10 +55,16 @@ export default function EndRentalDialog({
     if (!isOpen || !booking) return;
 
     const now = new Date();
+    const rentalType = (rental as any)?.rental_type || booking.rental_type || "";
+    const ratePerUnit = (rental as any)?.rate_per_unit || Number(booking.rental_cost ?? 0);
+
     setEndData({
       actual_end_date: rental?.actual_end_date || format(now, "yyyy-MM-dd"),
       actual_end_time: rental?.actual_end_time?.slice(0, 5) || format(now, "HH:mm"),
       end_km: Number(rental?.end_km ?? vehicle?.current_km ?? rental?.start_km ?? 0),
+      rental_type: rentalType,
+      rate_per_unit: ratePerUnit,
+      toll_charges: Number((rental as any)?.toll_charges ?? 0),
       additional_charges: Number(rental?.additional_charges ?? 0),
       additional_charges_details: rental?.additional_charges_details || "",
       payment_amount: 0,
@@ -66,16 +76,47 @@ export default function EndRentalDialog({
   }, [isOpen, booking, rental, vehicle]);
 
   const costs = useMemo(() => {
-    const baseCost = Number(rental?.base_cost ?? booking?.rental_cost ?? 0);
+    const startDate = booking?.start_date || rental?.start_date || "";
+    const startTime = booking?.start_time?.toString() || rental?.start_time?.toString() || "";
+    const rateType = endData.rental_type as RentalRateType;
+    const ratePerUnit = endData.rate_per_unit;
+
+    // Auto-calculate base cost if we have rate type
+    let baseCost: number;
+    let delayHours = 0;
+    let delayCost = 0;
+    let breakdown = "";
+
+    if (rateType && ratePerUnit && startDate && endData.actual_end_date) {
+      const calc = calculateRentalCost({
+        rateType,
+        ratePerUnit,
+        startDate,
+        startTime: startTime || null,
+        endDate: endData.actual_end_date,
+        endTime: endData.actual_end_time || null,
+        hourlyDelayRate: Number(vehicle?.hourly_delay_rate ?? 0),
+      });
+      baseCost = calc.baseCost;
+      delayHours = calc.delayHours;
+      delayCost = calc.delayCost;
+      breakdown = calc.breakdown;
+    } else {
+      baseCost = Number(rental?.base_cost ?? booking?.rental_cost ?? 0);
+    }
+
     const startKm = Number(rental?.start_km ?? 0);
     const kmLimit = Number(vehicle?.km_limit ?? 0);
     const extraKmPrice = Number(vehicle?.extra_km_price ?? 0);
     const endKm = Number(endData.end_km || 0);
 
-    const extraKm = Math.max(0, endKm - startKm - kmLimit);
+    const totalKmDriven = Math.max(0, endKm - startKm);
+    const extraKm = kmLimit > 0 ? Math.max(0, totalKmDriven - kmLimit) : 0;
     const extraKmCost = extraKm * extraKmPrice;
+
+    const tollCharges = Number(endData.toll_charges || 0);
     const additional = Number(endData.additional_charges || 0);
-    const totalCost = baseCost + extraKmCost + additional;
+    const totalCost = baseCost + delayCost + extraKmCost + tollCharges + additional;
 
     const alreadyPaid = Number(rental?.paid_amount ?? booking?.deposit_amount ?? 0);
     const totalPaid = alreadyPaid + Number(endData.payment_amount || 0);
@@ -83,14 +124,18 @@ export default function EndRentalDialog({
 
     return {
       baseCost,
+      delayHours,
+      delayCost,
+      breakdown,
       extraKm,
       extraKmCost,
+      tollCharges,
       totalCost,
       alreadyPaid,
       totalPaid,
       remaining,
     };
-  }, [booking, rental, vehicle, endData.end_km, endData.additional_charges, endData.payment_amount]);
+  }, [booking, rental, vehicle, endData]);
 
   const endMutation = useMutation({
     mutationFn: async () => {
@@ -100,7 +145,6 @@ export default function EndRentalDialog({
       const safeRemaining = Math.max(0, costs.remaining);
       const finalNotes = endData.notes?.trim() || null;
 
-      // Update rental (if exists)
       if (rental) {
         const { error: rentalError } = await supabase
           .from("rentals")
@@ -110,6 +154,7 @@ export default function EndRentalDialog({
             end_km: endData.end_km,
             extra_km: costs.extraKm,
             extra_km_cost: costs.extraKmCost,
+            base_cost: costs.baseCost,
             additional_charges: Number(endData.additional_charges || 0),
             additional_charges_details: endData.additional_charges_details || null,
             total_cost: costs.totalCost,
@@ -118,13 +163,15 @@ export default function EndRentalDialog({
             invoice_number: endData.invoice_number || null,
             notes: finalNotes,
             status: "הושלם",
+            rental_type: endData.rental_type || null,
+            rate_per_unit: endData.rate_per_unit || null,
+            toll_charges: endData.toll_charges || 0,
           } as any)
           .eq("id", rental.id);
 
         if (rentalError) throw rentalError;
       }
 
-      // Update booking to completed and sync actual end values
       const { error: bookingError } = await supabase
         .from("bookings")
         .update({
@@ -138,7 +185,6 @@ export default function EndRentalDialog({
 
       if (bookingError) throw bookingError;
 
-      // Vehicle release
       if (booking.vehicle_id) {
         await supabase
           .from("vehicles")
@@ -149,7 +195,6 @@ export default function EndRentalDialog({
           .eq("id", booking.vehicle_id);
       }
 
-      // Payment record
       if (paidNow > 0) {
         const { error: incomeError } = await supabase.from("incomes").insert({
           customer_id: booking.customer_id,
@@ -237,7 +282,7 @@ export default function EndRentalDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isCompleted ? "עדכון השכרה שהושלמה" : "סיום השכרה"}</DialogTitle>
         </DialogHeader>
@@ -248,6 +293,7 @@ export default function EndRentalDialog({
             <p className="text-sm text-muted-foreground">{booking.vehicle_details}</p>
           </div>
 
+          {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>תאריך החזרה</Label>
@@ -265,6 +311,51 @@ export default function EndRentalDialog({
                 onChange={(e) => setEndData((prev) => ({ ...prev, actual_end_time: e.target.value }))}
               />
             </div>
+          </div>
+
+          {/* Rate Type & Rate */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>סוג תעריף</Label>
+              <Select
+                value={endData.rental_type}
+                onValueChange={(v) => {
+                  const rate = vehicle ? getRateForType(vehicle as any, v as RentalRateType) : endData.rate_per_unit;
+                  setEndData((prev) => ({ ...prev, rental_type: v, rate_per_unit: rate || prev.rate_per_unit }));
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="בחר סוג תעריף" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="חצי יום">חצי יום</SelectItem>
+                  <SelectItem value="24 שעות">24 שעות</SelectItem>
+                  <SelectItem value="שבוע">שבוע</SelectItem>
+                  <SelectItem value="חודש">חודש</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>תעריף ליחידה (₪)</Label>
+              <Input
+                type="number"
+                value={endData.rate_per_unit || ""}
+                onChange={(e) =>
+                  setEndData((prev) => ({ ...prev, rate_per_unit: parseFloat(e.target.value || "0") || 0 }))
+                }
+              />
+            </div>
+          </div>
+
+          {/* KM */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>ק"מ התחלה</Label>
+              <Input
+                type="number"
+                value={rental?.start_km || 0}
+                disabled
+                className="bg-muted"
+              />
+            </div>
             <div>
               <Label>ק"מ סיום</Label>
               <Input
@@ -275,11 +366,28 @@ export default function EndRentalDialog({
                 }
               />
             </div>
+          </div>
+
+          {/* Toll + Additional Charges */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>חיובים נוספים</Label>
+              <Label>כבישי אגרה / כביש 6 (₪)</Label>
               <Input
                 type="number"
-                value={endData.additional_charges}
+                value={endData.toll_charges || ""}
+                onChange={(e) =>
+                  setEndData((prev) => ({
+                    ...prev,
+                    toll_charges: parseFloat(e.target.value || "0") || 0,
+                  }))
+                }
+              />
+            </div>
+            <div>
+              <Label>חיובים נוספים (₪)</Label>
+              <Input
+                type="number"
+                value={endData.additional_charges || ""}
                 onChange={(e) =>
                   setEndData((prev) => ({
                     ...prev,
@@ -291,9 +399,9 @@ export default function EndRentalDialog({
           </div>
 
           <div>
-            <Label>פירוט חיובים</Label>
+            <Label>פירוט חיובים נוספים</Label>
             <Textarea
-              placeholder="כביש 6 / דלק / תיקון..."
+              placeholder="תיאור החיובים הנוספים..."
               value={endData.additional_charges_details}
               onChange={(e) =>
                 setEndData((prev) => ({ ...prev, additional_charges_details: e.target.value }))
@@ -301,12 +409,13 @@ export default function EndRentalDialog({
             />
           </div>
 
+          {/* Payment */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>תשלום עכשיו (₪)</Label>
               <Input
                 type="number"
-                value={endData.payment_amount}
+                value={endData.payment_amount || ""}
                 onChange={(e) =>
                   setEndData((prev) => ({
                     ...prev,
@@ -363,19 +472,39 @@ export default function EndRentalDialog({
             />
           </div>
 
+          {/* Cost Summary */}
           <div className="p-4 bg-muted/50 rounded-lg space-y-1 text-sm">
             <div className="flex justify-between">
               <span>עלות בסיס:</span>
               <span>₪{costs.baseCost.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between">
-              <span>ק"מ נוסף ({costs.extraKm}):</span>
-              <span>₪{costs.extraKmCost.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>חיובים נוספים:</span>
-              <span>₪{Number(endData.additional_charges || 0).toLocaleString()}</span>
-            </div>
+            {costs.breakdown && (
+              <div className="text-xs text-muted-foreground pr-2">{costs.breakdown}</div>
+            )}
+            {costs.delayHours > 0 && (
+              <div className="flex justify-between text-orange-600">
+                <span>חיוב איחור ({costs.delayHours} שעות):</span>
+                <span>₪{costs.delayCost.toLocaleString()}</span>
+              </div>
+            )}
+            {costs.extraKm > 0 && (
+              <div className="flex justify-between">
+                <span>ק"מ נוסף ({costs.extraKm.toLocaleString()}):</span>
+                <span>₪{costs.extraKmCost.toLocaleString()}</span>
+              </div>
+            )}
+            {costs.tollCharges > 0 && (
+              <div className="flex justify-between">
+                <span>כבישי אגרה:</span>
+                <span>₪{costs.tollCharges.toLocaleString()}</span>
+              </div>
+            )}
+            {Number(endData.additional_charges || 0) > 0 && (
+              <div className="flex justify-between">
+                <span>חיובים נוספים:</span>
+                <span>₪{Number(endData.additional_charges).toLocaleString()}</span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold pt-1 border-t">
               <span>סה"כ:</span>
               <span>₪{costs.totalCost.toLocaleString()}</span>
@@ -388,7 +517,7 @@ export default function EndRentalDialog({
               <span>שולם כולל עכשיו:</span>
               <span>₪{costs.totalPaid.toLocaleString()}</span>
             </div>
-            <div className="flex justify-between font-semibold">
+            <div className={`flex justify-between font-semibold ${costs.remaining > 0 ? "text-red-600" : "text-green-600"}`}>
               <span>נותר לתשלום:</span>
               <span>₪{Math.max(0, costs.remaining).toLocaleString()}</span>
             </div>

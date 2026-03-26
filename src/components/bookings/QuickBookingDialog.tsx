@@ -167,7 +167,13 @@ export default function QuickBookingDialog({
       end_time: endTime || null,
       rental_type: rentalType === "עד תאריך" ? null : rentalType as any,
       rental_cost: rentalCost ? parseFloat(rentalCost) : 0,
-      status: "מאושר"
+      status: "מאושר",
+      billing_rate_type: billingRateType || null,
+      billing_rate_amount: billingRateAmount ? parseFloat(billingRateAmount) : null,
+      collection_date_type: collectionDateType || null,
+      collection_date: collectionDateType === "תאריך מסוים" ? (collectionDate || null) : null,
+      collection_frequency: collectionFrequency || null,
+      future_payment_method: futurePaymentMethod || null,
     };
   };
 

@@ -577,6 +577,15 @@ export default function Vehicles() {
                       />
                     </div>
                     <div>
+                      <Label>תעריף שבועי</Label>
+                      <Input 
+                        name="weekly_rate" 
+                        type="number" 
+                        value={formState.weekly_rate || ''} 
+                        onChange={handleFieldChange}
+                      />
+                    </div>
+                    <div>
                       <Label>תעריף חודשי</Label>
                       <Input 
                         name="monthly_rate" 

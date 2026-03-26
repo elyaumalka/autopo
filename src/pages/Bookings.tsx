@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, isAfter, parseISO } from "date-fns";
+import { calculateRentalCost, getRateForType } from "@/lib/rentalCalculations";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -1313,17 +1314,67 @@ export default function Bookings() {
               </div>
             )}
 
-            {step === 3 && (
+            {step === 3 && (() => {
+              const selectedVehicle = vehicles.find(v => v.id === formData.vehicle_id);
+              const rateType = formData.rental_type as any;
+              const ratePerUnit = formData.rental_cost ? Number(formData.rental_cost) : 0;
+              const calcResult = rateType && ratePerUnit && formData.start_date && formData.end_date
+                ? calculateRentalCost({
+                    rateType,
+                    ratePerUnit,
+                    startDate: formData.start_date,
+                    startTime: formData.start_time?.toString() || null,
+                    endDate: formData.end_date,
+                    endTime: formData.end_time?.toString() || null,
+                    hourlyDelayRate: Number(selectedVehicle?.hourly_delay_rate ?? 0),
+                  })
+                : null;
+
+              return (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>עלות השכרה</Label>
+                    <Label>סוג תעריף *</Label>
+                    <Select 
+                      value={formData.rental_type || ""} 
+                      onValueChange={(v: any) => {
+                        const rate = selectedVehicle ? getRateForType(selectedVehicle as any, v) : 0;
+                        setFormData({ ...formData, rental_type: v, rental_cost: rate || formData.rental_cost });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="בחר סוג תעריף" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="חצי יום">חצי יום{selectedVehicle?.half_day_rate ? ` (₪${selectedVehicle.half_day_rate})` : ""}</SelectItem>
+                        <SelectItem value="24 שעות">24 שעות{selectedVehicle?.daily_rate ? ` (₪${selectedVehicle.daily_rate})` : ""}</SelectItem>
+                        <SelectItem value="שבוע">שבוע{(selectedVehicle as any)?.weekly_rate ? ` (₪${(selectedVehicle as any).weekly_rate})` : ""}</SelectItem>
+                        <SelectItem value="חודש">חודש{selectedVehicle?.monthly_rate ? ` (₪${selectedVehicle.monthly_rate})` : ""}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>תעריף ליחידה (₪)</Label>
                     <Input
                       type="number"
                       value={formData.rental_cost || ""}
                       onChange={(e) => setFormData({ ...formData, rental_cost: Number(e.target.value) })}
                     />
                   </div>
+                </div>
+
+                {calcResult && calcResult.totalRentalCost > 0 && (
+                  <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">חישוב:</span>
+                      <span>{calcResult.breakdown}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-1 border-t">
+                      <span>סה"כ צפוי:</span>
+                      <span>₪{calcResult.totalRentalCost.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>סכום מקדמה</Label>
                     <Input
@@ -1434,7 +1485,8 @@ export default function Bookings() {
                   })()}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

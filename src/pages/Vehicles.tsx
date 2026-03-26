@@ -177,6 +177,7 @@ export default function Vehicles() {
       daily_rate: formState.daily_rate ? Number(formState.daily_rate) : null,
       half_day_rate: formState.half_day_rate ? Number(formState.half_day_rate) : null,
       monthly_rate: formState.monthly_rate ? Number(formState.monthly_rate) : null,
+      weekly_rate: formState.weekly_rate ? Number(formState.weekly_rate) : null,
       km_limit: formState.km_limit ? Number(formState.km_limit) : null,
       extra_km_price: formState.extra_km_price ? Number(formState.extra_km_price) : null,
       hourly_delay_rate: formState.hourly_delay_rate ? Number(formState.hourly_delay_rate) : null,
@@ -402,14 +403,18 @@ export default function Vehicles() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 p-4 bg-cyan-50 rounded-xl">
+              <div className="grid grid-cols-4 gap-4 p-4 bg-cyan-50 rounded-xl">
+                <div className="text-center">
+                  <p className="text-sm text-gray-500">חצי יום</p>
+                  <p className="font-bold text-cyan-600">₪{editingVehicle.half_day_rate || 0}</p>
+                </div>
                 <div className="text-center">
                   <p className="text-sm text-gray-500">יומי</p>
                   <p className="font-bold text-cyan-600">₪{editingVehicle.daily_rate || 0}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-gray-500">חצי יום</p>
-                  <p className="font-bold text-cyan-600">₪{editingVehicle.half_day_rate || 0}</p>
+                  <p className="text-sm text-gray-500">שבועי</p>
+                  <p className="font-bold text-cyan-600">₪{(editingVehicle as any).weekly_rate || 0}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-gray-500">חודשי</p>
@@ -568,6 +573,15 @@ export default function Vehicles() {
                         name="half_day_rate" 
                         type="number" 
                         value={formState.half_day_rate || ''} 
+                        onChange={handleFieldChange}
+                      />
+                    </div>
+                    <div>
+                      <Label>תעריף שבועי</Label>
+                      <Input 
+                        name="weekly_rate" 
+                        type="number" 
+                        value={formState.weekly_rate || ''} 
                         onChange={handleFieldChange}
                       />
                     </div>

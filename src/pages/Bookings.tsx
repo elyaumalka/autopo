@@ -86,7 +86,7 @@ export default function Bookings() {
   const [calendarActionRental, setCalendarActionRental] = useState<Rental | null>(null);
   const [calendarActionOpen, setCalendarActionOpen] = useState(false);
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
-  const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "" });
+  const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "", new_cost: "" });
   const [maintenanceActionTask, setMaintenanceActionTask] = useState<MaintenanceTask | null>(null);
   const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
   const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);
@@ -269,17 +269,21 @@ export default function Bookings() {
 
   // Extend rental mutation
   const extendMutation = useMutation({
-    mutationFn: async ({ booking, rental, newEndDate, newEndTime }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string }) => {
+    mutationFn: async ({ booking, rental, newEndDate, newEndTime, newCost }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string; newCost?: number }) => {
+      const bookingUpdate: any = { end_date: newEndDate, end_time: newEndTime || null };
+      if (newCost !== undefined) bookingUpdate.rental_cost = newCost;
       const { error: bookingError } = await supabase
         .from("bookings")
-        .update({ end_date: newEndDate, end_time: newEndTime || null } as any)
+        .update(bookingUpdate)
         .eq("id", booking.id);
       if (bookingError) throw bookingError;
 
       if (rental) {
+        const rentalUpdate: any = { planned_end_date: newEndDate, planned_end_time: newEndTime || null };
+        if (newCost !== undefined) rentalUpdate.base_cost = newCost;
         const { error: rentalError } = await supabase
           .from("rentals")
-          .update({ planned_end_date: newEndDate, planned_end_time: newEndTime || null } as any)
+          .update(rentalUpdate)
           .eq("id", rental.id);
         if (rentalError) throw rentalError;
       }
@@ -913,6 +917,7 @@ export default function Bookings() {
                         setExtendData({
                           new_end_date: calendarActionBooking.end_date,
                           new_end_time: calendarActionBooking.end_time?.toString().slice(0,5) || "",
+                          new_cost: calendarActionBooking.rental_cost?.toString() || "",
                         });
                         setExtendDialogOpen(true);
                       }}
@@ -1035,6 +1040,15 @@ export default function Bookings() {
                 onChange={(e) => setExtendData({ ...extendData, new_end_time: e.target.value })}
               />
             </div>
+            <div>
+              <Label>מחיר מעודכן (₪)</Label>
+              <Input
+                type="number"
+                value={extendData.new_cost}
+                onChange={(e) => setExtendData({ ...extendData, new_cost: e.target.value })}
+                placeholder="השאר ריק אם אין שינוי"
+              />
+            </div>
             <div className="flex gap-3">
               <Button
                 className="flex-1"
@@ -1046,11 +1060,12 @@ export default function Bookings() {
                       rental: calendarActionRental,
                       newEndDate: extendData.new_end_date,
                       newEndTime: extendData.new_end_time,
+                      newCost: extendData.new_cost ? Number(extendData.new_cost) : undefined,
                     });
                   }
                 }}
               >
-                {extendMutation.isPending ? "מעדכן..." : "עדכן תאריך"}
+                {extendMutation.isPending ? "מעדכן..." : "עדכן"}
               </Button>
               <Button variant="outline" onClick={() => setExtendDialogOpen(false)}>ביטול</Button>
             </div>

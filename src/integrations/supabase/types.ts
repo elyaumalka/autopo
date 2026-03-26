@@ -341,6 +341,7 @@ export type Database = {
           last_name: string
           license_back_url: string | null
           license_front_url: string | null
+          license_number: string | null
           notes: string | null
           passport_url: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -365,6 +366,7 @@ export type Database = {
           last_name: string
           license_back_url?: string | null
           license_front_url?: string | null
+          license_number?: string | null
           notes?: string | null
           passport_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -389,6 +391,7 @@ export type Database = {
           last_name?: string
           license_back_url?: string | null
           license_front_url?: string | null
+          license_number?: string | null
           notes?: string | null
           passport_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null

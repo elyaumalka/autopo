@@ -53,6 +53,7 @@ interface CustomerFormData {
   license_back_url?: string;
   is_foreign?: boolean;
   passport_url?: string;
+  license_number?: string;
 }
 
 interface CustomerDocument {
@@ -195,6 +196,7 @@ export default function Customers() {
       license_back_url: formData.license_back_url || null,
       is_foreign: isForeign,
       passport_url: isForeign ? (formData.passport_url || null) : null,
+      license_number: formData.license_number || null,
     };
 
     if (selectedCustomer) {
@@ -221,6 +223,7 @@ export default function Customers() {
       license_back_url: customer.license_back_url || undefined,
       is_foreign: (customer as any).is_foreign || false,
       passport_url: (customer as any).passport_url || undefined,
+      license_number: (customer as any).license_number || undefined,
     });
     setViewMode(false);
     setIsOpen(true);
@@ -243,6 +246,7 @@ export default function Customers() {
       license_back_url: customer.license_back_url || undefined,
       is_foreign: (customer as any).is_foreign || false,
       passport_url: (customer as any).passport_url || undefined,
+      license_number: (customer as any).license_number || undefined,
     });
     setViewMode(true);
     setIsOpen(true);
@@ -529,6 +533,12 @@ export default function Customers() {
                   <Label className="text-gray-500">{(selectedCustomer as any).is_foreign ? "מספר דרכון" : "ת.ז."}</Label>
                   <p className="font-medium">{selectedCustomer.id_number}</p>
                 </div>
+                {(selectedCustomer as any).license_number && (
+                <div>
+                  <Label className="text-gray-500">מספר רישיון</Label>
+                  <p className="font-medium">{(selectedCustomer as any).license_number}</p>
+                </div>
+                )}
                 <div>
                   <Label className="text-gray-500">טלפון</Label>
                   <p className="font-medium">{selectedCustomer.phone}</p>
@@ -657,6 +667,10 @@ export default function Customers() {
                     <div>
                       <Label htmlFor="id_number">{isForeign ? "מספר דרכון *" : "ת.ז. *"}</Label>
                       <Input id="id_number" name="id_number" value={formData.id_number || ""} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} required placeholder={isForeign ? "מספר דרכון" : "תעודת זהות"} />
+                    </div>
+                    <div>
+                      <Label htmlFor="license_number">מספר רישיון נהיגה</Label>
+                      <Input id="license_number" name="license_number" value={formData.license_number || ""} onChange={(e) => setFormData({ ...formData, license_number: e.target.value })} placeholder="מספר רישיון נהיגה" />
                     </div>
                     <div>
                       <Label htmlFor="email">מייל</Label>

@@ -1040,6 +1040,15 @@ export default function Bookings() {
                 onChange={(e) => setExtendData({ ...extendData, new_end_time: e.target.value })}
               />
             </div>
+            <div>
+              <Label>מחיר מעודכן (₪)</Label>
+              <Input
+                type="number"
+                value={extendData.new_cost}
+                onChange={(e) => setExtendData({ ...extendData, new_cost: e.target.value })}
+                placeholder="השאר ריק אם אין שינוי"
+              />
+            </div>
             <div className="flex gap-3">
               <Button
                 className="flex-1"
@@ -1051,11 +1060,12 @@ export default function Bookings() {
                       rental: calendarActionRental,
                       newEndDate: extendData.new_end_date,
                       newEndTime: extendData.new_end_time,
+                      newCost: extendData.new_cost ? Number(extendData.new_cost) : undefined,
                     });
                   }
                 }}
               >
-                {extendMutation.isPending ? "מעדכן..." : "עדכן תאריך"}
+                {extendMutation.isPending ? "מעדכן..." : "עדכן"}
               </Button>
               <Button variant="outline" onClick={() => setExtendDialogOpen(false)}>ביטול</Button>
             </div>

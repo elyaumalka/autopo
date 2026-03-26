@@ -689,7 +689,10 @@ export default function Bookings() {
     },
     {
       header: "סטטוס",
-      cell: (row: Booking) => <StatusBadge status={row.status || "ממתין"} />
+      cell: (row: Booking) => {
+        const displayStatus = row.status === "מאושר" ? "משוריין" : row.status;
+        return <StatusBadge status={displayStatus || "ממתין"} />;
+      }
     },
     {
       header: "תשלום",

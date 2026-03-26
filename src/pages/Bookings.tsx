@@ -344,6 +344,86 @@ export default function Bookings() {
     }
   });
 
+  // Maintenance update mutation
+  const maintenanceUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<MaintenanceTask> }) => {
+      const { error } = await supabase.from("maintenance_tasks").update(data as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      setMaintenanceActionOpen(false);
+      setMaintenanceEditOpen(false);
+      setMaintenanceActionTask(null);
+      toast({ title: "המשימה עודכנה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה בעדכון המשימה", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Maintenance delete mutation
+  const maintenanceDeleteMutation = useMutation({
+    mutationFn: async (task: MaintenanceTask) => {
+      // Delete all tasks for same vehicle with same type+description in the date range
+      const { error } = await supabase.from("maintenance_tasks").delete().eq("id", task.id);
+      if (error) throw error;
+      // Release vehicle if it was in maintenance
+      if (task.status === "בתהליך") {
+        // Check if there are other active maintenance tasks for this vehicle
+        const { data: remaining } = await supabase
+          .from("maintenance_tasks")
+          .select("id")
+          .eq("vehicle_id", task.vehicle_id)
+          .eq("status", "בתהליך")
+          .neq("id", task.id);
+        if (!remaining || remaining.length === 0) {
+          await supabase.from("vehicles").update({ status: "זמין" }).eq("id", task.vehicle_id);
+        }
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      setMaintenanceActionOpen(false);
+      setMaintenanceActionTask(null);
+      toast({ title: "המשימה נמחקה בהצלחה" });
+    },
+    onError: (error) => {
+      toast({ title: "שגיאה במחיקת המשימה", description: error.message, variant: "destructive" });
+    }
+  });
+
+  // Complete maintenance task
+  const handleCompleteMaintenance = async (task: MaintenanceTask) => {
+    await maintenanceUpdateMutation.mutateAsync({
+      id: task.id,
+      data: { status: "הושלם" as any, completed_date: format(new Date(), "yyyy-MM-dd") }
+    });
+    // Check if there are other active maintenance tasks for this vehicle
+    const { data: remaining } = await supabase
+      .from("maintenance_tasks")
+      .select("id")
+      .eq("vehicle_id", task.vehicle_id)
+      .eq("status", "בתהליך")
+      .neq("id", task.id);
+    if (!remaining || remaining.length === 0) {
+      await supabase.from("vehicles").update({ status: "זמין" }).eq("id", task.vehicle_id);
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    }
+  };
+
+  // Activate maintenance task
+  const handleActivateMaintenance = async (task: MaintenanceTask) => {
+    await maintenanceUpdateMutation.mutateAsync({
+      id: task.id,
+      data: { status: "בתהליך" as any }
+    });
+    await supabase.from("vehicles").update({ status: "בטיפול" }).eq("id", task.vehicle_id);
+    queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+  };
+
   const handleOpenMaintenanceDialog = (vehicle: Vehicle, date?: string) => {
     const selectedDate = date || format(new Date(), "yyyy-MM-dd");
     setMaintenanceVehicle(vehicle);

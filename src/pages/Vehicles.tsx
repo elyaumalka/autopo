@@ -195,6 +195,7 @@ export default function Vehicles() {
       half_day_rate: formState.half_day_rate ? Number(formState.half_day_rate) : null,
       monthly_rate: formState.monthly_rate ? Number(formState.monthly_rate) : null,
       weekly_rate: formState.weekly_rate ? Number(formState.weekly_rate) : null,
+      sort_order: formState.sort_order ? Number(formState.sort_order) : 0,
       km_limit: formState.km_limit ? Number(formState.km_limit) : null,
       extra_km_price: formState.extra_km_price ? Number(formState.extra_km_price) : null,
       hourly_delay_rate: formState.hourly_delay_rate ? Number(formState.hourly_delay_rate) : null,

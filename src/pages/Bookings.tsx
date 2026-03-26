@@ -1484,7 +1484,8 @@ export default function Bookings() {
                   })()}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
         </DialogContent>
       </Dialog>

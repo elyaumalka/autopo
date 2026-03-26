@@ -103,6 +103,11 @@ export type Database = {
       }
       bookings: {
         Row: {
+          billing_rate_amount: number | null
+          billing_rate_type: string | null
+          collection_date: string | null
+          collection_date_type: string | null
+          collection_frequency: string | null
           contract_signed: boolean | null
           contract_url: string | null
           created_at: string
@@ -115,6 +120,7 @@ export type Database = {
           deposit_amount: number | null
           end_date: string
           end_time: string | null
+          future_payment_method: string | null
           id: string
           notes: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
@@ -131,6 +137,11 @@ export type Database = {
           waiver_url: string | null
         }
         Insert: {
+          billing_rate_amount?: number | null
+          billing_rate_type?: string | null
+          collection_date?: string | null
+          collection_date_type?: string | null
+          collection_frequency?: string | null
           contract_signed?: boolean | null
           contract_url?: string | null
           created_at?: string
@@ -143,6 +154,7 @@ export type Database = {
           deposit_amount?: number | null
           end_date: string
           end_time?: string | null
+          future_payment_method?: string | null
           id?: string
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -159,6 +171,11 @@ export type Database = {
           waiver_url?: string | null
         }
         Update: {
+          billing_rate_amount?: number | null
+          billing_rate_type?: string | null
+          collection_date?: string | null
+          collection_date_type?: string | null
+          collection_frequency?: string | null
           contract_signed?: boolean | null
           contract_url?: string | null
           created_at?: string
@@ -171,6 +188,7 @@ export type Database = {
           deposit_amount?: number | null
           end_date?: string
           end_time?: string | null
+          future_payment_method?: string | null
           id?: string
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
@@ -749,7 +767,12 @@ export type Database = {
           additional_charges: number | null
           additional_charges_details: string | null
           base_cost: number | null
+          billing_rate_amount: number | null
+          billing_rate_type: string | null
           booking_id: string | null
+          collection_date: string | null
+          collection_date_type: string | null
+          collection_frequency: string | null
           created_at: string
           created_by: string | null
           credit_hold: number | null
@@ -758,6 +781,7 @@ export type Database = {
           end_km: number | null
           extra_km: number | null
           extra_km_cost: number | null
+          future_payment_method: string | null
           id: string
           invoice_number: string | null
           notes: string | null
@@ -784,7 +808,12 @@ export type Database = {
           additional_charges?: number | null
           additional_charges_details?: string | null
           base_cost?: number | null
+          billing_rate_amount?: number | null
+          billing_rate_type?: string | null
           booking_id?: string | null
+          collection_date?: string | null
+          collection_date_type?: string | null
+          collection_frequency?: string | null
           created_at?: string
           created_by?: string | null
           credit_hold?: number | null
@@ -793,6 +822,7 @@ export type Database = {
           end_km?: number | null
           extra_km?: number | null
           extra_km_cost?: number | null
+          future_payment_method?: string | null
           id?: string
           invoice_number?: string | null
           notes?: string | null
@@ -819,7 +849,12 @@ export type Database = {
           additional_charges?: number | null
           additional_charges_details?: string | null
           base_cost?: number | null
+          billing_rate_amount?: number | null
+          billing_rate_type?: string | null
           booking_id?: string | null
+          collection_date?: string | null
+          collection_date_type?: string | null
+          collection_frequency?: string | null
           created_at?: string
           created_by?: string | null
           credit_hold?: number | null
@@ -828,6 +863,7 @@ export type Database = {
           end_km?: number | null
           extra_km?: number | null
           extra_km_cost?: number | null
+          future_payment_method?: string | null
           id?: string
           invoice_number?: string | null
           notes?: string | null

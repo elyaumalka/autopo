@@ -90,6 +90,9 @@ export default function Bookings() {
   const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
   const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);
   const [maintenanceEditData, setMaintenanceEditData] = useState({ type: "", description: "", notes: "", end_date: "" });
+  const [docsViewerOpen, setDocsViewerOpen] = useState(false);
+  const [docsViewerBookingId, setDocsViewerBookingId] = useState<string | null>(null);
+  const [docsViewerCustomerName, setDocsViewerCustomerName] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({

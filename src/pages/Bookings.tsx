@@ -487,6 +487,16 @@ export default function Bookings() {
 
   const handleCalendarCellClick = (date: Date, vehicle: Vehicle, booking?: any, slotInfo?: { slot: "am" | "pm"; existingEndTime?: string | null }) => {
     if (booking) {
+      // Check if this is a maintenance task
+      if (booking.status === "בטיפול") {
+        const foundMaintenance = maintenanceTasks.find(m => m.id === booking.id);
+        if (foundMaintenance) {
+          setMaintenanceActionTask(foundMaintenance);
+          setMaintenanceActionOpen(true);
+          return;
+        }
+      }
+
       // Find the actual booking record
       let foundBooking: Booking | undefined;
       let foundRental: Rental | undefined;
@@ -512,7 +522,6 @@ export default function Bookings() {
       }
 
       if (foundBooking) {
-        // Open action menu instead of directly opening wizard
         setCalendarActionBooking(foundBooking);
         setCalendarActionRental(foundRental || rentals.find(r => r.booking_id === foundBooking!.id) || null);
         setCalendarActionOpen(true);

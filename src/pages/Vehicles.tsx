@@ -64,7 +64,7 @@ export default function Vehicles() {
     queryFn: async () => {
       // Fetch vehicles and active rentals in parallel
       const [vehiclesRes, activeRentalsRes] = await Promise.all([
-        supabase.from("vehicles").select("*").order("created_at", { ascending: false }),
+        supabase.from("vehicles").select("*").order("sort_order", { ascending: true }).order("created_at", { ascending: false }),
         supabase.from("rentals").select("vehicle_id").eq("status", "פעיל"),
       ]);
       if (vehiclesRes.error) throw vehiclesRes.error;

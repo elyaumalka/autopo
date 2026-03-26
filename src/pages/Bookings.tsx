@@ -809,7 +809,7 @@ export default function Bookings() {
                 <SelectContent>
                   <SelectItem value="all">הכל</SelectItem>
                   <SelectItem value="ממתין">ממתין</SelectItem>
-                  <SelectItem value="מאושר">מאושר</SelectItem>
+                  <SelectItem value="מאושר">משוריין</SelectItem>
                   <SelectItem value="פעיל">פעיל</SelectItem>
                   <SelectItem value="הושלם">הושלם</SelectItem>
                   <SelectItem value="בוטל">בוטל</SelectItem>

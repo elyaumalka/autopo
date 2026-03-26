@@ -288,6 +288,44 @@ export type Database = {
           },
         ]
       }
+      customer_documents: {
+        Row: {
+          created_at: string
+          customer_id: string
+          document_name: string
+          document_type: string
+          file_url: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          document_name: string
+          document_type?: string
+          file_url: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          document_name?: string
+          document_type?: string
+          file_url?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_documents_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -299,10 +337,12 @@ export type Database = {
           first_name: string
           id: string
           id_number: string
+          is_foreign: boolean
           last_name: string
           license_back_url: string | null
           license_front_url: string | null
           notes: string | null
+          passport_url: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_provider: string | null
           payment_token: string | null
@@ -321,10 +361,12 @@ export type Database = {
           first_name: string
           id?: string
           id_number: string
+          is_foreign?: boolean
           last_name: string
           license_back_url?: string | null
           license_front_url?: string | null
           notes?: string | null
+          passport_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_provider?: string | null
           payment_token?: string | null
@@ -343,10 +385,12 @@ export type Database = {
           first_name?: string
           id?: string
           id_number?: string
+          is_foreign?: boolean
           last_name?: string
           license_back_url?: string | null
           license_front_url?: string | null
           notes?: string | null
+          passport_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_provider?: string | null
           payment_token?: string | null

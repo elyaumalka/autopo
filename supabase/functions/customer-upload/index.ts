@@ -22,7 +22,7 @@ serve(async (req) => {
       // Fetch customer by upload token (only public fields)
       const { data, error } = await supabase
         .from("customers")
-        .select("id, first_name, last_name, license_front_url, license_back_url")
+        .select("id, first_name, last_name, license_front_url, license_back_url, is_foreign, passport_url")
         .eq("upload_token", token)
         .single();
 
@@ -78,7 +78,7 @@ serve(async (req) => {
         .getPublicUrl(fileName);
 
       // Update customer record
-      const updateField = side === "front" ? "license_front_url" : "license_back_url";
+      const updateField = side === "front" ? "license_front_url" : side === "back" ? "license_back_url" : "passport_url";
       const { error: updateErr } = await supabase
         .from("customers")
         .update({ [updateField]: urlData.publicUrl })

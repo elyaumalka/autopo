@@ -199,6 +199,12 @@ export default function QuickBookingDialog({
     setCustomEndTime("10:00");
     setRentalCost("");
     setCustomerSearch("");
+    setBillingRateType("");
+    setBillingRateAmount("");
+    setCollectionDateType("תחילת השכרה");
+    setCollectionDate("");
+    setCollectionFrequency("");
+    setFuturePaymentMethod("");
   };
 
   const isFormValid = () => {

@@ -951,6 +951,8 @@ export default function Bookings() {
                       <FileText className="w-4 h-4 ml-2" />
                       צפה במסמכים חתומים
                     </Button>
+                  </>
+                )}
 
                 {(calendarActionRental?.status || calendarActionBooking.status) === "הושלם" && (
                   <>
@@ -985,7 +987,8 @@ export default function Bookings() {
                       <FileText className="w-4 h-4 ml-2" />
                       צפה במסמכים חתומים
                     </Button>
-
+                  </>
+                )}
                 <Button
                   variant="destructive"
                   className="w-full"

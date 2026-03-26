@@ -669,6 +669,10 @@ export default function Customers() {
                       <Input id="id_number" name="id_number" value={formData.id_number || ""} onChange={(e) => setFormData({ ...formData, id_number: e.target.value })} required placeholder={isForeign ? "מספר דרכון" : "תעודת זהות"} />
                     </div>
                     <div>
+                      <Label htmlFor="license_number">מספר רישיון נהיגה</Label>
+                      <Input id="license_number" name="license_number" value={formData.license_number || ""} onChange={(e) => setFormData({ ...formData, license_number: e.target.value })} placeholder="מספר רישיון נהיגה" />
+                    </div>
+                    <div>
                       <Label htmlFor="email">מייל</Label>
                       <Input id="email" name="email" type="email" value={formData.email || ""} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                     </div>

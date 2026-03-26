@@ -246,6 +246,7 @@ export default function Customers() {
       license_back_url: customer.license_back_url || undefined,
       is_foreign: (customer as any).is_foreign || false,
       passport_url: (customer as any).passport_url || undefined,
+      license_number: (customer as any).license_number || undefined,
     });
     setViewMode(true);
     setIsOpen(true);

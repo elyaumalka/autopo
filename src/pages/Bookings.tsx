@@ -972,8 +972,19 @@ export default function Bookings() {
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך הזמנה
                     </Button>
-                  </>
-                )}
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCalendarActionOpen(false);
+                        setDocsViewerBookingId(calendarActionBooking.id);
+                        setDocsViewerCustomerName(calendarActionBooking.customer_name);
+                        setDocsViewerOpen(true);
+                      }}
+                    >
+                      <FileText className="w-4 h-4 ml-2" />
+                      צפה במסמכים חתומים
+                    </Button>
 
                 <Button
                   variant="destructive"

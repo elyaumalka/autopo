@@ -81,6 +81,12 @@ export default function QuickBookingDialog({
   const [rentalCost, setRentalCost] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [billingRateType, setBillingRateType] = useState("");
+  const [billingRateAmount, setBillingRateAmount] = useState("");
+  const [collectionDateType, setCollectionDateType] = useState("תחילת השכרה");
+  const [collectionDate, setCollectionDate] = useState("");
+  const [collectionFrequency, setCollectionFrequency] = useState("");
+  const [futurePaymentMethod, setFuturePaymentMethod] = useState("");
 
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;

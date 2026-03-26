@@ -52,6 +52,12 @@ interface BookingData {
   rental_type: string;
   rental_cost: number;
   status: string;
+  billing_rate_type?: string | null;
+  billing_rate_amount?: number | null;
+  collection_date_type?: string | null;
+  collection_date?: string | null;
+  collection_frequency?: string | null;
+  future_payment_method?: string | null;
 }
 
 export default function QuickBookingDialog({ 
@@ -75,6 +81,12 @@ export default function QuickBookingDialog({
   const [rentalCost, setRentalCost] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [billingRateType, setBillingRateType] = useState("");
+  const [billingRateAmount, setBillingRateAmount] = useState("");
+  const [collectionDateType, setCollectionDateType] = useState("תחילת השכרה");
+  const [collectionDate, setCollectionDate] = useState("");
+  const [collectionFrequency, setCollectionFrequency] = useState("");
+  const [futurePaymentMethod, setFuturePaymentMethod] = useState("");
 
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
@@ -96,6 +108,10 @@ export default function QuickBookingDialog({
         return format(startDate, "yyyy-MM-dd");
       case "24 שעות":
         return format(addDays(startDate, 1), "yyyy-MM-dd");
+      case "יומיים":
+        return format(addDays(startDate, 2), "yyyy-MM-dd");
+      case "שישי-שבת":
+        return format(addDays(startDate, 2), "yyyy-MM-dd");
       case "שבוע":
         return format(addWeeks(startDate, 1), "yyyy-MM-dd");
       case "חודש":
@@ -149,9 +165,15 @@ export default function QuickBookingDialog({
       start_time: startTime || null,
       end_date: calculateEndDate(),
       end_time: endTime || null,
-      rental_type: rentalType === "עד תאריך" ? null : rentalType,
+      rental_type: rentalType === "עד תאריך" ? null : rentalType as any,
       rental_cost: rentalCost ? parseFloat(rentalCost) : 0,
-      status: "מאושר"
+      status: "מאושר",
+      billing_rate_type: billingRateType || null,
+      billing_rate_amount: billingRateAmount ? parseFloat(billingRateAmount) : null,
+      collection_date_type: collectionDateType || null,
+      collection_date: collectionDateType === "תאריך מסוים" ? (collectionDate || null) : null,
+      collection_frequency: collectionFrequency || null,
+      future_payment_method: futurePaymentMethod || null,
     };
   };
 
@@ -177,6 +199,12 @@ export default function QuickBookingDialog({
     setCustomEndTime("10:00");
     setRentalCost("");
     setCustomerSearch("");
+    setBillingRateType("");
+    setBillingRateAmount("");
+    setCollectionDateType("תחילת השכרה");
+    setCollectionDate("");
+    setCollectionFrequency("");
+    setFuturePaymentMethod("");
   };
 
   const isFormValid = () => {
@@ -301,6 +329,8 @@ export default function QuickBookingDialog({
               <SelectContent>
                 <SelectItem value="חצי יום">חצי יום</SelectItem>
                 <SelectItem value="24 שעות">24 שעות</SelectItem>
+                <SelectItem value="יומיים">יומיים</SelectItem>
+                <SelectItem value="שישי-שבת">שישי-שבת</SelectItem>
                 <SelectItem value="שבוע">שבוע</SelectItem>
                 <SelectItem value="חודש">חודש</SelectItem>
                 <SelectItem value="עד תאריך">עד תאריך מסוים</SelectItem>
@@ -343,6 +373,94 @@ export default function QuickBookingDialog({
               value={rentalCost}
               onChange={(e) => setRentalCost(e.target.value)}
             />
+          </div>
+
+          {/* Billing Rate Type */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>סוג תעריף לחיוב</Label>
+              <Select value={billingRateType} onValueChange={(v) => {
+                setBillingRateType(v);
+                if (vehicle) {
+                  const rateMap: Record<string, number | null> = {
+                    "יומי": vehicle.daily_rate,
+                    "שבועי": (vehicle as any).weekly_rate,
+                    "חודשי": vehicle.monthly_rate,
+                  };
+                  if (rateMap[v]) setBillingRateAmount(String(rateMap[v]));
+                }
+              }}>
+                <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="יומי">יומי</SelectItem>
+                  <SelectItem value="שבועי">שבועי</SelectItem>
+                  <SelectItem value="חודשי">חודשי</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>תעריף (₪)</Label>
+              <Input
+                type="number"
+                value={billingRateAmount}
+                onChange={(e) => setBillingRateAmount(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          {/* Collection Date */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>מועד גביה</Label>
+              <Select value={collectionDateType} onValueChange={setCollectionDateType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="תחילת השכרה">תחילת השכרה</SelectItem>
+                  <SelectItem value="סוף השכרה">סוף השכרה</SelectItem>
+                  <SelectItem value="חלק בהתחלה חלק בסוף">חלק בהתחלה/סוף</SelectItem>
+                  <SelectItem value="תאריך מסוים">תאריך מסוים</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {collectionDateType === "תאריך מסוים" && (
+              <div>
+                <Label>תאריך גביה</Label>
+                <Input
+                  type="date"
+                  value={collectionDate}
+                  onChange={(e) => setCollectionDate(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Collection Frequency & Payment Method */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>תדירות גביה</Label>
+              <Select value={collectionFrequency} onValueChange={setCollectionFrequency}>
+                <SelectTrigger><SelectValue placeholder="חד פעמי" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="חד פעמי">חד פעמי</SelectItem>
+                  <SelectItem value="שבועי">שבועי</SelectItem>
+                  <SelectItem value="חודשי">חודשי</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>אופן תשלום עתידי</Label>
+              <Select value={futurePaymentMethod} onValueChange={setFuturePaymentMethod}>
+                <SelectTrigger><SelectValue placeholder="לא ידוע" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="אשראי">אשראי</SelectItem>
+                  <SelectItem value="מזומן">מזומן</SelectItem>
+                  <SelectItem value="העברה בנקאית">העברה</SelectItem>
+                  <SelectItem value="ביט">ביט</SelectItem>
+                  <SelectItem value="לא ידוע">לא ידוע</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-3 pt-2">

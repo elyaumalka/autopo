@@ -73,6 +73,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
+        .order("sort_order", { ascending: true })
         .order("license_plate");
       if (error) throw error;
       const startStr = format(weekStart, "yyyy-MM-dd");

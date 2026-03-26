@@ -689,7 +689,10 @@ export default function Bookings() {
     },
     {
       header: "סטטוס",
-      cell: (row: Booking) => <StatusBadge status={row.status || "ממתין"} />
+      cell: (row: Booking) => {
+        const displayStatus = row.status === "מאושר" ? "משוריין" : row.status;
+        return <StatusBadge status={displayStatus || "ממתין"} />;
+      }
     },
     {
       header: "תשלום",
@@ -806,7 +809,7 @@ export default function Bookings() {
                 <SelectContent>
                   <SelectItem value="all">הכל</SelectItem>
                   <SelectItem value="ממתין">ממתין</SelectItem>
-                  <SelectItem value="מאושר">מאושר</SelectItem>
+                  <SelectItem value="מאושר">משוריין</SelectItem>
                   <SelectItem value="פעיל">פעיל</SelectItem>
                   <SelectItem value="הושלם">הושלם</SelectItem>
                   <SelectItem value="בוטל">בוטל</SelectItem>
@@ -1445,7 +1448,7 @@ export default function Bookings() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ממתין">ממתין</SelectItem>
-                        <SelectItem value="מאושר">מאושר</SelectItem>
+                        <SelectItem value="מאושר">משוריין</SelectItem>
                         <SelectItem value="בוטל">בוטל</SelectItem>
                       </SelectContent>
                     </Select>

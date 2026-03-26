@@ -64,7 +64,7 @@ export default function Vehicles() {
     queryFn: async () => {
       // Fetch vehicles and active rentals in parallel
       const [vehiclesRes, activeRentalsRes] = await Promise.all([
-        supabase.from("vehicles").select("*").order("created_at", { ascending: false }),
+        supabase.from("vehicles").select("*").order("sort_order", { ascending: true }).order("created_at", { ascending: false }),
         supabase.from("rentals").select("vehicle_id").eq("status", "פעיל"),
       ]);
       if (vehiclesRes.error) throw vehiclesRes.error;
@@ -195,6 +195,7 @@ export default function Vehicles() {
       half_day_rate: formState.half_day_rate ? Number(formState.half_day_rate) : null,
       monthly_rate: formState.monthly_rate ? Number(formState.monthly_rate) : null,
       weekly_rate: formState.weekly_rate ? Number(formState.weekly_rate) : null,
+      sort_order: formState.sort_order ? Number(formState.sort_order) : 0,
       km_limit: formState.km_limit ? Number(formState.km_limit) : null,
       extra_km_price: formState.extra_km_price ? Number(formState.extra_km_price) : null,
       hourly_delay_rate: formState.hourly_delay_rate ? Number(formState.hourly_delay_rate) : null,
@@ -462,6 +463,16 @@ export default function Vehicles() {
 
                 <TabsContent value="basic" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>מספר סידורי</Label>
+                      <Input 
+                        name="sort_order" 
+                        type="number"
+                        value={(formState as any).sort_order || ''} 
+                        onChange={handleFieldChange}
+                        placeholder="0"
+                      />
+                    </div>
                     <div>
                       <Label>מספר רישוי *</Label>
                       <Input 

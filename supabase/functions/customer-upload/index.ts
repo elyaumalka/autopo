@@ -78,7 +78,7 @@ serve(async (req) => {
         .getPublicUrl(fileName);
 
       // Update customer record
-      const updateField = side === "front" ? "license_front_url" : "license_back_url";
+      const updateField = side === "front" ? "license_front_url" : side === "back" ? "license_back_url" : "passport_url";
       const { error: updateErr } = await supabase
         .from("customers")
         .update({ [updateField]: urlData.publicUrl })

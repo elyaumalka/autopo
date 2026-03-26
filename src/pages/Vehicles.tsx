@@ -62,12 +62,29 @@ export default function Vehicles() {
   const { data: vehicles, isLoading } = useQuery({
     queryKey: ["vehicles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("vehicles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      // Fetch vehicles and active rentals in parallel
+      const [vehiclesRes, activeRentalsRes] = await Promise.all([
+        supabase.from("vehicles").select("*").order("created_at", { ascending: false }),
+        supabase.from("rentals").select("vehicle_id").eq("status", "פעיל"),
+      ]);
+      if (vehiclesRes.error) throw vehiclesRes.error;
+      
+      // Build set of vehicle IDs that actually have active rentals
+      const activeRentalVehicleIds = new Set(
+        (activeRentalsRes.data || []).map((r) => r.vehicle_id)
+      );
+      
+      // Fix status: if vehicle says "מושכר" but has no active rental, show as "זמין"
+      // Also fix: if vehicle says "זמין" but has active rental, show as "מושכר"
+      return vehiclesRes.data.map((v) => {
+        if (v.status === "מושכר" && !activeRentalVehicleIds.has(v.id)) {
+          return { ...v, status: "זמין" as VehicleStatus };
+        }
+        if (v.status === "זמין" && activeRentalVehicleIds.has(v.id)) {
+          return { ...v, status: "מושכר" as VehicleStatus };
+        }
+        return v;
+      });
     },
   });
 

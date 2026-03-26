@@ -53,6 +53,7 @@ interface CustomerFormData {
   license_back_url?: string;
   is_foreign?: boolean;
   passport_url?: string;
+  license_number?: string;
 }
 
 interface CustomerDocument {

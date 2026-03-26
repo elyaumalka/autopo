@@ -184,6 +184,7 @@ export default function Vehicles() {
       status: (formState.status as VehicleStatus) || "זמין",
       notes: formState.notes || null,
       image_url: formState.image_url || null,
+      sold_date: formState.status === "נמכר" && formState.sold_date ? formState.sold_date : null,
     };
 
     if (editingVehicle) {

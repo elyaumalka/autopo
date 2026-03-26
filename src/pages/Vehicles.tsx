@@ -536,6 +536,17 @@ export default function Vehicles() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {formState.status === "נמכר" && (
+                      <div>
+                        <Label>תאריך מכירה</Label>
+                        <Input 
+                          name="sold_date" 
+                          type="date" 
+                          value={formState.sold_date || ''} 
+                          onChange={handleFieldChange}
+                        />
+                      </div>
+                    )}
                     <div>
                       <Label>ק"מ נוכחי</Label>
                       <Input 

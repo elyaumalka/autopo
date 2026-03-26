@@ -533,6 +533,12 @@ export default function Customers() {
                   <Label className="text-gray-500">{(selectedCustomer as any).is_foreign ? "מספר דרכון" : "ת.ז."}</Label>
                   <p className="font-medium">{selectedCustomer.id_number}</p>
                 </div>
+                {(selectedCustomer as any).license_number && (
+                <div>
+                  <Label className="text-gray-500">מספר רישיון</Label>
+                  <p className="font-medium">{(selectedCustomer as any).license_number}</p>
+                </div>
+                )}
                 <div>
                   <Label className="text-gray-500">טלפון</Label>
                   <p className="font-medium">{selectedCustomer.phone}</p>

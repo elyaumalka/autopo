@@ -403,14 +403,18 @@ export default function Vehicles() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 p-4 bg-cyan-50 rounded-xl">
+              <div className="grid grid-cols-4 gap-4 p-4 bg-cyan-50 rounded-xl">
+                <div className="text-center">
+                  <p className="text-sm text-gray-500">חצי יום</p>
+                  <p className="font-bold text-cyan-600">₪{editingVehicle.half_day_rate || 0}</p>
+                </div>
                 <div className="text-center">
                   <p className="text-sm text-gray-500">יומי</p>
                   <p className="font-bold text-cyan-600">₪{editingVehicle.daily_rate || 0}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-gray-500">חצי יום</p>
-                  <p className="font-bold text-cyan-600">₪{editingVehicle.half_day_rate || 0}</p>
+                  <p className="text-sm text-gray-500">שבועי</p>
+                  <p className="font-bold text-cyan-600">₪{(editingVehicle as any).weekly_rate || 0}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-sm text-gray-500">חודשי</p>

@@ -990,6 +990,7 @@ export type Database = {
           monthly_rate: number | null
           notes: string | null
           sold_date: string | null
+          sort_order: number | null
           status: Database["public"]["Enums"]["vehicle_status"]
           updated_at: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"] | null
@@ -1014,6 +1015,7 @@ export type Database = {
           monthly_rate?: number | null
           notes?: string | null
           sold_date?: string | null
+          sort_order?: number | null
           status?: Database["public"]["Enums"]["vehicle_status"]
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null
@@ -1038,6 +1040,7 @@ export type Database = {
           monthly_rate?: number | null
           notes?: string | null
           sold_date?: string | null
+          sort_order?: number | null
           status?: Database["public"]["Enums"]["vehicle_status"]
           updated_at?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"] | null

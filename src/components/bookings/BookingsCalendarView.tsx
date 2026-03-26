@@ -426,6 +426,23 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
                   const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
+                    const soldDate = (vehicle as any).sold_date;
+                    const dayStr = format(day, "yyyy-MM-dd");
+                    const isSoldAfter = vehicle.status === "נמכר" && soldDate && dayStr > soldDate;
+
+                    if (isSoldAfter) {
+                      const daySeparatorClass2 = slotType === "pm"
+                        ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                        : "border border-y-2 border-r-2 border-l border-foreground/20";
+                      return (
+                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass2)}>
+                          <div className="h-full w-full flex items-center justify-center">
+                            <span className="text-[8px] text-muted-foreground/40">נמכר</span>
+                          </div>
+                        </td>
+                      );
+                    }
+
                     const handleClick = () => {
                       if (onCellClick) {
                         onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });

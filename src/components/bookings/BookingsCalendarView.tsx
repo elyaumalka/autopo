@@ -201,7 +201,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     for (const booking of matchingBookings) {
-      const bookingType = getRentalType(booking.start_date, booking.end_date);
+      const bookingType = getRentalType(booking.billing_rate_type, booking.start_date, booking.end_date);
       if (hideMonthly && bookingType === "monthly") continue;
       if (hideWeekly && bookingType === "weekly") continue;
 

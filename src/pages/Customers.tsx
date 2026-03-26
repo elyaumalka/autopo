@@ -196,6 +196,7 @@ export default function Customers() {
       license_back_url: formData.license_back_url || null,
       is_foreign: isForeign,
       passport_url: isForeign ? (formData.passport_url || null) : null,
+      license_number: formData.license_number || null,
     };
 
     if (selectedCustomer) {

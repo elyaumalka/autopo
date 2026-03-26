@@ -305,6 +305,8 @@ export default function QuickBookingDialog({
               <SelectContent>
                 <SelectItem value="חצי יום">חצי יום</SelectItem>
                 <SelectItem value="24 שעות">24 שעות</SelectItem>
+                <SelectItem value="יומיים">יומיים</SelectItem>
+                <SelectItem value="שישי-שבת">שישי-שבת</SelectItem>
                 <SelectItem value="שבוע">שבוע</SelectItem>
                 <SelectItem value="חודש">חודש</SelectItem>
                 <SelectItem value="עד תאריך">עד תאריך מסוים</SelectItem>

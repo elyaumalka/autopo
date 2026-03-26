@@ -464,6 +464,16 @@ export default function Vehicles() {
                 <TabsContent value="basic" className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
+                      <Label>מספר סידורי</Label>
+                      <Input 
+                        name="sort_order" 
+                        type="number"
+                        value={(formState as any).sort_order || ''} 
+                        onChange={handleFieldChange}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
                       <Label>מספר רישוי *</Label>
                       <Input 
                         name="license_plate" 

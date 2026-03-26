@@ -86,6 +86,10 @@ export default function Bookings() {
   const [calendarActionOpen, setCalendarActionOpen] = useState(false);
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
   const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "" });
+  const [maintenanceActionTask, setMaintenanceActionTask] = useState<MaintenanceTask | null>(null);
+  const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
+  const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);
+  const [maintenanceEditData, setMaintenanceEditData] = useState({ type: "", description: "", notes: "", end_date: "" });
   const queryClient = useQueryClient();
 
   const { data: bookings = [], isLoading } = useQuery({

@@ -473,8 +473,8 @@ export default function Bookings() {
     
     const data: Partial<Booking> = {
       ...formData,
-      customer_name: customer ? `${customer.first_name} ${customer.last_name}` : "",
-      vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : "",
+      customer_name: customer ? `${customer.first_name} ${customer.last_name}` : (formData.customer_name || selectedBooking?.customer_name || ""),
+      vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : (formData.vehicle_details || selectedBooking?.vehicle_details || ""),
       rental_cost: formData.rental_cost ? Number(formData.rental_cost) : 0,
       deposit_amount: formData.deposit_amount ? Number(formData.deposit_amount) : 0,
       credit_hold: formData.credit_hold ? Number(formData.credit_hold) : 0,
@@ -1132,6 +1132,11 @@ export default function Bookings() {
                     onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
                     placeholder="בחר לקוח"
                   />
+                  {selectedBooking && !formData.customer_id && formData.customer_name && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      לקוח נוכחי: <span className="font-medium">{formData.customer_name}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1232,7 +1237,7 @@ export default function Bookings() {
                     <>
                       <Button 
                         onClick={() => setStep(selectedBooking ? 3 : 2)}
-                        disabled={!formData.customer_id || !formData.start_date || !formData.end_date}
+                        disabled={(!formData.customer_id && !formData.customer_name) || !formData.start_date || !formData.end_date}
                         className="w-full"
                       >
                         המשך לפרטים

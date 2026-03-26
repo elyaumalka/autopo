@@ -184,6 +184,7 @@ export default function Vehicles() {
       status: (formState.status as VehicleStatus) || "זמין",
       notes: formState.notes || null,
       image_url: formState.image_url || null,
+      sold_date: formState.status === "נמכר" && formState.sold_date ? formState.sold_date : null,
     };
 
     if (editingVehicle) {
@@ -536,6 +537,17 @@ export default function Vehicles() {
                         </SelectContent>
                       </Select>
                     </div>
+                    {formState.status === "נמכר" && (
+                      <div>
+                        <Label>תאריך מכירה</Label>
+                        <Input 
+                          name="sold_date" 
+                          type="date" 
+                          value={formState.sold_date || ''} 
+                          onChange={handleFieldChange}
+                        />
+                      </div>
+                    )}
                     <div>
                       <Label>ק"מ נוכחי</Label>
                       <Input 

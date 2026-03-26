@@ -1237,7 +1237,7 @@ export default function Bookings() {
                     <>
                       <Button 
                         onClick={() => setStep(selectedBooking ? 3 : 2)}
-                        disabled={!formData.customer_id || !formData.start_date || !formData.end_date}
+                        disabled={(!formData.customer_id && !formData.customer_name) || !formData.start_date || !formData.end_date}
                         className="w-full"
                       >
                         המשך לפרטים

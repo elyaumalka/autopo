@@ -557,26 +557,83 @@ export default function Customers() {
                 </div>
               </div>
 
+              {/* Active Rentals */}
+              {(() => {
+                const activeRentals = getCustomerRentals(selectedCustomer.id).filter(r => r.status === "פעיל");
+                return activeRentals.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold mb-3 text-green-700">השכרות פעילות</h3>
+                    <div className="space-y-2">
+                      {activeRentals.map((rental) => (
+                        <div key={rental.id} className="p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{rental.vehicle_details}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {rental.start_date ? format(new Date(rental.start_date), "dd/MM/yyyy") : "-"}
+                                {rental.planned_end_date && ` - ${format(new Date(rental.planned_end_date), "dd/MM/yyyy")}`}
+                              </p>
+                            </div>
+                            <StatusBadge status={rental.status} />
+                          </div>
+                          <div className="mt-2 flex gap-4 text-sm">
+                            <span>סה"כ: ₪{rental.total_cost?.toLocaleString() || rental.base_cost?.toLocaleString() || 0}</span>
+                            <span className="text-green-600">שולם: ₪{rental.paid_amount?.toLocaleString() || 0}</span>
+                            {(rental.remaining_payment || 0) > 0 && (
+                              <span className="text-red-600 font-medium">חוב: ₪{rental.remaining_payment?.toLocaleString()}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Rental History */}
               <div>
                 <h3 className="font-semibold mb-3">היסטוריית השכרות</h3>
-                {getCustomerRentals(selectedCustomer.id).length === 0 ? (
-                  <p className="text-gray-500">אין השכרות</p>
+                {getCustomerRentals(selectedCustomer.id).filter(r => r.status !== "פעיל").length === 0 ? (
+                  <p className="text-gray-500">אין השכרות קודמות</p>
                 ) : (
                   <div className="space-y-2">
-                    {getCustomerRentals(selectedCustomer.id).map((rental) => (
-                      <div key={rental.id} className="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">{rental.vehicle_details}</p>
-                          <p className="text-sm text-gray-500">
-                            {rental.start_date ? format(new Date(rental.start_date), "dd/MM/yyyy") : "-"}
-                          </p>
+                    {getCustomerRentals(selectedCustomer.id).filter(r => r.status !== "פעיל").map((rental) => (
+                      <div key={rental.id} className="p-3 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{rental.vehicle_details}</p>
+                            <p className="text-sm text-gray-500">
+                              {rental.start_date ? format(new Date(rental.start_date), "dd/MM/yyyy") : "-"}
+                              {rental.actual_end_date && ` - ${format(new Date(rental.actual_end_date), "dd/MM/yyyy")}`}
+                            </p>
+                          </div>
+                          <StatusBadge status={rental.status} />
                         </div>
-                        <StatusBadge status={rental.status} />
+                        <div className="mt-2 flex gap-4 text-sm text-muted-foreground">
+                          <span>סה"כ: ₪{rental.total_cost?.toLocaleString() || 0}</span>
+                          <span>שולם: ₪{rental.paid_amount?.toLocaleString() || 0}</span>
+                          {(rental.remaining_payment || 0) > 0 && (
+                            <span className="text-red-600 font-medium">חוב: ₪{rental.remaining_payment?.toLocaleString()}</span>
+                          )}
+                          {rental.invoice_number && <span>חשבונית: {rental.invoice_number}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Debts Summary */}
+              {(() => {
+                const totalDebt = getCustomerRentals(selectedCustomer.id)
+                  .reduce((sum, r) => sum + (r.remaining_payment || 0), 0);
+                return totalDebt > 0 && (
+                  <div className="p-4 bg-red-50 rounded-lg border border-red-200">
+                    <p className="text-sm text-red-700 font-medium">סה"כ חובות פתוחים</p>
+                    <p className="text-2xl font-bold text-red-700">₪{totalDebt.toLocaleString()}</p>
+                  </div>
+                );
+              })()}
 
               <Button onClick={() => setViewMode(false)} className="w-full">
                 עריכה

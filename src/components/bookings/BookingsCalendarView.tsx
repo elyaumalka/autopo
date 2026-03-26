@@ -118,7 +118,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return details.includes(vehicleLicensePlate);
   };
 
-  const getRentalType = (startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
+  const getRentalType = (billingRateType: string | null, startDate: string, endDate: string | null): "daily" | "weekly" | "monthly" => {
+    // Use billing_rate_type if set
+    if (billingRateType === "חודשי") return "monthly";
+    if (billingRateType === "שבועי") return "weekly";
+    if (billingRateType === "יומי") return "daily";
+    // Fallback to duration-based calculation
     if (!endDate) return "monthly";
     const start = parseISO(startDate);
     const end = parseISO(endDate);
@@ -159,7 +164,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     if (rental) {
-      const rentalType = getRentalType(rental.start_date, rental.actual_end_date || rental.planned_end_date);
+      const rentalType = getRentalType(rental.billing_rate_type, rental.start_date, rental.actual_end_date || rental.planned_end_date);
       if (hideMonthly && rentalType === "monthly") return { status: "free" };
       if (hideWeekly && rentalType === "weekly") return { status: "free" };
 
@@ -196,7 +201,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     for (const booking of matchingBookings) {
-      const bookingType = getRentalType(booking.start_date, booking.end_date);
+      const bookingType = getRentalType(booking.billing_rate_type, booking.start_date, booking.end_date);
       if (hideMonthly && bookingType === "monthly") continue;
       if (hideWeekly && bookingType === "weekly") continue;
 

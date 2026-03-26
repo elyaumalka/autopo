@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -16,15 +17,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, DollarSign, Calendar, Car, User, ScrollText } from "lucide-react";
+import { FileText, DollarSign, Calendar, Car, User, ScrollText, ArrowRightLeft, Plus, Trash2, Receipt } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentsList from "@/components/shared/DocumentsList";
 
 type Rental = Tables<"rentals">;
+type Vehicle = Tables<"vehicles">;
+
+interface PaymentEntry {
+  id: string;
+  description: string;
+  amount: number;
+  method: string;
+}
 
 interface RentalDetailsDialogProps {
   rental: Rental | null;
@@ -38,23 +47,56 @@ export default function RentalDetailsDialog({
   onClose,
 }: RentalDetailsDialogProps) {
   const queryClient = useQueryClient();
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showVehicleSwap, setShowVehicleSwap] = useState(false);
+  const [newVehicleId, setNewVehicleId] = useState("");
+  const [tollAmount, setTollAmount] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [invoiceSaved, setInvoiceSaved] = useState(false);
+
+  // Payment entries
+  const [payments, setPayments] = useState<PaymentEntry[]>([]);
+  const [newPayment, setNewPayment] = useState({ description: "", amount: "", method: "" });
+
+  const { data: vehicles = [] } = useQuery({
+    queryKey: ["vehicles-available"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .in("status", ["זמין"])
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data as Vehicle[];
+    },
+    enabled: isOpen && showVehicleSwap,
+  });
+
+  useEffect(() => {
+    if (rental) {
+      setInvoiceNumber(rental.invoice_number || "");
+      setInvoiceSaved(!!rental.invoice_number);
+    }
+  }, [rental]);
 
   if (!rental) return null;
 
   const handleAddPayment = async () => {
-    const amount = parseFloat(paymentAmount);
+    const amount = parseFloat(newPayment.amount);
     if (isNaN(amount) || amount <= 0) {
       toast({ title: "נא להזין סכום תקין", variant: "destructive" });
+      return;
+    }
+    if (!newPayment.description) {
+      toast({ title: "נא להזין מהות התשלום", variant: "destructive" });
       return;
     }
 
     setIsUpdating(true);
     try {
       const newPaid = (rental.paid_amount || 0) + amount;
-      const newRemaining = (rental.total_cost || 0) - newPaid;
+      const totalCost = rental.total_cost || rental.base_cost || 0;
+      const newRemaining = totalCost - newPaid;
 
       const { error } = await supabase
         .from("rentals")
@@ -66,9 +108,23 @@ export default function RentalDetailsDialog({
 
       if (error) throw error;
 
+      // Record income
+      await supabase.from("incomes").insert({
+        customer_id: rental.customer_id,
+        customer_name: rental.customer_name,
+        rental_id: rental.id,
+        vehicle_id: rental.vehicle_id,
+        amount: amount,
+        date: format(new Date(), "yyyy-MM-dd"),
+        type: "השכרה",
+        payment_method: newPayment.method as any || null,
+        notes: newPayment.description,
+      });
+
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
-      toast({ title: "התשלום נוסף בהצלחה" });
-      setPaymentAmount("");
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      toast({ title: `תשלום ₪${amount.toLocaleString()} נוסף בהצלחה` });
+      setNewPayment({ description: "", amount: "", method: "" });
     } catch (error) {
       toast({ title: "שגיאה בהוספת תשלום", variant: "destructive" });
     } finally {
@@ -76,26 +132,147 @@ export default function RentalDetailsDialog({
     }
   };
 
+  const handleAddToll = async () => {
+    const amount = parseFloat(tollAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({ title: "נא להזין סכום תקין", variant: "destructive" });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const newToll = (rental.toll_charges || 0) + amount;
+      const newTotal = (rental.base_cost || 0) + (rental.additional_charges || 0) + (rental.extra_km_cost || 0) + newToll;
+      const newRemaining = newTotal - (rental.paid_amount || 0);
+
+      const { error } = await supabase
+        .from("rentals")
+        .update({
+          toll_charges: newToll,
+          total_cost: newTotal,
+          remaining_payment: newRemaining >= 0 ? newRemaining : 0,
+        })
+        .eq("id", rental.id);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      toast({ title: `חיוב כביש 6 ₪${amount.toLocaleString()} נוסף` });
+      setTollAmount("");
+    } catch (error) {
+      toast({ title: "שגיאה בהוספת חיוב", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleVehicleSwap = async () => {
+    if (!newVehicleId) {
+      toast({ title: "נא לבחור רכב", variant: "destructive" });
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const newVehicle = vehicles.find(v => v.id === newVehicleId);
+      if (!newVehicle) throw new Error("Vehicle not found");
+
+      const vehicleDetails = `${newVehicle.manufacturer} ${newVehicle.model} - ${newVehicle.license_plate}`;
+
+      // Update rental with new vehicle
+      const { error: rentalError } = await supabase
+        .from("rentals")
+        .update({
+          vehicle_id: newVehicleId,
+          vehicle_details: vehicleDetails,
+        })
+        .eq("id", rental.id);
+
+      if (rentalError) throw rentalError;
+
+      // Update old vehicle status to available
+      if (rental.vehicle_id) {
+        await supabase
+          .from("vehicles")
+          .update({ status: "זמין" })
+          .eq("id", rental.vehicle_id);
+      }
+
+      // Update new vehicle status to rented
+      await supabase
+        .from("vehicles")
+        .update({ status: "מושכר" })
+        .eq("id", newVehicleId);
+
+      // Update booking if exists
+      if (rental.booking_id) {
+        await supabase
+          .from("bookings")
+          .update({
+            vehicle_id: newVehicleId,
+            vehicle_details: vehicleDetails,
+          })
+          .eq("id", rental.booking_id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      toast({ title: "הרכב הוחלף בהצלחה" });
+      setShowVehicleSwap(false);
+      setNewVehicleId("");
+      onClose();
+    } catch (error) {
+      toast({ title: "שגיאה בהחלפת רכב", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleSaveInvoice = async () => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("rentals")
+        .update({ invoice_number: invoiceNumber || null })
+        .eq("id", rental.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      toast({ title: "מספר חשבונית נשמר" });
+      setInvoiceSaved(true);
+    } catch {
+      toast({ title: "שגיאה בשמירה", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const totalCost = rental.total_cost || rental.base_cost || 0;
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>פרטי השכרה {rental.invoice_number}</DialogTitle>
+          <DialogTitle>פרטי השכרה - {rental.customer_name}</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="details" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="details" className="gap-2">
-              <FileText className="h-4 w-4" />
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="details" className="gap-1 text-xs">
+              <FileText className="h-3.5 w-3.5" />
               פרטים
             </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
-              <DollarSign className="h-4 w-4" />
+            <TabsTrigger value="payments" className="gap-1 text-xs">
+              <DollarSign className="h-3.5 w-3.5" />
               תשלומים
             </TabsTrigger>
+            <TabsTrigger value="tolls" className="gap-1 text-xs">
+              <Receipt className="h-3.5 w-3.5" />
+              כביש 6
+            </TabsTrigger>
             {rental.booking_id && (
-              <TabsTrigger value="documents" className="gap-2">
-                <ScrollText className="h-4 w-4" />
+              <TabsTrigger value="documents" className="gap-1 text-xs">
+                <ScrollText className="h-3.5 w-3.5" />
                 מסמכים
               </TabsTrigger>
             )}
@@ -116,7 +293,47 @@ export default function RentalDetailsDialog({
                   <p className="text-sm text-muted-foreground">רכב</p>
                   <p className="font-medium">{rental.vehicle_details}</p>
                 </div>
+                {rental.status === "פעיל" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mr-auto"
+                    onClick={() => setShowVehicleSwap(!showVehicleSwap)}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5 ml-1" />
+                    החלף
+                  </Button>
+                )}
               </div>
+
+              {/* Vehicle Swap */}
+              {showVehicleSwap && (
+                <div className="col-span-2 rounded-lg border-2 border-dashed border-primary/30 p-4 space-y-3">
+                  <Label>בחר רכב חדש</Label>
+                  <Select value={newVehicleId} onValueChange={setNewVehicleId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="בחר רכב זמין" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vehicles.map((v) => (
+                        <SelectItem key={v.id} value={v.id}>
+                          {v.manufacturer} {v.model} - {v.license_plate}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2">
+                    <Button onClick={handleVehicleSwap} disabled={isUpdating} size="sm">
+                      <ArrowRightLeft className="h-3.5 w-3.5 ml-1" />
+                      אשר החלפה
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowVehicleSwap(false)}>
+                      ביטול
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 rounded-lg border p-4">
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -144,30 +361,42 @@ export default function RentalDetailsDialog({
               </div>
               <div className="rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">ק"מ התחלה</p>
-                <p className="font-medium">
-                  {rental.start_km?.toLocaleString() || "-"}
-                </p>
+                <p className="font-medium">{rental.start_km?.toLocaleString() || "-"}</p>
               </div>
               <div className="rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">ק"מ סיום</p>
-                <p className="font-medium">
-                  {rental.end_km?.toLocaleString() || "-"}
-                </p>
+                <p className="font-medium">{rental.end_km?.toLocaleString() || "-"}</p>
               </div>
-              {rental.extra_km && rental.extra_km > 0 && (
-                <>
-                  <div className="rounded-lg border p-4">
-                    <p className="text-sm text-muted-foreground">ק"מ נוסף</p>
-                    <p className="font-medium">{rental.extra_km.toLocaleString()}</p>
-                  </div>
-                  <div className="rounded-lg border p-4">
-                    <p className="text-sm text-muted-foreground">עלות ק"מ נוסף</p>
-                    <p className="font-medium">
-                      ₪{rental.extra_km_cost?.toLocaleString() || 0}
-                    </p>
-                  </div>
-                </>
+              {rental.billing_rate_type && (
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">סוג תעריף</p>
+                  <p className="font-medium">{rental.billing_rate_type}</p>
+                </div>
               )}
+              {rental.billing_rate_amount && (
+                <div className="rounded-lg border p-4">
+                  <p className="text-sm text-muted-foreground">תעריף</p>
+                  <p className="font-medium">₪{rental.billing_rate_amount?.toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Invoice */}
+            <div className="rounded-lg border p-4 flex items-center gap-3">
+              <div className="flex-1">
+                <Label className="text-sm text-muted-foreground">מספר חשבונית</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => { setInvoiceNumber(e.target.value); setInvoiceSaved(false); }}
+                    placeholder="הזן מספר חשבונית"
+                    className="h-9"
+                  />
+                  <Button size="sm" onClick={handleSaveInvoice} disabled={isUpdating || invoiceSaved}>
+                    {invoiceSaved ? "✓" : "שמור"}
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {rental.notes && (
@@ -179,99 +408,111 @@ export default function RentalDetailsDialog({
           </TabsContent>
 
           <TabsContent value="payments" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-3">
+            {/* Cost summary */}
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-lg border bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">עלות בסיס</p>
-                <p className="text-2xl font-bold">
-                  ₪{rental.base_cost?.toLocaleString() || 0}
-                </p>
+                <p className="text-2xl font-bold">₪{rental.base_cost?.toLocaleString() || 0}</p>
               </div>
               <div className="rounded-lg border bg-muted/50 p-4">
                 <p className="text-sm text-muted-foreground">חיובים נוספים</p>
-                <p className="text-2xl font-bold">
-                  ₪{rental.additional_charges?.toLocaleString() || 0}
-                </p>
+                <p className="text-2xl font-bold">₪{rental.additional_charges?.toLocaleString() || 0}</p>
                 {rental.additional_charges_details && (
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {rental.additional_charges_details}
-                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">{rental.additional_charges_details}</p>
                 )}
               </div>
-              <div className="rounded-lg border bg-cyan-50 p-4">
-                <p className="text-sm text-cyan-700">סה"כ לתשלום</p>
-                <p className="text-2xl font-bold text-cyan-700">
-                  ₪{rental.total_cost?.toLocaleString() || 0}
-                </p>
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <p className="text-sm text-muted-foreground">כביש 6</p>
+                <p className="text-2xl font-bold">₪{rental.toll_charges?.toLocaleString() || 0}</p>
               </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg border bg-accent/30 p-4">
+                <p className="text-sm font-medium">סה"כ לתשלום</p>
+                <p className="text-2xl font-bold">₪{totalCost.toLocaleString()}</p>
+              </div>
               <div className="rounded-lg border bg-green-50 p-4">
                 <p className="text-sm text-green-700">שולם</p>
-                <p className="text-2xl font-bold text-green-700">
-                  ₪{rental.paid_amount?.toLocaleString() || 0}
-                </p>
+                <p className="text-2xl font-bold text-green-700">₪{rental.paid_amount?.toLocaleString() || 0}</p>
               </div>
-              <div
-                className={`rounded-lg border p-4 ${
-                  rental.remaining_payment && rental.remaining_payment > 0
-                    ? "bg-red-50"
-                    : "bg-green-50"
-                }`}
-              >
-                <p
-                  className={`text-sm ${
-                    rental.remaining_payment && rental.remaining_payment > 0
-                      ? "text-red-700"
-                      : "text-green-700"
-                  }`}
-                >
-                  נותר לתשלום
-                </p>
-                <p
-                  className={`text-2xl font-bold ${
-                    rental.remaining_payment && rental.remaining_payment > 0
-                      ? "text-red-700"
-                      : "text-green-700"
-                  }`}
-                >
+              <div className={`rounded-lg border p-4 ${rental.remaining_payment && rental.remaining_payment > 0 ? "bg-red-50" : "bg-green-50"}`}>
+                <p className={`text-sm ${rental.remaining_payment && rental.remaining_payment > 0 ? "text-red-700" : "text-green-700"}`}>נותר</p>
+                <p className={`text-2xl font-bold ${rental.remaining_payment && rental.remaining_payment > 0 ? "text-red-700" : "text-green-700"}`}>
                   ₪{rental.remaining_payment?.toLocaleString() || 0}
                 </p>
               </div>
             </div>
 
-            {rental.status === "פעיל" &&
-              rental.remaining_payment &&
-              rental.remaining_payment > 0 && (
-                <div className="rounded-lg border p-4">
-                  <Label className="mb-4 block font-medium">הוספת תשלום</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <Input
-                      type="number"
-                      placeholder="סכום"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-32"
-                    />
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger className="w-36">
-                        <SelectValue placeholder="אמצעי תשלום" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="מזומן">מזומן</SelectItem>
-                        <SelectItem value="אשראי">אשראי</SelectItem>
-                        <SelectItem value="ביט">ביט</SelectItem>
-                        <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
-                        <SelectItem value="צ׳ק">צ׳ק</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleAddPayment} disabled={isUpdating}>
-                      <DollarSign className="ml-2 h-4 w-4" />
-                      הוסף תשלום
-                    </Button>
-                  </div>
+            {/* Add payment */}
+            <div className="rounded-lg border p-4 space-y-3">
+              <Label className="font-medium">הוספת תשלום</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">מהות</Label>
+                  <Input
+                    placeholder="השכרה, מקדמה..."
+                    value={newPayment.description}
+                    onChange={(e) => setNewPayment({ ...newPayment, description: e.target.value })}
+                    className="h-9"
+                  />
                 </div>
-              )}
+                <div>
+                  <Label className="text-xs">סכום (₪)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={newPayment.amount}
+                    onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">אמצעי</Label>
+                  <Select value={newPayment.method} onValueChange={(v) => setNewPayment({ ...newPayment, method: v })}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="בחר" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="מזומן">מזומן</SelectItem>
+                      <SelectItem value="אשראי">אשראי</SelectItem>
+                      <SelectItem value="ביט">ביט</SelectItem>
+                      <SelectItem value="העברה בנקאית">העברה</SelectItem>
+                      <SelectItem value="צ׳ק">צ׳ק</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={handleAddPayment} disabled={isUpdating} size="sm">
+                <Plus className="h-3.5 w-3.5 ml-1" />
+                הוסף תשלום
+              </Button>
+            </div>
+          </TabsContent>
+
+          {/* Toll charges tab */}
+          <TabsContent value="tolls" className="space-y-4">
+            <div className="rounded-lg border bg-muted/50 p-4">
+              <p className="text-sm text-muted-foreground">סה"כ חיובי כביש 6</p>
+              <p className="text-3xl font-bold">₪{rental.toll_charges?.toLocaleString() || 0}</p>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-3">
+              <Label className="font-medium">הוספת חיוב כביש 6</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="סכום (₪)"
+                  value={tollAmount}
+                  onChange={(e) => setTollAmount(e.target.value)}
+                  className="w-40"
+                />
+                <Button onClick={handleAddToll} disabled={isUpdating}>
+                  <Plus className="h-3.5 w-3.5 ml-1" />
+                  הוסף חיוב
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           {rental.booking_id && (
@@ -279,7 +520,7 @@ export default function RentalDetailsDialog({
               <DocumentsList
                 bookingId={rental.booking_id}
                 customerName={rental.customer_name}
-                showActions={false}
+                showActions={rental.status === "פעיל"}
               />
             </TabsContent>
           )}

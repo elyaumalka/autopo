@@ -1667,6 +1667,234 @@ export default function Bookings() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Maintenance Action Dialog */}
+      <Dialog open={maintenanceActionOpen} onOpenChange={(open) => { if (!open) { setMaintenanceActionOpen(false); setMaintenanceActionTask(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              <div className="flex items-center gap-2">
+                <Wrench className="w-5 h-5" />
+                שריון טיפול
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {maintenanceActionTask && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">רכב:</span>
+                  <span className="font-medium">{maintenanceActionTask.vehicle_details}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">סוג:</span>
+                  <span className="font-medium">{maintenanceActionTask.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">תאריך:</span>
+                  <span className="font-medium">{maintenanceActionTask.due_date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">סטטוס:</span>
+                  <StatusBadge status={maintenanceActionTask.status} />
+                </div>
+                {maintenanceActionTask.description && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">תיאור:</span>
+                    <span className="font-medium">{maintenanceActionTask.description}</span>
+                  </div>
+                )}
+                {maintenanceActionTask.notes && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">הערות:</span>
+                    <span className="font-medium">{maintenanceActionTask.notes}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                {maintenanceActionTask.status === "ממתין" && (
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => handleActivateMaintenance(maintenanceActionTask)}
+                    disabled={maintenanceUpdateMutation.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 ml-2" />
+                    הפעל טיפול (חסום רכב)
+                  </Button>
+                )}
+
+                {maintenanceActionTask.status === "בתהליך" && (
+                  <Button
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    onClick={() => handleCompleteMaintenance(maintenanceActionTask)}
+                    disabled={maintenanceUpdateMutation.isPending}
+                  >
+                    <CheckCircle className="w-4 h-4 ml-2" />
+                    סיים טיפול (שחרר רכב)
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setMaintenanceEditData({
+                      type: maintenanceActionTask.type,
+                      description: maintenanceActionTask.description || "",
+                      notes: maintenanceActionTask.notes || "",
+                      end_date: maintenanceActionTask.due_date || "",
+                    });
+                    setMaintenanceEditOpen(true);
+                  }}
+                >
+                  <Edit className="w-4 h-4 ml-2" />
+                  ערוך
+                </Button>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setMaintenanceEditData({
+                      type: maintenanceActionTask.type,
+                      description: maintenanceActionTask.description || "",
+                      notes: maintenanceActionTask.notes || "",
+                      end_date: "",
+                    });
+                    setMaintenanceEditOpen(true);
+                  }}
+                >
+                  <CalendarIcon className="w-4 h-4 ml-2" />
+                  הארך שריון
+                </Button>
+
+                <Button
+                  variant="destructive"
+                  className="w-full"
+                  onClick={() => maintenanceDeleteMutation.mutate(maintenanceActionTask)}
+                  disabled={maintenanceDeleteMutation.isPending}
+                >
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  מחק
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Maintenance Edit Dialog */}
+      <Dialog open={maintenanceEditOpen} onOpenChange={(open) => { if (!open) setMaintenanceEditOpen(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>עריכת שריון טיפול</DialogTitle>
+          </DialogHeader>
+          {maintenanceActionTask && (
+            <div className="space-y-4">
+              <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                <div><strong>רכב:</strong> {maintenanceActionTask.vehicle_details}</div>
+                <div><strong>תאריך נוכחי:</strong> {maintenanceActionTask.due_date}</div>
+              </div>
+
+              <div>
+                <Label>סוג טיפול</Label>
+                <Select value={maintenanceEditData.type} onValueChange={(v) => setMaintenanceEditData({ ...maintenanceEditData, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="טיפול תקופתי">טיפול תקופתי</SelectItem>
+                    <SelectItem value="החלפת שמן">החלפת שמן</SelectItem>
+                    <SelectItem value="צמיגים">צמיגים</SelectItem>
+                    <SelectItem value="בלמים">בלמים</SelectItem>
+                    <SelectItem value="טסט">טסט</SelectItem>
+                    <SelectItem value="חידוש רישוי">חידוש רישוי</SelectItem>
+                    <SelectItem value="ביטוח">ביטוח</SelectItem>
+                    <SelectItem value="אחר">אחר</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>הארך עד תאריך</Label>
+                <Input
+                  type="date"
+                  value={maintenanceEditData.end_date}
+                  onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, end_date: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>תיאור</Label>
+                <Textarea
+                  value={maintenanceEditData.description}
+                  onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, description: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label>הערות</Label>
+                <Textarea
+                  value={maintenanceEditData.notes}
+                  onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, notes: e.target.value })}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1"
+                  disabled={maintenanceUpdateMutation.isPending}
+                  onClick={async () => {
+                    // Update current task
+                    await maintenanceUpdateMutation.mutateAsync({
+                      id: maintenanceActionTask.id,
+                      data: {
+                        type: maintenanceEditData.type as any,
+                        description: maintenanceEditData.description || null,
+                        notes: maintenanceEditData.notes || null,
+                      }
+                    });
+
+                    // If extending, create new tasks for extra days
+                    if (maintenanceEditData.end_date && maintenanceEditData.end_date > (maintenanceActionTask.due_date || "")) {
+                      const vehicle = vehicles.find(v => v.id === maintenanceActionTask.vehicle_id);
+                      if (vehicle) {
+                        let cursor = addDays(parseISO(maintenanceActionTask.due_date || ""), 1);
+                        const endDate = parseISO(maintenanceEditData.end_date);
+                        const newRows: any[] = [];
+                        while (!isAfter(cursor, endDate)) {
+                          newRows.push({
+                            vehicle_id: vehicle.id,
+                            vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
+                            type: maintenanceEditData.type as any,
+                            due_date: format(cursor, "yyyy-MM-dd"),
+                            description: maintenanceEditData.description || null,
+                            notes: maintenanceEditData.notes || null,
+                            status: maintenanceActionTask.status,
+                          });
+                          cursor = addDays(cursor, 1);
+                        }
+                        if (newRows.length > 0) {
+                          await supabase.from("maintenance_tasks").insert(newRows);
+                          queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
+                        }
+                      }
+                    }
+
+                    setMaintenanceEditOpen(false);
+                    setMaintenanceActionOpen(false);
+                    setMaintenanceActionTask(null);
+                    toast({ title: "השריון עודכן בהצלחה" });
+                  }}
+                >
+                  שמור
+                </Button>
+                <Button variant="outline" onClick={() => setMaintenanceEditOpen(false)}>ביטול</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

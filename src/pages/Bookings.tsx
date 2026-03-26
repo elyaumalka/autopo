@@ -269,17 +269,21 @@ export default function Bookings() {
 
   // Extend rental mutation
   const extendMutation = useMutation({
-    mutationFn: async ({ booking, rental, newEndDate, newEndTime }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string }) => {
+    mutationFn: async ({ booking, rental, newEndDate, newEndTime, newCost }: { booking: Booking; rental: Rental | null; newEndDate: string; newEndTime: string; newCost?: number }) => {
+      const bookingUpdate: any = { end_date: newEndDate, end_time: newEndTime || null };
+      if (newCost !== undefined) bookingUpdate.rental_cost = newCost;
       const { error: bookingError } = await supabase
         .from("bookings")
-        .update({ end_date: newEndDate, end_time: newEndTime || null } as any)
+        .update(bookingUpdate)
         .eq("id", booking.id);
       if (bookingError) throw bookingError;
 
       if (rental) {
+        const rentalUpdate: any = { planned_end_date: newEndDate, planned_end_time: newEndTime || null };
+        if (newCost !== undefined) rentalUpdate.base_cost = newCost;
         const { error: rentalError } = await supabase
           .from("rentals")
-          .update({ planned_end_date: newEndDate, planned_end_time: newEndTime || null } as any)
+          .update(rentalUpdate)
           .eq("id", rental.id);
         if (rentalError) throw rentalError;
       }

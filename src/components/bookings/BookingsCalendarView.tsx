@@ -181,6 +181,56 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     };
   };
 
+  const slotKey = (day: Date, slot: "am" | "pm") => `${format(day, "yyyy-MM-dd")}-${slot}`;
+
+  const applyManualOverride = (
+    occupiedSlots: any,
+    day: Date,
+    slot: "am" | "pm",
+    autoResult: SlotResult
+  ): SlotResult | null => {
+    if (!Array.isArray(occupiedSlots)) return null;
+    const key = slotKey(day, slot);
+    const isMarkedOccupied = occupiedSlots.includes(key);
+    if (isMarkedOccupied) {
+      return { status: "full", event: autoResult.event };
+    }
+    // override exists but this slot isn't in it → free
+    return { status: "free" };
+  };
+
+  const updateOccupiedSlots = async (
+    eventType: "booking" | "rental",
+    eventId: string,
+    day: Date,
+    slot: "am" | "pm",
+    currentOccupied: any,
+    makeOccupied: boolean,
+    autoOccupiedKeys: string[]
+  ) => {
+    const key = slotKey(day, slot);
+    let baseList: string[] = Array.isArray(currentOccupied)
+      ? [...currentOccupied]
+      : [...autoOccupiedKeys];
+
+    if (makeOccupied) {
+      if (!baseList.includes(key)) baseList.push(key);
+    } else {
+      baseList = baseList.filter((k) => k !== key);
+    }
+
+    const table = eventType === "booking" ? "bookings" : "rentals";
+    const { error } = await supabase
+      .from(table)
+      .update({ occupied_slots: baseList } as any)
+      .eq("id", eventId);
+
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+    }
+  };
+
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
     // Check active rentals first
     const rental = rentals.find(r => {
@@ -215,7 +265,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const endHour = parseHour(rental.actual_end_time || rental.planned_end_time) ?? parseHour(rental.start_time);
       const startHour = parseHour(rental.start_time);
 
-      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      const autoResult = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      const overridden = applyManualOverride((rental as any).occupied_slots, day, slot, autoResult);
+      return overridden ?? autoResult;
     }
 
     // Check bookings
@@ -251,8 +303,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const startHour = parseHour(booking.start_time);
       const endHour = parseHour(booking.end_time);
 
-      const result = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      const autoResult = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      const overridden = applyManualOverride((booking as any).occupied_slots, day, slot, autoResult);
+      const finalResult = overridden ?? autoResult;
+      if (finalResult.status !== "free") return finalResult;
     }
 
     // Check maintenance tasks

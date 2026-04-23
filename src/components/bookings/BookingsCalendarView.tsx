@@ -518,7 +518,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
+                  const renderSlot = (slotData: SlotResult, slotKeyStr: string, slotType: "am" | "pm") => {
                     const soldDate = (vehicle as any).sold_date;
                     const dayStr = format(day, "yyyy-MM-dd");
                     const isSoldAfter = vehicle.status === "נמכר" && soldDate && dayStr > soldDate;
@@ -528,7 +528,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                         ? "border border-y-2 border-l-2 border-r border-foreground/20"
                         : "border border-y-2 border-r-2 border-l border-foreground/20";
                       return (
-                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass2)}>
+                        <td key={slotKeyStr} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass2)}>
                           <div className="h-full w-full flex items-center justify-center">
                             <span className="text-[8px] text-muted-foreground/40">נמכר</span>
                           </div>
@@ -548,31 +548,100 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       ? "border border-y-2 border-l-2 border-r border-foreground/20"
                       : "border border-y-2 border-r-2 border-l border-foreground/20";
 
+                    // Build a list of all auto-occupied slot keys for this event across the visible week
+                    // (so when the user starts overriding, we preserve the rest of the auto layout)
+                    const buildAutoKeys = (eventId: string, eventType: "rental" | "booking"): string[] => {
+                      const keys: string[] = [];
+                      for (const d of weekDays) {
+                        for (const s of ["am", "pm"] as const) {
+                          // Recompute auto layout (without overrides) by temporarily ignoring occupied_slots
+                          const auto = computeAutoSlotForEvent(vehicle, d, s, eventId, eventType);
+                          if (auto.status === "full" || auto.status === "partial") {
+                            keys.push(slotKey(d, s));
+                          }
+                        }
+                      }
+                      return keys;
+                    };
+
+                    const handleManualToggle = async (makeOccupied: boolean) => {
+                      // Find which event this cell belongs to (the active rental or first matching booking)
+                      const rental = rentals.find(r => {
+                        const matchById = r.vehicle_id === vehicle.id;
+                        const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
+                        return matchById || matchByDetails;
+                      });
+
+                      let targetType: "rental" | "booking";
+                      let targetId: string;
+                      let currentOccupied: any;
+
+                      if (slotData.event?.id) {
+                        targetType = slotData.event.type;
+                        targetId = slotData.event.id;
+                        if (targetType === "rental") {
+                          currentOccupied = (rentals.find(r => r.id === targetId) as any)?.occupied_slots;
+                        } else {
+                          currentOccupied = (bookings.find(b => b.id === targetId) as any)?.occupied_slots;
+                        }
+                      } else if (rental) {
+                        targetType = "rental";
+                        targetId = rental.id;
+                        currentOccupied = (rental as any).occupied_slots;
+                      } else {
+                        toast({ title: "אי אפשר לסמן תא ריק", description: "צריך הזמנה או השכרה קיימת לרכב הזה כדי לסמן ידנית", variant: "destructive" });
+                        return;
+                      }
+
+                      const autoKeys = buildAutoKeys(targetId, targetType);
+                      await updateOccupiedSlots(targetType, targetId, day, slotType, currentOccupied, makeOccupied, autoKeys);
+                      toast({ title: makeOccupied ? "התא סומן כתפוס" : "התא שוחרר", duration: 1500 });
+                    };
+
+                    const renderContextWrapper = (children: React.ReactNode) => (
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          {children}
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          {slotData.status !== "full" && (
+                            <ContextMenuItem onClick={() => handleManualToggle(true)}>
+                              סמן את החצי הזה כתפוס
+                            </ContextMenuItem>
+                          )}
+                          {slotData.status !== "free" && (
+                            <ContextMenuItem onClick={() => handleManualToggle(false)}>
+                              שחרר את החצי הזה
+                            </ContextMenuItem>
+                          )}
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    );
+
                     if (slotData.status === "full" && slotData.event) {
                       const sTime = slotData.event.startTime?.slice(0, 5);
                       const eTime = slotData.event.endTime?.slice(0, 5);
-                      // Show start time on cells so we know when customer arrives
                       const timeStr = sTime || eTime || "";
                       return (
-                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          <div
-                            onClick={handleClick}
-                            className={cn(
-                              "h-full rounded px-0.5 py-0 text-[10px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                              getStatusColor(slotData.event.status)
-                            )}
-                            title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""}`}
-                          >
-                            <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
-                            {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
-                          </div>
+                        <td key={slotKeyStr} className={cn("p-0 h-8", daySeparatorClass)}>
+                          {renderContextWrapper(
+                            <div
+                              onClick={handleClick}
+                              className={cn(
+                                "h-full rounded px-0.5 py-0 text-[10px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                                getStatusColor(slotData.event.status)
+                              )}
+                              title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""} (קליק ימני לשינוי תצוגה)`}
+                            >
+                              <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
+                              {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
+                            </div>
+                          )}
                         </td>
                       );
                     }
 
                     if (slotData.status === "partial" && slotData.event) {
-                      // partialSide=start → צבוע בימין (תחילת הסלוט בזמן, ב-RTL=ימין)
-                      // partialSide=end   → צבוע בשמאל (סוף הסלוט בזמן, ב-RTL=שמאל)
                       const occupiedRight = slotData.partialSide === "start";
                       const occupiedContent = (
                         <div
@@ -582,7 +651,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                             occupiedRight ? "rounded-r border-l" : "rounded-l border-r",
                             getStatusColor(slotData.event.status)
                           )}
-                          title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                          title={`${slotData.event.customerName} - ${slotData.event.status} (קליק ימני לשינוי תצוגה)`}
                         >
                           <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
                           {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
@@ -602,25 +671,29 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       );
 
                       return (
-                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          {/* ב-RTL הילד הראשון מופיע בימין */}
-                          <div className="h-full flex">
-                            {occupiedRight ? occupiedContent : freeContent}
-                            {occupiedRight ? freeContent : occupiedContent}
-                          </div>
+                        <td key={slotKeyStr} className={cn("p-0 h-8", daySeparatorClass)}>
+                          {renderContextWrapper(
+                            <div className="h-full flex">
+                              {occupiedRight ? occupiedContent : freeContent}
+                              {occupiedRight ? freeContent : occupiedContent}
+                            </div>
+                          )}
                         </td>
                       );
                     }
 
                     // Free
                     return (
-                      <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                        <button
-                          onClick={handleClick}
-                          className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                        >
-                          <Plus className="h-2.5 w-2.5" />
-                        </button>
+                      <td key={slotKeyStr} className={cn("p-0 h-8", daySeparatorClass)}>
+                        {renderContextWrapper(
+                          <button
+                            onClick={handleClick}
+                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                            title="קליק ימני לסמן כתפוס"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                          </button>
+                        )}
                       </td>
                     );
                   };

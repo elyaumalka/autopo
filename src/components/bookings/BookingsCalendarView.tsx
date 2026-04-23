@@ -280,6 +280,16 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return { status: "free" };
   };
 
+  const getSlotBounds = (slot: "am" | "pm") => {
+    return slot === "am" ? { start: 9, end: 16 } : { start: 16, end: 33 };
+  };
+
+  const normalizeHourForSlot = (hour: number | null, slot: "am" | "pm") => {
+    if (hour === null) return null;
+    if (slot === "pm" && hour < 16) return hour + 24;
+    return hour;
+  };
+
   // Compute whether a slot is full, partial, or free
   const computeSlot = (
     slot: "am" | "pm",
@@ -289,53 +299,45 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     endHour: number | null,
     event: SlotResult["event"]
   ): SlotResult => {
-    // Middle day - fully occupied
     if (!isStartDay && !isEndDay) return { status: "full", event };
 
-    // Same day start+end (e.g. half-day)
-    if (isStartDay && isEndDay) {
-      const sh = startHour ?? 9;
-      const eh = endHour ?? 16;
-      if (slot === "am") {
-        if (sh >= 16) return { status: "free" };
-        if (eh <= 9) return { status: "free" };
-        if (sh >= 10 && sh < 16) return { status: "partial", partialSide: "end", event };
-        if (eh > 9 && eh < 16) return { status: "partial", partialSide: "start", event };
-        return { status: "full", event };
-      } else {
-        if (eh <= 16) return { status: "free" };
-        if (sh >= 20) return { status: "partial", partialSide: "end", event };
-        return { status: "full", event };
-      }
+    const { start: slotStart, end: slotEnd } = getSlotBounds(slot);
+    const normalizedStartHour = normalizeHourForSlot(startHour, slot);
+    const normalizedEndHour = normalizeHourForSlot(endHour, slot);
+
+    let occupiedStart = isStartDay ? (normalizedStartHour ?? slotStart) : slotStart;
+    let occupiedEnd = isEndDay ? (normalizedEndHour ?? slotEnd) : slotEnd;
+
+    if (occupiedEnd <= slotStart || occupiedStart >= slotEnd) {
+      return { status: "free" };
     }
 
-    // Start day only - car is taken from startHour onward
-    if (isStartDay && !isEndDay) {
-      const h = startHour ?? 9;
-      if (slot === "am") {
-        if (h >= 14) return { status: "free" };
-        if (h >= 10) return { status: "partial", partialSide: "end", event };
-        return { status: "full", event };
-      } else {
-        if (h >= 20) return { status: "partial", partialSide: "end", event };
-        return { status: "full", event };
-      }
+    occupiedStart = Math.max(slotStart, occupiedStart);
+    occupiedEnd = Math.min(slotEnd, occupiedEnd);
+
+    if (occupiedStart <= slotStart && occupiedEnd >= slotEnd) {
+      return { status: "full", event };
     }
 
-    // End day only - car returns at endHour
-    if (isEndDay && !isStartDay) {
-      const h = endHour ?? 16;
-      if (slot === "am") {
-        if (h <= 10) return { status: "free" };
-        if (h >= 16) return { status: "full", event };
-        return { status: "partial", partialSide: "start", event };
-      } else {
-        if (h <= 16) return { status: "free" };
-        return { status: "partial", partialSide: "start", event };
-      }
+    const touchesSlotStart = occupiedStart <= slotStart;
+    const touchesSlotEnd = occupiedEnd >= slotEnd;
+
+    if (touchesSlotStart && !touchesSlotEnd) {
+      return { status: "partial", partialSide: "start", event };
     }
 
-    return { status: "full", event };
+    if (!touchesSlotStart && touchesSlotEnd) {
+      return { status: "partial", partialSide: "end", event };
+    }
+
+    const slotMidpoint = (slotStart + slotEnd) / 2;
+    const eventMidpoint = (occupiedStart + occupiedEnd) / 2;
+
+    return {
+      status: "partial",
+      partialSide: eventMidpoint <= slotMidpoint ? "start" : "end",
+      event,
+    };
   };
 
   const getStatusColor = (status: string) => {

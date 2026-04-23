@@ -449,13 +449,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             <tr className="bg-muted/30">
               {weekDays.map((day) => (
                 <React.Fragment key={`${day.toISOString()}-slots`}>
-                  {/* ימין: בוקר (9-16) */}
-                  <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-amber-50 text-amber-900 font-medium">
-                    בוקר 9-16
-                  </th>
-                  {/* שמאל: ערב/לילה (16-9) */}
+                  {/* ב-RTL: ה-th הראשון בקוד מופיע משמאל, השני מימין */}
+                  {/* שמאל = ערב */}
                   <th className="border border-y-2 border-l-2 border-r border-foreground/20 p-0.5 text-[10px] text-center bg-indigo-50 text-indigo-900 font-medium">
                     ערב 16-9
+                  </th>
+                  {/* ימין = בוקר */}
+                  <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-amber-50 text-amber-900 font-medium">
+                    בוקר 9-16
                   </th>
                 </React.Fragment>
               ))}
@@ -565,9 +566,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {/* RTL: ימין = בוקר (am), שמאל = ערב (pm) */}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
+                      {/* ב-RTL: ה-td הראשון בקוד מופיע משמאל = ערב, השני מימין = בוקר */}
                       {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
                     </React.Fragment>
                   );
                 })}

@@ -188,7 +188,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
       if (!matchById && !matchByDetails) return false;
       const start = parseISO(r.start_date);
-      const end = r.planned_end_date ? parseISO(r.planned_end_date) : addDays(start, 30);
+      const effectiveEndDate = r.actual_end_date || r.planned_end_date;
+      const end = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(start, 30);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 

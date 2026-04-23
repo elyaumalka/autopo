@@ -508,29 +508,39 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                     }
 
                     if (slotData.status === "partial" && slotData.event) {
+                      const occupiedFirst = slotData.partialSide === "start";
+                      const occupiedContent = (
+                        <div
+                          onClick={handleClick}
+                          className={cn(
+                            "w-1/2 h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                            occupiedFirst ? "rounded-l border-r" : "rounded-r border-l",
+                            getStatusColor(slotData.event.status)
+                          )}
+                          title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                        >
+                          <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
+                          {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
+                        </div>
+                      );
+
+                      const freeContent = (
+                        <button
+                          onClick={() => {
+                            if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
+                            else if (onNewBooking) onNewBooking();
+                          }}
+                          className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      );
+
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          <div className="h-full flex flex-row-reverse">
-                            <div
-                              onClick={handleClick}
-                              className={cn(
-                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border-l cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                                getStatusColor(slotData.event.status)
-                              )}
-                              title={`${slotData.event.customerName} - ${slotData.event.status}`}
-                            >
-                              <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
-                              {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
-                            </div>
-                            <button
-                              onClick={() => {
-                                if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
-                                else if (onNewBooking) onNewBooking();
-                              }}
-                              className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                            >
-                              <Plus className="h-2.5 w-2.5" />
-                            </button>
+                          <div className="h-full flex">
+                            {occupiedFirst ? occupiedContent : freeContent}
+                            {occupiedFirst ? freeContent : occupiedContent}
                           </div>
                         </td>
                       );

@@ -170,6 +170,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
   type SlotResult = {
     status: "full" | "partial" | "free";
     partialSide?: "start" | "end";
+  timeLabel?: string | null;
     event?: {
       type: "rental" | "booking";
       id?: string;
@@ -183,7 +184,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
     // Check active rentals first
-    const rental = rentals.find(r => {
+    const matchingRentals = rentals.filter(r => {
       const matchById = r.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
       if (!matchById && !matchByDetails) return false;
@@ -193,10 +194,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
-    if (rental) {
+    for (const rental of matchingRentals) {
       const rentalType = getRentalType(rental.billing_rate_type, rental.start_date, rental.actual_end_date || rental.planned_end_date);
-      if (hideMonthly && rentalType === "monthly") return { status: "free" };
-      if (hideWeekly && rentalType === "weekly") return { status: "free" };
+      if (hideMonthly && rentalType === "monthly") continue;
+      if (hideWeekly && rentalType === "weekly") continue;
 
       const event = {
         type: "rental" as const,
@@ -214,7 +215,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
       const startHour = parseHour(rental.start_time);
 
-      return computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      if (result.status !== "free") return result;
     }
 
     // Check bookings
@@ -313,26 +315,61 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     const { slotStart, slotEnd } = getSlotBounds(day, slot);
     const eventStart = toDateTime(startDate, startHour, 9);
     const eventEnd = toDateTime(endDate, endHour, 21);
+    const minuteMs = 60_000;
+    const slotStartMs = slotStart.getTime();
+    const slotEndMs = slotEnd.getTime();
+    const eventStartMs = eventStart.getTime();
+    const eventEndMs = eventEnd.getTime();
 
-    const overlapStart = new Date(Math.max(slotStart.getTime(), eventStart.getTime()));
-    const overlapEnd = new Date(Math.min(slotEnd.getTime(), eventEnd.getTime()));
+    const overlapStart = new Date(Math.max(slotStartMs, eventStartMs));
+    const overlapEnd = new Date(Math.min(slotEndMs, eventEndMs));
+    const overlapStartMs = overlapStart.getTime();
+    const overlapEndMs = overlapEnd.getTime();
 
-    if (overlapEnd.getTime() <= overlapStart.getTime()) {
+    if (overlapEndMs <= overlapStartMs) {
       return { status: "free" };
     }
 
-    const slotLength = slotEnd.getTime() - slotStart.getTime();
-    const overlapLength = overlapEnd.getTime() - overlapStart.getTime();
+    const slotLength = slotEndMs - slotStartMs;
+    const overlapLength = overlapEndMs - overlapStartMs;
+    const startsInSlot = eventStartMs >= slotStartMs && eventStartMs < slotEndMs;
+    const endsInSlot = eventEndMs > slotStartMs && eventEndMs <= slotEndMs;
+    const startLabel = event?.startTime?.slice(0, 5) ?? null;
+    const endLabel = event?.endTime?.slice(0, 5) ?? null;
 
-    if (overlapLength >= slotLength - 60_000) {
-      return { status: "full", event };
+    if (overlapLength >= slotLength - minuteMs) {
+      return {
+        status: "full",
+        event,
+        timeLabel: startsInSlot ? startLabel : endsInSlot ? endLabel : null,
+      };
     }
 
-    const distanceFromStart = overlapStart.getTime() - slotStart.getTime();
-    const distanceFromEnd = slotEnd.getTime() - overlapEnd.getTime();
-    const partialSide: "start" | "end" = distanceFromStart <= distanceFromEnd ? "start" : "end";
+    const touchesSlotStart = overlapStartMs <= slotStartMs + minuteMs;
+    const touchesSlotEnd = overlapEndMs >= slotEndMs - minuteMs;
 
-    return { status: "partial", partialSide, event };
+    let partialSide: "start" | "end";
+    if (touchesSlotStart && !touchesSlotEnd) {
+      partialSide = "start";
+    } else if (!touchesSlotStart && touchesSlotEnd) {
+      partialSide = "end";
+    } else {
+      const overlapMidpoint = (overlapStartMs + overlapEndMs) / 2;
+      const slotMidpoint = (slotStartMs + slotEndMs) / 2;
+      partialSide = overlapMidpoint <= slotMidpoint ? "start" : "end";
+    }
+
+    const timeLabel = startsInSlot && !endsInSlot
+      ? startLabel
+      : !startsInSlot && endsInSlot
+        ? endLabel
+        : startsInSlot && endsInSlot
+          ? partialSide === "start"
+            ? startLabel
+            : endLabel
+          : endLabel || startLabel || null;
+
+    return { status: "partial", partialSide, event, timeLabel };
   };
 
   const getStatusColor = (status: string) => {

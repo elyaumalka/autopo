@@ -44,6 +44,10 @@ export default function EndRentalDialog({
     toll_charges: 0,
     additional_charges: 0,
     additional_charges_details: "",
+    discount_amount: 0,
+    discount_reason: "",
+    override_total: false,
+    final_total: 0,
     payment_amount: 0,
     payment_method: "" as string,
     collection_date: "",
@@ -67,6 +71,10 @@ export default function EndRentalDialog({
       toll_charges: Number((rental as any)?.toll_charges ?? 0),
       additional_charges: Number(rental?.additional_charges ?? 0),
       additional_charges_details: rental?.additional_charges_details || "",
+      discount_amount: 0,
+      discount_reason: "",
+      override_total: false,
+      final_total: 0,
       payment_amount: 0,
       payment_method: booking.payment_method || "",
       collection_date: "",
@@ -116,7 +124,15 @@ export default function EndRentalDialog({
 
     const tollCharges = Number(endData.toll_charges || 0);
     const additional = Number(endData.additional_charges || 0);
-    const totalCost = baseCost + delayCost + extraKmCost + tollCharges + additional;
+    const subtotal = baseCost + delayCost + extraKmCost + tollCharges + additional;
+
+    const discount = Math.max(0, Number(endData.discount_amount || 0));
+    const afterDiscount = Math.max(0, subtotal - discount);
+
+    // אם המשתמש בחר לדרוס מחיר סופי - השתמש בו במקום בחישוב
+    const totalCost = endData.override_total
+      ? Math.max(0, Number(endData.final_total || 0))
+      : afterDiscount;
 
     const alreadyPaid = Number(rental?.paid_amount ?? booking?.deposit_amount ?? 0);
     const totalPaid = alreadyPaid + Number(endData.payment_amount || 0);
@@ -130,6 +146,8 @@ export default function EndRentalDialog({
       extraKm,
       extraKmCost,
       tollCharges,
+      subtotal,
+      discount,
       totalCost,
       alreadyPaid,
       totalPaid,
@@ -143,7 +161,15 @@ export default function EndRentalDialog({
 
       const paidNow = Number(endData.payment_amount || 0);
       const safeRemaining = Math.max(0, costs.remaining);
-      const finalNotes = endData.notes?.trim() || null;
+      const noteParts: string[] = [];
+      if (endData.notes?.trim()) noteParts.push(endData.notes.trim());
+      if (costs.discount > 0) {
+        noteParts.push(`הנחה: ₪${costs.discount.toLocaleString()}${endData.discount_reason ? ` (${endData.discount_reason})` : ""}`);
+      }
+      if (endData.override_total) {
+        noteParts.push(`מחיר סופי נקבע ידנית: ₪${costs.totalCost.toLocaleString()}`);
+      }
+      const finalNotes = noteParts.length > 0 ? noteParts.join(" | ") : null;
 
       if (rental) {
         const { error: rentalError } = await supabase
@@ -409,6 +435,73 @@ export default function EndRentalDialog({
             />
           </div>
 
+          {/* Discount & Final price override */}
+          <div className="p-3 border rounded-lg space-y-3 bg-muted/30">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>הנחה (₪)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={endData.discount_amount || ""}
+                  onChange={(e) =>
+                    setEndData((prev) => ({
+                      ...prev,
+                      discount_amount: parseFloat(e.target.value || "0") || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>סיבת ההנחה</Label>
+                <Input
+                  placeholder="אופציונלי"
+                  value={endData.discount_reason}
+                  onChange={(e) =>
+                    setEndData((prev) => ({ ...prev, discount_reason: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                id="override_total"
+                type="checkbox"
+                className="h-4 w-4"
+                checked={endData.override_total}
+                onChange={(e) =>
+                  setEndData((prev) => ({
+                    ...prev,
+                    override_total: e.target.checked,
+                    final_total: e.target.checked
+                      ? prev.final_total || Math.max(0, costs.subtotal - (prev.discount_amount || 0))
+                      : 0,
+                  }))
+                }
+              />
+              <Label htmlFor="override_total" className="cursor-pointer">
+                קבע מחיר סופי ידני (דריסת החישוב)
+              </Label>
+            </div>
+
+            {endData.override_total && (
+              <div>
+                <Label>מחיר סופי לכל ההשכרה (₪)</Label>
+                <Input
+                  type="number"
+                  value={endData.final_total || ""}
+                  onChange={(e) =>
+                    setEndData((prev) => ({
+                      ...prev,
+                      final_total: parseFloat(e.target.value || "0") || 0,
+                    }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+
           {/* Payment */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -505,8 +598,26 @@ export default function EndRentalDialog({
                 <span>₪{Number(endData.additional_charges).toLocaleString()}</span>
               </div>
             )}
+            {(costs.discount > 0 || endData.override_total) && (
+              <div className="flex justify-between font-medium pt-1 border-t">
+                <span>סכום ביניים:</span>
+                <span>₪{costs.subtotal.toLocaleString()}</span>
+              </div>
+            )}
+            {costs.discount > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>הנחה{endData.discount_reason ? ` (${endData.discount_reason})` : ""}:</span>
+                <span>- ₪{costs.discount.toLocaleString()}</span>
+              </div>
+            )}
+            {endData.override_total && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>* מחיר סופי הוגדר ידנית</span>
+                <span></span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold pt-1 border-t">
-              <span>סה"כ:</span>
+              <span>סה"כ סופי:</span>
               <span>₪{costs.totalCost.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">

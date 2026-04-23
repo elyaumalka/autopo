@@ -124,7 +124,15 @@ export default function EndRentalDialog({
 
     const tollCharges = Number(endData.toll_charges || 0);
     const additional = Number(endData.additional_charges || 0);
-    const totalCost = baseCost + delayCost + extraKmCost + tollCharges + additional;
+    const subtotal = baseCost + delayCost + extraKmCost + tollCharges + additional;
+
+    const discount = Math.max(0, Number(endData.discount_amount || 0));
+    const afterDiscount = Math.max(0, subtotal - discount);
+
+    // אם המשתמש בחר לדרוס מחיר סופי - השתמש בו במקום בחישוב
+    const totalCost = endData.override_total
+      ? Math.max(0, Number(endData.final_total || 0))
+      : afterDiscount;
 
     const alreadyPaid = Number(rental?.paid_amount ?? booking?.deposit_amount ?? 0);
     const totalPaid = alreadyPaid + Number(endData.payment_amount || 0);
@@ -138,6 +146,8 @@ export default function EndRentalDialog({
       extraKm,
       extraKmCost,
       tollCharges,
+      subtotal,
+      discount,
       totalCost,
       alreadyPaid,
       totalPaid,

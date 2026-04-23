@@ -123,7 +123,6 @@ export type Database = {
           future_payment_method: string | null
           id: string
           notes: string | null
-          occupied_slots: Json | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_status: Database["public"]["Enums"]["payment_status"] | null
           rental_cost: number | null
@@ -158,7 +157,6 @@ export type Database = {
           future_payment_method?: string | null
           id?: string
           notes?: string | null
-          occupied_slots?: Json | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
           rental_cost?: number | null
@@ -193,7 +191,6 @@ export type Database = {
           future_payment_method?: string | null
           id?: string
           notes?: string | null
-          occupied_slots?: Json | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
           rental_cost?: number | null
@@ -788,7 +785,6 @@ export type Database = {
           id: string
           invoice_number: string | null
           notes: string | null
-          occupied_slots: Json | null
           paid_amount: number | null
           photos: Json | null
           planned_end_date: string | null
@@ -830,7 +826,6 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           notes?: string | null
-          occupied_slots?: Json | null
           paid_amount?: number | null
           photos?: Json | null
           planned_end_date?: string | null
@@ -872,7 +867,6 @@ export type Database = {
           id?: string
           invoice_number?: string | null
           notes?: string | null
-          occupied_slots?: Json | null
           paid_amount?: number | null
           photos?: Json | null
           planned_end_date?: string | null

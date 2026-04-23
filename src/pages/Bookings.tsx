@@ -230,6 +230,9 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
       setIsOpen(false);
       resetForm();
       toast({ title: "ההזמנה עודכנה בהצלחה" });

@@ -169,6 +169,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
   type SlotResult = {
     status: "full" | "partial" | "free";
+    partialSide?: "start" | "end";
     event?: {
       type: "rental" | "booking";
       id?: string;

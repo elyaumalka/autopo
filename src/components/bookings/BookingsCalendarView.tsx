@@ -238,6 +238,44 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     }
   };
 
+  // Compute auto layout for a specific event (ignoring overrides) – used to seed occupied_slots on first manual edit
+  const computeAutoSlotForEvent = (
+    vehicle: Vehicle,
+    day: Date,
+    slot: "am" | "pm",
+    eventId: string,
+    eventType: "rental" | "booking"
+  ): SlotResult => {
+    if (eventType === "rental") {
+      const rental = rentals.find(r => r.id === eventId);
+      if (!rental) return { status: "free" };
+      const startDate = parseISO(rental.start_date);
+      const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
+      const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
+      if (!(isSameDay(day, startDate) || isSameDay(day, endDate) || isWithinInterval(day, { start: startDate, end: endDate }))) {
+        return { status: "free" };
+      }
+      const isStartDay = isSameDay(day, startDate);
+      const isEndDay = isSameDay(day, endDate);
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time) ?? parseHour(rental.start_time);
+      const startHour = parseHour(rental.start_time);
+      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, undefined);
+    } else {
+      const booking = bookings.find(b => b.id === eventId);
+      if (!booking) return { status: "free" };
+      const startDate = parseISO(booking.start_date);
+      const endDate = parseISO(booking.end_date);
+      if (!(isSameDay(day, startDate) || isSameDay(day, endDate) || isWithinInterval(day, { start: startDate, end: endDate }))) {
+        return { status: "free" };
+      }
+      const isStartDay = isSameDay(day, startDate);
+      const isEndDay = isSameDay(day, endDate);
+      const startHour = parseHour(booking.start_time);
+      const endHour = parseHour(booking.end_time);
+      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, undefined);
+    }
+  };
+
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
     // Check active rentals first
     const rental = rentals.find(r => {

@@ -161,7 +161,15 @@ export default function EndRentalDialog({
 
       const paidNow = Number(endData.payment_amount || 0);
       const safeRemaining = Math.max(0, costs.remaining);
-      const finalNotes = endData.notes?.trim() || null;
+      const noteParts: string[] = [];
+      if (endData.notes?.trim()) noteParts.push(endData.notes.trim());
+      if (costs.discount > 0) {
+        noteParts.push(`הנחה: ₪${costs.discount.toLocaleString()}${endData.discount_reason ? ` (${endData.discount_reason})` : ""}`);
+      }
+      if (endData.override_total) {
+        noteParts.push(`מחיר סופי נקבע ידנית: ₪${costs.totalCost.toLocaleString()}`);
+      }
+      const finalNotes = noteParts.length > 0 ? noteParts.join(" | ") : null;
 
       if (rental) {
         const { error: rentalError } = await supabase

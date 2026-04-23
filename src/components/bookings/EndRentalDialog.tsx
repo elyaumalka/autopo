@@ -590,8 +590,26 @@ export default function EndRentalDialog({
                 <span>₪{Number(endData.additional_charges).toLocaleString()}</span>
               </div>
             )}
+            {(costs.discount > 0 || endData.override_total) && (
+              <div className="flex justify-between font-medium pt-1 border-t">
+                <span>סכום ביניים:</span>
+                <span>₪{costs.subtotal.toLocaleString()}</span>
+              </div>
+            )}
+            {costs.discount > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>הנחה{endData.discount_reason ? ` (${endData.discount_reason})` : ""}:</span>
+                <span>- ₪{costs.discount.toLocaleString()}</span>
+              </div>
+            )}
+            {endData.override_total && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>* מחיר סופי הוגדר ידנית</span>
+                <span></span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold pt-1 border-t">
-              <span>סה"כ:</span>
+              <span>סה"כ סופי:</span>
               <span>₪{costs.totalCost.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">

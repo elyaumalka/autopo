@@ -276,10 +276,16 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         if (sh >= 16) return { status: "free" };
         // If ends before AM starts, free
         if (eh <= 9) return { status: "free" };
+        // Late morning pickup (10-15) → AM partial (car free in early morning)
+        if (sh >= 10 && sh < 16) return { status: "partial", event };
+        // Early return (before 16) with morning pickup → partial (free after return)
+        if (eh > 9 && eh < 16) return { status: "partial", event };
         return { status: "full", event };
       } else {
-        // PM = 16-9 next day. If booking ends before PM, free
+        // PM = 16-9 next day. If booking ends before/at PM start, free
         if (eh <= 16) return { status: "free" };
+        // Very late pickup (>=20) → partial (free in early PM)
+        if (sh >= 20) return { status: "partial", event };
         return { status: "full", event };
       }
     }

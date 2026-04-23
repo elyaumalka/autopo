@@ -566,9 +566,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                   return (
                     <React.Fragment key={`${day.toISOString()}-${vehicle.id}`}>
-                      {/* RTL: ימין = בוקר (am), שמאל = ערב (pm) */}
-                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
+                      {/* ב-RTL: ה-td הראשון בקוד מופיע משמאל = ערב, השני מימין = בוקר */}
                       {renderSlot(pmSlot, `${day.toISOString()}-${vehicle.id}-pm`, "pm")}
+                      {renderSlot(amSlot, `${day.toISOString()}-${vehicle.id}-am`, "am")}
                     </React.Fragment>
                   );
                 })}

@@ -206,8 +206,19 @@ export default function Bookings() {
         if (data.vehicle_id !== undefined) rentalUpdate.vehicle_id = data.vehicle_id;
         if (data.start_date !== undefined) rentalUpdate.start_date = data.start_date;
         if (data.start_time !== undefined) rentalUpdate.start_time = data.start_time;
-        if (data.end_date !== undefined) rentalUpdate.planned_end_date = data.end_date;
-        if (data.end_time !== undefined) rentalUpdate.planned_end_time = data.end_time;
+        if (data.end_date !== undefined) {
+          rentalUpdate.planned_end_date = data.end_date;
+          // אם ההשכרה כבר הושלמה - סנכרן גם את תאריך הסיום בפועל כדי שהתצוגה בלוח תתעדכן
+          if (linkedRental.status === "הושלם") {
+            rentalUpdate.actual_end_date = data.end_date;
+          }
+        }
+        if (data.end_time !== undefined) {
+          rentalUpdate.planned_end_time = data.end_time;
+          if (linkedRental.status === "הושלם") {
+            rentalUpdate.actual_end_time = data.end_time;
+          }
+        }
         if (data.rental_cost !== undefined) rentalUpdate.base_cost = data.rental_cost;
 
         if (Object.keys(rentalUpdate).length > 0) {

@@ -539,9 +539,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                     }
 
                     if (slotData.status === "partial" && slotData.event) {
-                      // partialSide=start → צבוע בימין (תחילת הסלוט בזמן, ב-RTL=ימין)
-                      // partialSide=end   → צבוע בשמאל (סוף הסלוט בזמן, ב-RTL=שמאל)
-                      const occupiedRight = slotData.partialSide === "start";
+                      // לפי בקשת הלקוח: בסלוט בוקר (ימין בלוח) - התפוס בשמאל והפנוי בימין.
+                      // בסלוט ערב (שמאל בלוח) - התפוס בימין והפנוי בשמאל.
+                      const occupiedRight = slotType === "pm";
                       const occupiedContent = (
                         <div
                           onClick={handleClick}

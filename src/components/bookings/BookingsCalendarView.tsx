@@ -520,10 +520,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       : "border border-y-2 border-r-2 border-l border-foreground/20";
 
                     if (slotData.status === "full" && slotData.event) {
-                      const sTime = slotData.event.startTime?.slice(0, 5);
-                      const eTime = slotData.event.endTime?.slice(0, 5);
-                      // Show start time on cells so we know when customer arrives
-                      const timeStr = sTime || eTime || "";
+                      const timeStr = slotData.timeLabel || "";
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div
@@ -556,7 +553,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                           title={`${slotData.event.customerName} - ${slotData.event.status}`}
                         >
                           <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
-                          {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
+                          {slotData.timeLabel && <span className="text-[7px] opacity-70 leading-none">{slotData.timeLabel}</span>}
                         </div>
                       );
 

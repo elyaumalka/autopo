@@ -135,8 +135,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
   const parseHour = (time: string | null | undefined): number | null => {
     if (!time) return null;
-    const h = parseInt(time.split(":")[0]);
-    return isNaN(h) ? null : h;
+    const parts = time.split(":");
+    const h = parseInt(parts[0]);
+    const m = parts.length > 1 ? parseInt(parts[1]) : 0;
+    if (isNaN(h)) return null;
+    // החזר ערך עשרוני כדי לתפוס נכון שעות עם דקות (10:59 ≈ 10.98 ולא 10)
+    return h + (isNaN(m) ? 0 : m / 60);
   };
 
   type SlotResult = {

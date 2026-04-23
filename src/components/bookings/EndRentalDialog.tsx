@@ -427,6 +427,73 @@ export default function EndRentalDialog({
             />
           </div>
 
+          {/* Discount & Final price override */}
+          <div className="p-3 border rounded-lg space-y-3 bg-muted/30">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>הנחה (₪)</Label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={endData.discount_amount || ""}
+                  onChange={(e) =>
+                    setEndData((prev) => ({
+                      ...prev,
+                      discount_amount: parseFloat(e.target.value || "0") || 0,
+                    }))
+                  }
+                />
+              </div>
+              <div>
+                <Label>סיבת ההנחה</Label>
+                <Input
+                  placeholder="אופציונלי"
+                  value={endData.discount_reason}
+                  onChange={(e) =>
+                    setEndData((prev) => ({ ...prev, discount_reason: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                id="override_total"
+                type="checkbox"
+                className="h-4 w-4"
+                checked={endData.override_total}
+                onChange={(e) =>
+                  setEndData((prev) => ({
+                    ...prev,
+                    override_total: e.target.checked,
+                    final_total: e.target.checked
+                      ? prev.final_total || Math.max(0, costs.subtotal - (prev.discount_amount || 0))
+                      : 0,
+                  }))
+                }
+              />
+              <Label htmlFor="override_total" className="cursor-pointer">
+                קבע מחיר סופי ידני (דריסת החישוב)
+              </Label>
+            </div>
+
+            {endData.override_total && (
+              <div>
+                <Label>מחיר סופי לכל ההשכרה (₪)</Label>
+                <Input
+                  type="number"
+                  value={endData.final_total || ""}
+                  onChange={(e) =>
+                    setEndData((prev) => ({
+                      ...prev,
+                      final_total: parseFloat(e.target.value || "0") || 0,
+                    }))
+                  }
+                />
+              </div>
+            )}
+          </div>
+
           {/* Payment */}
           <div className="grid grid-cols-2 gap-4">
             <div>

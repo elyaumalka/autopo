@@ -449,11 +449,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             <tr className="bg-muted/30">
               {weekDays.map((day) => (
                 <React.Fragment key={`${day.toISOString()}-slots`}>
-                  {/* ימין: בוקר (9-16) */}
+                  {/* RTL: ה-th הראשון מופיע בימין = בוקר */}
                   <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-amber-50 text-amber-900 font-medium">
                     בוקר 9-16
                   </th>
-                  {/* שמאל: ערב/לילה (16-9) */}
+                  {/* ה-th השני מופיע בשמאל = ערב */}
                   <th className="border border-y-2 border-l-2 border-r border-foreground/20 p-0.5 text-[10px] text-center bg-indigo-50 text-indigo-900 font-medium">
                     ערב 16-9
                   </th>

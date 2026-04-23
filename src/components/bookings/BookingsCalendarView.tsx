@@ -188,7 +188,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
       if (!matchById && !matchByDetails) return false;
       const start = parseISO(r.start_date);
-      const end = r.planned_end_date ? parseISO(r.planned_end_date) : addDays(start, 30);
+      const effectiveEndDate = r.actual_end_date || r.planned_end_date;
+      const end = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(start, 30);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
@@ -210,12 +211,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const startDate = parseISO(rental.start_date);
       const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
       const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
-      const isStartDay = isSameDay(day, startDate);
-      const isEndDay = isSameDay(day, endDate);
-      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time) ?? parseHour(rental.start_time);
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
       const startHour = parseHour(rental.start_time);
 
-      return computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      return computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
     }
 
     // Check bookings
@@ -246,12 +245,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
       const startDate = parseISO(booking.start_date);
       const endDate = parseISO(booking.end_date);
-      const isStartDay = isSameDay(day, startDate);
-      const isEndDay = isSameDay(day, endDate);
       const startHour = parseHour(booking.start_time);
       const endHour = parseHour(booking.end_time);
 
-      const result = computeSlot(slot, isStartDay, isEndDay, startHour, endHour, event);
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
       if (result.status !== "free") return result;
     }
 
@@ -280,66 +277,60 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return { status: "free" };
   };
 
-  const getSlotBounds = (slot: "am" | "pm") => {
-    return slot === "am" ? { start: 9, end: 16 } : { start: 16, end: 33 };
+  const getSlotBounds = (day: Date, slot: "am" | "pm") => {
+    const slotStart = new Date(day);
+    const slotEnd = new Date(day);
+
+    if (slot === "am") {
+      slotStart.setHours(9, 0, 0, 0);
+      slotEnd.setHours(16, 0, 0, 0);
+    } else {
+      slotStart.setHours(16, 0, 0, 0);
+      slotEnd.setHours(21, 0, 0, 0);
+    }
+
+    return { slotStart, slotEnd };
   };
 
-  const normalizeHourForSlot = (hour: number | null, slot: "am" | "pm") => {
-    if (hour === null) return null;
-    if (slot === "pm" && hour < 16) return hour + 24;
-    return hour;
+  const toDateTime = (date: Date, hour: number | null, fallbackHour: number) => {
+    const value = hour ?? fallbackHour;
+    const hours = Math.floor(value);
+    const minutes = Math.round((value - hours) * 60);
+    const result = new Date(date);
+    result.setHours(hours, minutes, 0, 0);
+    return result;
   };
 
-  // Compute whether a slot is full, partial, or free.
-  // Logic: each day has two slots:
-  //   AM slot = 09:00–16:00 (right side in RTL — start of day)
-  //   PM slot = 16:00–next day 09:00 (left side in RTL — end of day)
-  // For a booking touching the start of the slot (e.g. 09:00-12:00) → partialSide="start" → painted on the RIGHT
-  // For a booking touching the end of the slot (e.g. 13:00-16:00) → partialSide="end"   → painted on the LEFT
   const computeSlot = (
+    day: Date,
     slot: "am" | "pm",
-    isStartDay: boolean,
-    isEndDay: boolean,
+    startDate: Date,
+    endDate: Date,
     startHour: number | null,
     endHour: number | null,
     event: SlotResult["event"]
   ): SlotResult => {
-    // Middle day of a multi-day booking — fully occupied
-    if (!isStartDay && !isEndDay) return { status: "full", event };
+    const { slotStart, slotEnd } = getSlotBounds(day, slot);
+    const eventStart = toDateTime(startDate, startHour, 9);
+    const eventEnd = toDateTime(endDate, endHour, 21);
 
-    const { start: slotStart, end: slotEnd } = getSlotBounds(slot);
-    const normalizedStartHour = normalizeHourForSlot(startHour, slot);
-    const normalizedEndHour = normalizeHourForSlot(endHour, slot);
+    const overlapStart = new Date(Math.max(slotStart.getTime(), eventStart.getTime()));
+    const overlapEnd = new Date(Math.min(slotEnd.getTime(), eventEnd.getTime()));
 
-    // Determine actual occupied range within this slot
-    // If it's the start day, occupation begins at the booking start; otherwise from slot start (carry-over from previous day)
-    // If it's the end day, occupation ends at the booking end; otherwise until slot end (continues to next day)
-    const occupiedStartRaw = isStartDay ? (normalizedStartHour ?? slotStart) : slotStart;
-    const occupiedEndRaw = isEndDay ? (normalizedEndHour ?? slotEnd) : slotEnd;
-
-    // No overlap with this slot
-    if (occupiedEndRaw <= slotStart || occupiedStartRaw >= slotEnd) {
+    if (overlapEnd.getTime() <= overlapStart.getTime()) {
       return { status: "free" };
     }
 
-    const occupiedStart = Math.max(slotStart, occupiedStartRaw);
-    const occupiedEnd = Math.min(slotEnd, occupiedEndRaw);
-    const slotLength = slotEnd - slotStart;
-    const occupiedLength = occupiedEnd - occupiedStart;
+    const slotLength = slotEnd.getTime() - slotStart.getTime();
+    const overlapLength = overlapEnd.getTime() - overlapStart.getTime();
 
-    // If covers (almost) the entire slot → full
-    if (occupiedLength >= slotLength - 0.01) {
+    if (overlapLength >= slotLength - 60_000) {
       return { status: "full", event };
     }
 
-    // Decide which side based on where the occupied range sits inside the slot
-    const distanceFromStart = occupiedStart - slotStart;
-    const distanceFromEnd = slotEnd - occupiedEnd;
-
-    // Closer to start of slot → "start" (right in RTL)
-    // Closer to end of slot → "end" (left in RTL)
-    const partialSide: "start" | "end" =
-      distanceFromStart <= distanceFromEnd ? "start" : "end";
+    const distanceFromStart = overlapStart.getTime() - slotStart.getTime();
+    const distanceFromEnd = slotEnd.getTime() - overlapEnd.getTime();
+    const partialSide: "start" | "end" = distanceFromStart <= distanceFromEnd ? "start" : "end";
 
     return { status: "partial", partialSide, event };
   };

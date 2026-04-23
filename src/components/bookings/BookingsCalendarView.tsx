@@ -546,8 +546,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                         <div
                           onClick={handleClick}
                           className={cn(
-                            "w-1/2 h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                            occupiedRight ? "rounded-r border-l" : "rounded-l border-r",
+                            "absolute inset-y-0 w-1/2 px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                            occupiedRight ? "right-0 rounded-r border-l" : "left-0 rounded-l border-r",
                             getStatusColor(slotData.event.status)
                           )}
                           title={`${slotData.event.customerName} - ${slotData.event.status}`}
@@ -563,7 +563,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                             if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
                             else if (onNewBooking) onNewBooking();
                           }}
-                          className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                          className={cn(
+                            "absolute inset-y-0 w-1/2 flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors",
+                            occupiedRight ? "left-0" : "right-0"
+                          )}
                         >
                           <Plus className="h-2.5 w-2.5" />
                         </button>
@@ -571,10 +574,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          {/* ב-RTL הילד הראשון מופיע בימין */}
-                          <div className="h-full flex">
-                            {occupiedRight ? occupiedContent : freeContent}
-                            {occupiedRight ? freeContent : occupiedContent}
+                          <div className="relative h-full w-full">
+                            {freeContent}
+                            {occupiedContent}
                           </div>
                         </td>
                       );

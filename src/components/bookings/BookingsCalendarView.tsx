@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -45,9 +45,33 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
   const [hideMonthly, setHideMonthly] = useState(false);
   const [hideWeekly, setHideWeekly] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const queryClient = useQueryClient();
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 10, 150));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 10, 50));
+
+  // Realtime: עדכון אוטומטי של הלוח בעת שינויים בהזמנות/השכרות/טיפולים
+  useEffect(() => {
+    const channel = supabase
+      .channel("bookings-calendar-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "rentals" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "maintenance_tasks" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["maintenance-tasks"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   const getDateRange = () => {
     if (viewMode === "week") {

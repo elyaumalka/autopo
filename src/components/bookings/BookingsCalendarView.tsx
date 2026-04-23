@@ -290,7 +290,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return hour;
   };
 
-  // Compute whether a slot is full, partial, or free
+  // Compute whether a slot is full, partial, or free.
+  // Logic: each day has two slots:
+  //   AM slot = 09:00–16:00 (right side in RTL — start of day)
+  //   PM slot = 16:00–next day 09:00 (left side in RTL — end of day)
+  // For a booking touching the start of the slot (e.g. 09:00-12:00) → partialSide="start" → painted on the RIGHT
+  // For a booking touching the end of the slot (e.g. 13:00-16:00) → partialSide="end"   → painted on the LEFT
   const computeSlot = (
     slot: "am" | "pm",
     isStartDay: boolean,
@@ -299,45 +304,44 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     endHour: number | null,
     event: SlotResult["event"]
   ): SlotResult => {
+    // Middle day of a multi-day booking — fully occupied
     if (!isStartDay && !isEndDay) return { status: "full", event };
 
     const { start: slotStart, end: slotEnd } = getSlotBounds(slot);
     const normalizedStartHour = normalizeHourForSlot(startHour, slot);
     const normalizedEndHour = normalizeHourForSlot(endHour, slot);
 
-    let occupiedStart = isStartDay ? (normalizedStartHour ?? slotStart) : slotStart;
-    let occupiedEnd = isEndDay ? (normalizedEndHour ?? slotEnd) : slotEnd;
+    // Determine actual occupied range within this slot
+    // If it's the start day, occupation begins at the booking start; otherwise from slot start (carry-over from previous day)
+    // If it's the end day, occupation ends at the booking end; otherwise until slot end (continues to next day)
+    const occupiedStartRaw = isStartDay ? (normalizedStartHour ?? slotStart) : slotStart;
+    const occupiedEndRaw = isEndDay ? (normalizedEndHour ?? slotEnd) : slotEnd;
 
-    if (occupiedEnd <= slotStart || occupiedStart >= slotEnd) {
+    // No overlap with this slot
+    if (occupiedEndRaw <= slotStart || occupiedStartRaw >= slotEnd) {
       return { status: "free" };
     }
 
-    occupiedStart = Math.max(slotStart, occupiedStart);
-    occupiedEnd = Math.min(slotEnd, occupiedEnd);
+    const occupiedStart = Math.max(slotStart, occupiedStartRaw);
+    const occupiedEnd = Math.min(slotEnd, occupiedEndRaw);
+    const slotLength = slotEnd - slotStart;
+    const occupiedLength = occupiedEnd - occupiedStart;
 
-    if (occupiedStart <= slotStart && occupiedEnd >= slotEnd) {
+    // If covers (almost) the entire slot → full
+    if (occupiedLength >= slotLength - 0.01) {
       return { status: "full", event };
     }
 
-    const touchesSlotStart = occupiedStart <= slotStart;
-    const touchesSlotEnd = occupiedEnd >= slotEnd;
+    // Decide which side based on where the occupied range sits inside the slot
+    const distanceFromStart = occupiedStart - slotStart;
+    const distanceFromEnd = slotEnd - occupiedEnd;
 
-    if (touchesSlotStart && !touchesSlotEnd) {
-      return { status: "partial", partialSide: "start", event };
-    }
+    // Closer to start of slot → "start" (right in RTL)
+    // Closer to end of slot → "end" (left in RTL)
+    const partialSide: "start" | "end" =
+      distanceFromStart <= distanceFromEnd ? "start" : "end";
 
-    if (!touchesSlotStart && touchesSlotEnd) {
-      return { status: "partial", partialSide: "end", event };
-    }
-
-    const slotMidpoint = (slotStart + slotEnd) / 2;
-    const eventMidpoint = (occupiedStart + occupiedEnd) / 2;
-
-    return {
-      status: "partial",
-      partialSide: eventMidpoint <= slotMidpoint ? "start" : "end",
-      event,
-    };
+    return { status: "partial", partialSide, event };
   };
 
   const getStatusColor = (status: string) => {

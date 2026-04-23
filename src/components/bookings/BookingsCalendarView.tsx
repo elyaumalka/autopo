@@ -169,6 +169,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
   type SlotResult = {
     status: "full" | "partial" | "free";
+    partialSide?: "start" | "end";
     event?: {
       type: "rental" | "booking";
       id?: string;
@@ -296,20 +297,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const sh = startHour ?? 9;
       const eh = endHour ?? 16;
       if (slot === "am") {
-        // AM = 9-16. If booking is entirely in PM range, AM is free
         if (sh >= 16) return { status: "free" };
-        // If ends before AM starts, free
         if (eh <= 9) return { status: "free" };
-        // Late morning pickup (10-15) → AM partial (car free in early morning)
-        if (sh >= 10 && sh < 16) return { status: "partial", event };
-        // Early return (before 16) with morning pickup → partial (free after return)
-        if (eh > 9 && eh < 16) return { status: "partial", event };
+        if (sh >= 10 && sh < 16) return { status: "partial", partialSide: "end", event };
+        if (eh > 9 && eh < 16) return { status: "partial", partialSide: "start", event };
         return { status: "full", event };
       } else {
-        // PM = 16-9 next day. If booking ends before/at PM start, free
         if (eh <= 16) return { status: "free" };
-        // Very late pickup (>=20) → partial (free in early PM)
-        if (sh >= 20) return { status: "partial", event };
+        if (sh >= 20) return { status: "partial", partialSide: "end", event };
         return { status: "full", event };
       }
     }
@@ -318,16 +313,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     if (isStartDay && !isEndDay) {
       const h = startHour ?? 9;
       if (slot === "am") {
-        // AM = 9-16. If pickup is at 14:00+, car is available most of morning → free
         if (h >= 14) return { status: "free" };
-        // If pickup is 10-13, show partial (car available early morning)
-        if (h >= 10) return { status: "partial", event };
-        // Early morning pickup → full
+        if (h >= 10) return { status: "partial", partialSide: "end", event };
         return { status: "full", event };
       } else {
-        // PM = 16-9 next day. Car is always gone in PM on start day
-        // If very late start (>=20), show partial to allow another booking before
-        if (h >= 20) return { status: "partial", event };
+        if (h >= 20) return { status: "partial", partialSide: "end", event };
         return { status: "full", event };
       }
     }
@@ -336,17 +326,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     if (isEndDay && !isStartDay) {
       const h = endHour ?? 16;
       if (slot === "am") {
-        // AM = 9-16. If returns early morning (<=10), AM is free
         if (h <= 10) return { status: "free" };
-        // If returns during PM hours, AM fully occupied
         if (h >= 16) return { status: "full", event };
-        // Returns mid-AM → partial (car returns during this slot)
-        return { status: "partial", event };
+        return { status: "partial", partialSide: "start", event };
       } else {
-        // PM = 16-9. If returns before PM, free
         if (h <= 16) return { status: "free" };
-        // Returns during PM → partial
-        return { status: "partial", event };
+        return { status: "partial", partialSide: "start", event };
       }
     }
 
@@ -523,29 +508,39 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                     }
 
                     if (slotData.status === "partial" && slotData.event) {
+                      const occupiedFirst = slotData.partialSide === "start";
+                      const occupiedContent = (
+                        <div
+                          onClick={handleClick}
+                          className={cn(
+                            "w-1/2 h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                            occupiedFirst ? "rounded-l border-r" : "rounded-r border-l",
+                            getStatusColor(slotData.event.status)
+                          )}
+                          title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                        >
+                          <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
+                          {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
+                        </div>
+                      );
+
+                      const freeContent = (
+                        <button
+                          onClick={() => {
+                            if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
+                            else if (onNewBooking) onNewBooking();
+                          }}
+                          className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      );
+
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          <div className="h-full flex flex-row-reverse">
-                            <div
-                              onClick={handleClick}
-                              className={cn(
-                                "w-1/2 h-full rounded-r px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border-l cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                                getStatusColor(slotData.event.status)
-                              )}
-                              title={`${slotData.event.customerName} - ${slotData.event.status}`}
-                            >
-                              <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
-                              {slotData.event.endTime && <span className="text-[7px] opacity-70 leading-none">{slotData.event.endTime.slice(0,5)}</span>}
-                            </div>
-                            <button
-                              onClick={() => {
-                                if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
-                                else if (onNewBooking) onNewBooking();
-                              }}
-                              className="w-1/2 h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                            >
-                              <Plus className="h-2.5 w-2.5" />
-                            </button>
+                          <div className="h-full flex">
+                            {occupiedFirst ? occupiedContent : freeContent}
+                            {occupiedFirst ? freeContent : occupiedContent}
                           </div>
                         </td>
                       );

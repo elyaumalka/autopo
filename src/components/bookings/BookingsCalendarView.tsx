@@ -508,13 +508,15 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                     }
 
                     if (slotData.status === "partial" && slotData.event) {
-                      const occupiedFirst = slotData.partialSide === "start";
+                      // partialSide=start → צבוע בימין (תחילת הסלוט בזמן, ב-RTL=ימין)
+                      // partialSide=end   → צבוע בשמאל (סוף הסלוט בזמן, ב-RTL=שמאל)
+                      const occupiedRight = slotData.partialSide === "start";
                       const occupiedContent = (
                         <div
                           onClick={handleClick}
                           className={cn(
                             "w-1/2 h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                            occupiedFirst ? "rounded-l border-r" : "rounded-r border-l",
+                            occupiedRight ? "rounded-r border-l" : "rounded-l border-r",
                             getStatusColor(slotData.event.status)
                           )}
                           title={`${slotData.event.customerName} - ${slotData.event.status}`}
@@ -538,9 +540,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
+                          {/* ב-RTL הילד הראשון מופיע בימין */}
                           <div className="h-full flex">
-                            {occupiedFirst ? occupiedContent : freeContent}
-                            {occupiedFirst ? freeContent : occupiedContent}
+                            {occupiedRight ? occupiedContent : freeContent}
+                            {occupiedRight ? freeContent : occupiedContent}
                           </div>
                         </td>
                       );

@@ -114,6 +114,33 @@ function buildCustomer(c?: CustomerInput) {
   };
 }
 
+function buildGatewayAuthorization(card: CardInput | undefined, amount: number | undefined, creds: ReturnType<typeof getCreds>, paramJ: string | number) {
+  const payload: any = {
+    Credentials: creds,
+    ParamJ: paramJ,
+    Amount: amount,
+  };
+  if (card?.singleUseToken) {
+    payload.SingleUseToken = card.singleUseToken;
+  } else if (card?.token) {
+    payload.CardToken = card.token;
+    payload.ExpirationMonth = card.expMonth;
+    payload.ExpirationYear = card.expYear;
+  } else {
+    payload.CardNumber = card?.number;
+    payload.ExpirationMonth = card?.expMonth;
+    payload.ExpirationYear = card?.expYear;
+    payload.CVV = card?.cvv;
+    payload.CitizenID = card?.citizenId;
+  }
+  return payload;
+}
+
+function isParamJError(data: any) {
+  const msg = `${data?.UserErrorMessage || ""} ${data?.TechnicalErrorDetails || ""}`.toLowerCase();
+  return msg.includes("paramj") || msg.includes("param j") || msg.includes("transaction type");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -335,31 +362,31 @@ Deno.serve(async (req) => {
       VATIncluded: true,
       Credentials: creds,
     };
-    // Sumit J5: use dedicated authorize endpoint, no document
+    let r: Awaited<ReturnType<typeof sumitFetch>>;
     if (isAuthorize) {
-      payload.Amount = body.amount;
-      payload.PreventDocumentCreation = true;
+      // J5 must use CreditGuy gateway AuthorizeOnly. Billing AuthoriseOnly only validates and may not hold funds.
+      r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, "AuthorizeOnly (5)"));
+      if (!r.ok && isParamJError(r.data)) {
+        r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, 5));
+      }
+    } else {
+      r = await sumitFetch("/billing/payments/charge/", payload);
     }
-
-    const endpoint = isAuthorize
-      ? "/billing/payments/authorize/"
-      : "/billing/payments/charge/";
-    const r = await sumitFetch(endpoint, payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
-    const validPayment = payment?.ValidPayment === true;
+    const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
+    const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
     // For J5 (authorize), require an actual auth number from the bank
-    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment) : r.ok;
+    const sumitOk = isAuthorize ? (r.ok && data?.Success === true && !!authNumber && providerStatus === "000") : r.ok;
     if (isAuthorize && r.ok && !authNumber) {
       console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
     }
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
-    const token = payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
-    const cardMask = payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
-    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
+    const token = data?.CardToken || payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
+    const cardMask = data?.CardPattern || payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
+    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || (typeof cardMask === "string" ? cardMask.slice(-4) : null);
 
     // Save card token if returned
     if (sumitOk && token && body.customer?.id) {

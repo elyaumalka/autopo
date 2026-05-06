@@ -471,6 +471,7 @@ export default function RentalDetailsDialog({
                     citizenId: customer.id_number,
                     payment_token: customer.payment_token,
                     card_last4: customer.card_last4,
+                    card_expiry: (customer as any).card_expiry,
                   } : { name: rental.customer_name || '' }}
                   rentalId={rental.id}
                   onSuccess={() => queryClient.invalidateQueries({ queryKey: ["rentals"] })}
@@ -487,6 +488,7 @@ export default function RentalDetailsDialog({
                     citizenId: customer.id_number,
                     payment_token: customer.payment_token,
                     card_last4: customer.card_last4,
+                    card_expiry: (customer as any).card_expiry,
                   } : { name: rental.customer_name || '' }}
                   rentalId={rental.id}
                   hasAuthorization={!!(rental as any).sumit_auth_number}

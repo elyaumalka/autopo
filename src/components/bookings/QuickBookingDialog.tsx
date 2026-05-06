@@ -482,6 +482,7 @@ export default function QuickBookingDialog({
                       citizenId: c.id_number,
                       payment_token: (c as any).payment_token,
                       card_last4: (c as any).card_last4,
+                      card_expiry: (c as any).card_expiry,
                     } : undefined;
                   })()}
                 />
@@ -499,6 +500,7 @@ export default function QuickBookingDialog({
                       citizenId: c.id_number,
                       payment_token: (c as any).payment_token,
                       card_last4: (c as any).card_last4,
+                      card_expiry: (c as any).card_expiry,
                     } : undefined;
                   })()}
                 />

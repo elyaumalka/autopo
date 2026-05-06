@@ -167,23 +167,40 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return h + (isNaN(m) ? 0 : m / 60);
   };
 
-  type SlotResult = {
-    status: "full" | "partial" | "free";
-    partialSide?: "start" | "end";
-  timeLabel?: string | null;
-    event?: {
-      type: "rental" | "booking";
-      id?: string;
-      customerName: string;
-      status: string;
-      rentalType: "daily" | "weekly" | "monthly";
-      endTime?: string | null;
-      startTime?: string | null;
-    };
+  type SlotEvent = {
+    type: "rental" | "booking";
+    id?: string;
+    customerName: string;
+    status: string;
+    rentalType: "daily" | "weekly" | "monthly";
+    endTime?: string | null;
+    startTime?: string | null;
   };
 
-  const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
-    // Check active rentals first
+  type Segment = {
+    startMs: number;
+    endMs: number;
+    event: SlotEvent | null; // null = free
+    /** label time when this segment starts/ends inside the slot */
+    timeLabel?: string | null;
+  };
+
+  type SlotData = {
+    segments: Segment[];
+    slotStartMs: number;
+    slotEndMs: number;
+  };
+
+  const getSlotData = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotData => {
+    const { slotStart, slotEnd } = getSlotBounds(day, slot);
+    const slotStartMs = slotStart.getTime();
+    const slotEndMs = slotEnd.getTime();
+    const minuteMs = 60_000;
+
+    type RawOcc = { startMs: number; endMs: number; event: SlotEvent };
+    const occupations: RawOcc[] = [];
+
+    // Rentals
     const matchingRentals = rentals.filter(r => {
       const matchById = r.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
@@ -199,8 +216,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && rentalType === "monthly") continue;
       if (hideWeekly && rentalType === "weekly") continue;
 
-      const event = {
-        type: "rental" as const,
+      const event: SlotEvent = {
+        type: "rental",
         id: rental.id,
         customerName: rental.customer_name || "לקוח",
         status: rental.status,
@@ -208,18 +225,21 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         endTime: (rental.actual_end_time || rental.planned_end_time) as string | null,
         startTime: rental.start_time as string | null,
       };
-
       const startDate = parseISO(rental.start_date);
       const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
       const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
-      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
       const startHour = parseHour(rental.start_time);
-
-      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
+      const eventStartMs = toDateTime(startDate, startHour, 9).getTime();
+      const eventEndMs = toDateTime(endDate, endHour, 21).getTime();
+      const overlapStart = Math.max(slotStartMs, eventStartMs);
+      const overlapEnd = Math.min(slotEndMs, eventEndMs);
+      if (overlapEnd - overlapStart > minuteMs / 2) {
+        occupations.push({ startMs: overlapStart, endMs: overlapEnd, event });
+      }
     }
 
-    // Check bookings
+    // Bookings
     const matchingBookings = bookings.filter(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
@@ -235,8 +255,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && bookingType === "monthly") continue;
       if (hideWeekly && bookingType === "weekly") continue;
 
-      const event = {
-        type: "booking" as const,
+      const event: SlotEvent = {
+        type: "booking",
         id: booking.id,
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
@@ -244,28 +264,31 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         endTime: booking.end_time as string | null,
         startTime: booking.start_time as string | null,
       };
-
       const startDate = parseISO(booking.start_date);
       const endDate = parseISO(booking.end_date);
       const startHour = parseHour(booking.start_time);
       const endHour = parseHour(booking.end_time);
-
-      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      const eventStartMs = toDateTime(startDate, startHour, 9).getTime();
+      const eventEndMs = toDateTime(endDate, endHour, 21).getTime();
+      const overlapStart = Math.max(slotStartMs, eventStartMs);
+      const overlapEnd = Math.min(slotEndMs, eventEndMs);
+      if (overlapEnd - overlapStart > minuteMs / 2) {
+        occupations.push({ startMs: overlapStart, endMs: overlapEnd, event });
+      }
     }
 
-    // Check maintenance tasks
+    // Maintenance
     const maintenance = maintenanceTasks.find(m => {
       if (m.vehicle_id !== vehicle.id) return false;
       if (!m.due_date) return false;
       return isSameDay(day, parseISO(m.due_date));
     });
-
     if (maintenance) {
-      return {
-        status: "full",
+      occupations.push({
+        startMs: slotStartMs,
+        endMs: slotEndMs,
         event: {
-          type: "booking" as const,
+          type: "booking",
           id: maintenance.id,
           customerName: maintenance.type || "טיפול",
           status: "בטיפול",
@@ -273,10 +296,36 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           endTime: null,
           startTime: null,
         }
-      };
+      });
     }
 
-    return { status: "free" };
+    // Sort by start, then build segments alternating free/occupied
+    occupations.sort((a, b) => a.startMs - b.startMs);
+    const segments: Segment[] = [];
+    let cursor = slotStartMs;
+    for (const occ of occupations) {
+      const occStart = Math.max(cursor, occ.startMs);
+      const occEnd = Math.min(slotEndMs, occ.endMs);
+      if (occEnd <= cursor) continue;
+      if (occStart > cursor) {
+        segments.push({ startMs: cursor, endMs: occStart, event: null });
+      }
+      // Determine label: show start time if event starts inside slot, else end time if ends inside
+      const startsInSlot = occ.event.startTime && Math.abs(occ.startMs - slotStartMs) > minuteMs;
+      const endsInSlot = occ.event.endTime && Math.abs(occ.endMs - slotEndMs) > minuteMs;
+      let timeLabel: string | null = null;
+      if (startsInSlot) timeLabel = occ.event.startTime?.slice(0, 5) ?? null;
+      else if (endsInSlot) timeLabel = occ.event.endTime?.slice(0, 5) ?? null;
+      segments.push({ startMs: occStart, endMs: occEnd, event: occ.event, timeLabel });
+      cursor = occEnd;
+    }
+    if (cursor < slotEndMs) {
+      segments.push({ startMs: cursor, endMs: slotEndMs, event: null });
+    }
+    if (segments.length === 0) {
+      segments.push({ startMs: slotStartMs, endMs: slotEndMs, event: null });
+    }
+    return { segments, slotStartMs, slotEndMs };
   };
 
   const getSlotBounds = (day: Date, slot: "am" | "pm") => {

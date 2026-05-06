@@ -359,6 +359,7 @@ Deno.serve(async (req) => {
     // Save invoice
     let invoiceId: string | null = null;
     if (sumitOk && docId && !isAuthorize) {
+      const pdfUrl = data?.DocumentDownloadURL || data?.Document?.DownloadURL || null;
       const { data: inv } = await supabaseAdmin.from("sumit_invoices").insert({
         document_id: String(docId),
         document_number: docNumber ? String(docNumber) : null,
@@ -368,6 +369,7 @@ Deno.serve(async (req) => {
         customer_name: body.customer?.name || null,
         booking_id: body.bookingId || null,
         rental_id: body.rentalId || null,
+        pdf_url: pdfUrl,
         raw_response: r.data,
         created_by: user.id,
       }).select().single();

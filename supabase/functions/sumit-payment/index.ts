@@ -335,22 +335,24 @@ Deno.serve(async (req) => {
       VATIncluded: true,
       Credentials: creds,
     };
-    // Sumit J5: use dedicated authorize endpoint, no document
+    // Sumit J5: official API uses the regular charge endpoint with AuthoriseOnly=true.
+    // The undocumented /billing/payments/authorize/ endpoint can return ValidPayment without a real hold.
     if (isAuthorize) {
-      payload.Amount = body.amount;
+      payload.AuthoriseOnly = true;
       payload.PreventDocumentCreation = true;
+      payload.SendDocumentByEmail = false;
+      payload.Payments_Count = null;
     }
 
-    const endpoint = isAuthorize
-      ? "/billing/payments/authorize/"
-      : "/billing/payments/charge/";
+    const endpoint = "/billing/payments/charge/";
     const r = await sumitFetch(endpoint, payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
+    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
     const validPayment = payment?.ValidPayment === true;
+    const providerStatus = String(payment?.Status || r.data?.ResultCode || "");
     // For J5 (authorize), require an actual auth number from the bank
-    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment) : r.ok;
+    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment && providerStatus === "000") : r.ok;
     if (isAuthorize && r.ok && !authNumber) {
       console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
     }

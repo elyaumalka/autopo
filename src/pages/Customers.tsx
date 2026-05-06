@@ -28,6 +28,7 @@ import { Users, Search, Phone, Edit, Trash2, Eye, Upload, Loader2, Sparkles, Fil
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type CustomerInsert = Database["public"]["Tables"]["customers"]["Insert"];
@@ -409,6 +410,27 @@ export default function Customers() {
           )}
         </div>
       )
+    },
+    {
+      header: "סליקה",
+      cell: (row: Customer) => (
+        <PaymentButton
+          defaultAction="charge"
+          label="סליקה"
+          variant="outline"
+          size="sm"
+          customer={{
+            id: row.id,
+            name: `${row.first_name} ${row.last_name}`,
+            phone: row.phone, email: row.email || undefined,
+            address: row.address || undefined, city: row.city || undefined,
+            citizenId: row.id_number,
+            payment_token: (row as any).payment_token,
+            card_last4: (row as any).card_last4,
+          }}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["customers"] })}
+        />
+      ),
     },
     {
       header: "פעולות",

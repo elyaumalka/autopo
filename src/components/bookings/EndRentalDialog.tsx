@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Check, XCircle } from "lucide-react";
 import { calculateRentalCost, getRateForType, type RentalRateType } from "@/lib/rentalCalculations";
+import { PaymentButton } from "@/components/payments/PaymentButton";
+import { useQuery } from "@tanstack/react-query";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];
@@ -35,6 +37,15 @@ export default function EndRentalDialog({
   onSaved,
 }: EndRentalDialogProps) {
   const queryClient = useQueryClient();
+  const { data: customer } = useQuery({
+    queryKey: ["customer-end-rental", booking?.customer_id],
+    queryFn: async () => {
+      if (!booking?.customer_id) return null;
+      const { data } = await supabase.from("customers").select("*").eq("id", booking.customer_id).maybeSingle();
+      return data;
+    },
+    enabled: isOpen && !!booking?.customer_id,
+  });
   const [endData, setEndData] = useState({
     actual_end_date: "",
     actual_end_time: "",
@@ -631,6 +642,29 @@ export default function EndRentalDialog({
             <div className={`flex justify-between font-semibold ${costs.remaining > 0 ? "text-red-600" : "text-green-600"}`}>
               <span>נותר לתשלום:</span>
               <span>₪{Math.max(0, costs.remaining).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-cyan-50/50 p-3 space-y-2">
+            <Label className="text-xs font-medium">סליקה דרך SUMIT</Label>
+            <div className="flex flex-wrap gap-2">
+              <PaymentButton
+                defaultAction="charge"
+                label={`חיוב נותר (₪${Math.max(0, costs.remaining).toLocaleString()})`}
+                amount={Math.max(0, costs.remaining)}
+                description={`סיום השכרה - ${booking?.vehicle_details || ''}`}
+                customer={customer ? {
+                  id: customer.id,
+                  name: `${customer.first_name} ${customer.last_name}`,
+                  phone: customer.phone, email: customer.email || undefined,
+                  address: customer.address || undefined, city: customer.city || undefined,
+                  citizenId: customer.id_number,
+                  payment_token: (customer as any).payment_token,
+                  card_last4: (customer as any).card_last4,
+                } : { name: booking?.customer_name || '' }}
+                bookingId={booking?.id}
+                rentalId={rental?.id}
+              />
             </div>
           </div>
 

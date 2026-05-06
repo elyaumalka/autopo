@@ -131,6 +131,9 @@ export type Database = {
           start_date: string
           start_time: string | null
           status: Database["public"]["Enums"]["booking_status"]
+          sumit_auth_number: string | null
+          sumit_authorized_amount: number | null
+          sumit_authorized_at: string | null
           updated_at: string
           vehicle_details: string | null
           vehicle_id: string | null
@@ -166,6 +169,9 @@ export type Database = {
           start_date: string
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
+          sumit_auth_number?: string | null
+          sumit_authorized_amount?: number | null
+          sumit_authorized_at?: string | null
           updated_at?: string
           vehicle_details?: string | null
           vehicle_id?: string | null
@@ -201,6 +207,9 @@ export type Database = {
           start_date?: string
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
+          sumit_auth_number?: string | null
+          sumit_authorized_amount?: number | null
+          sumit_authorized_at?: string | null
           updated_at?: string
           vehicle_details?: string | null
           vehicle_id?: string | null
@@ -736,6 +745,66 @@ export type Database = {
           },
         ]
       }
+      payment_transactions: {
+        Row: {
+          amount: number | null
+          auth_number: string | null
+          booking_id: string | null
+          card_last4: string | null
+          card_mask: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          customer_id: string | null
+          customer_name: string | null
+          error_message: string | null
+          id: string
+          invoice_id: string | null
+          raw_response: Json | null
+          rental_id: string | null
+          status: string
+          transaction_type: string
+        }
+        Insert: {
+          amount?: number | null
+          auth_number?: string | null
+          booking_id?: string | null
+          card_last4?: string | null
+          card_mask?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          id?: string
+          invoice_id?: string | null
+          raw_response?: Json | null
+          rental_id?: string | null
+          status?: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number | null
+          auth_number?: string | null
+          booking_id?: string | null
+          card_last4?: string | null
+          card_mask?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          error_message?: string | null
+          id?: string
+          invoice_id?: string | null
+          raw_response?: Json | null
+          rental_id?: string | null
+          status?: string
+          transaction_type?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -800,6 +869,9 @@ export type Database = {
           start_km: number | null
           start_time: string | null
           status: Database["public"]["Enums"]["rental_status"]
+          sumit_auth_number: string | null
+          sumit_authorized_amount: number | null
+          sumit_authorized_at: string | null
           toll_charges: number | null
           total_cost: number | null
           updated_at: string
@@ -842,6 +914,9 @@ export type Database = {
           start_km?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["rental_status"]
+          sumit_auth_number?: string | null
+          sumit_authorized_amount?: number | null
+          sumit_authorized_at?: string | null
           toll_charges?: number | null
           total_cost?: number | null
           updated_at?: string
@@ -884,6 +959,9 @@ export type Database = {
           start_km?: number | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["rental_status"]
+          sumit_auth_number?: string | null
+          sumit_authorized_amount?: number | null
+          sumit_authorized_at?: string | null
           toll_charges?: number | null
           total_cost?: number | null
           updated_at?: string
@@ -913,6 +991,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sumit_invoices: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string
+          created_by: string | null
+          currency: string | null
+          customer_id: string | null
+          customer_name: string | null
+          document_id: string
+          document_number: string | null
+          document_type: number | null
+          document_type_name: string | null
+          id: string
+          pdf_url: string | null
+          raw_response: Json | null
+          rental_id: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          document_id: string
+          document_number?: string | null
+          document_type?: number | null
+          document_type_name?: string | null
+          id?: string
+          pdf_url?: string | null
+          raw_response?: Json | null
+          rental_id?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          document_id?: string
+          document_number?: string | null
+          document_type?: number | null
+          document_type_name?: string | null
+          id?: string
+          pdf_url?: string | null
+          raw_response?: Json | null
+          rental_id?: string | null
+        }
+        Relationships: []
       }
       traffic_tickets: {
         Row: {

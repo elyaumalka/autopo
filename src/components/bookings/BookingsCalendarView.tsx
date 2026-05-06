@@ -167,19 +167,25 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return h + (isNaN(m) ? 0 : m / 60);
   };
 
+  type SlotEvent = {
+    type: "rental" | "booking";
+    id?: string;
+    customerName: string;
+    status: string;
+    rentalType: "daily" | "weekly" | "monthly";
+    endTime?: string | null;
+    startTime?: string | null;
+    /** Position within slot: 0 = right edge (slot start in RTL), 1 = left edge (slot end) */
+    startFrac: number;
+    endFrac: number;
+    timeLabel?: string | null;
+  };
   type SlotResult = {
-    status: "full" | "partial" | "free";
+    status: "full" | "partial" | "free" | "multi";
     partialSide?: "start" | "end";
-  timeLabel?: string | null;
-    event?: {
-      type: "rental" | "booking";
-      id?: string;
-      customerName: string;
-      status: string;
-      rentalType: "daily" | "weekly" | "monthly";
-      endTime?: string | null;
-      startTime?: string | null;
-    };
+    timeLabel?: string | null;
+    event?: Omit<SlotEvent, "startFrac" | "endFrac">;
+    events?: SlotEvent[];
   };
 
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {

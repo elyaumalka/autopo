@@ -645,6 +645,29 @@ export default function EndRentalDialog({
             </div>
           </div>
 
+          <div className="rounded-lg border bg-cyan-50/50 p-3 space-y-2">
+            <Label className="text-xs font-medium">סליקה דרך SUMIT</Label>
+            <div className="flex flex-wrap gap-2">
+              <PaymentButton
+                defaultAction="charge"
+                label={`חיוב נותר (₪${Math.max(0, costs.remaining).toLocaleString()})`}
+                amount={Math.max(0, costs.remaining)}
+                description={`סיום השכרה - ${booking?.vehicle_details || ''}`}
+                customer={customer ? {
+                  id: customer.id,
+                  name: `${customer.first_name} ${customer.last_name}`,
+                  phone: customer.phone, email: customer.email || undefined,
+                  address: customer.address || undefined, city: customer.city || undefined,
+                  citizenId: customer.id_number,
+                  payment_token: (customer as any).payment_token,
+                  card_last4: (customer as any).card_last4,
+                } : { name: booking?.customer_name || '' }}
+                bookingId={booking?.id}
+                rentalId={rental?.id}
+              />
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <Button
               onClick={() => endMutation.mutate()}

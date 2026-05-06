@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Check, XCircle } from "lucide-react";
 import { calculateRentalCost, getRateForType, type RentalRateType } from "@/lib/rentalCalculations";
+import { PaymentButton } from "@/components/payments/PaymentButton";
+import { useQuery } from "@tanstack/react-query";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
 type Rental = Database["public"]["Tables"]["rentals"]["Row"];

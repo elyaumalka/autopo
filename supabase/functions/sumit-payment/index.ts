@@ -317,23 +317,35 @@ Deno.serve(async (req) => {
         UnitPrice: it.unitPrice,
       })),
       Payments_Count: body.payments || null,
-      SendDocumentByEmail: body.sendInvoiceEmail ?? true,
+      SendDocumentByEmail: isAuthorize ? false : (body.sendInvoiceEmail ?? true),
       VATIncluded: true,
-      AuthoriseOnly: isAuthorize ? true : null,
-      AuthorizeAmount: isAuthorize ? body.amount : null,
-      PreventDocumentCreation: isAuthorize ? true : null, // No invoice for J5
       Credentials: creds,
     };
+    // Sumit J5: use dedicated authorize endpoint, no document
+    if (isAuthorize) {
+      payload.Amount = body.amount;
+      payload.PreventDocumentCreation = true;
+    }
 
-    const r = await sumitFetch("/billing/payments/charge/", payload);
+    const endpoint = isAuthorize
+      ? "/billing/payments/authorize/"
+      : "/billing/payments/charge/";
+    const r = await sumitFetch(endpoint, payload);
     const data = r.data?.Data || {};
-    const authNumber = data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
+    const payment = data?.Payment || {};
+    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
+    const validPayment = payment?.ValidPayment === true;
+    // For J5 (authorize), require an actual auth number from the bank
+    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment) : r.ok;
+    if (isAuthorize && r.ok && !authNumber) {
+      console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
+    }
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
-    const token = data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
-    const cardMask = data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
-    const last4 = data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
+    const token = payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
+    const cardMask = payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
+    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
 
     // Save card token if returned
     if (r.ok && token && body.customer?.id) {

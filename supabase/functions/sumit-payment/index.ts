@@ -143,18 +143,32 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // --- Get PDF ---
+    // --- Get PDF / download URL ---
     if (body.action === "get_pdf") {
-      const r = await sumitFetch("/accounting/documents/getpdf/", {
-        DocumentID: body.documentId,
-        Credentials: creds,
-      });
-      const url = r.data?.Data?.PDFUrl || r.data?.Data?.URL || r.data?.PDFUrl || null;
-      if (r.ok && url && body.documentId) {
+      // Try multiple endpoints — Sumit returns the download URL on document details
+      let url: string | null = null;
+      let raw: any = null;
+      const endpoints = [
+        "/accounting/documents/get/",
+        "/accounting/documents/getdetails/",
+        "/accounting/documents/getpdf/",
+      ];
+      for (const ep of endpoints) {
+        const r = await sumitFetch(ep, { DocumentID: body.documentId, Credentials: creds });
+        raw = r.data;
+        url = r.data?.Data?.DocumentDownloadURL
+          || r.data?.Data?.Document?.DownloadURL
+          || r.data?.Data?.PDFUrl
+          || r.data?.Data?.URL
+          || r.data?.PDFUrl
+          || null;
+        if (url) break;
+      }
+      if (url && body.documentId) {
         await supabaseAdmin.from("sumit_invoices").update({ pdf_url: url }).eq("document_id", String(body.documentId));
       }
-      return new Response(JSON.stringify({ ...r.data, pdfUrl: url }), {
-        status: r.ok ? 200 : 400,
+      return new Response(JSON.stringify({ pdfUrl: url, raw }), {
+        status: url ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

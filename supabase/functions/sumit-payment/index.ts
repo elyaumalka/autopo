@@ -81,7 +81,7 @@ function buildPaymentMethod(card?: CardInput) {
   if (!card) return null;
   if (card.token) {
     return {
-      CreditCard_CardMask: card.token,
+      CreditCard_Token: card.token,
       Type: 1,
     };
   }

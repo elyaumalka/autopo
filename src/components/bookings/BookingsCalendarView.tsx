@@ -167,19 +167,25 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return h + (isNaN(m) ? 0 : m / 60);
   };
 
+  type SlotEvent = {
+    type: "rental" | "booking";
+    id?: string;
+    customerName: string;
+    status: string;
+    rentalType: "daily" | "weekly" | "monthly";
+    endTime?: string | null;
+    startTime?: string | null;
+    /** Position within slot: 0 = right edge (slot start in RTL), 1 = left edge (slot end) */
+    startFrac: number;
+    endFrac: number;
+    timeLabel?: string | null;
+  };
   type SlotResult = {
-    status: "full" | "partial" | "free";
+    status: "full" | "partial" | "free" | "multi";
     partialSide?: "start" | "end";
-  timeLabel?: string | null;
-    event?: {
-      type: "rental" | "booking";
-      id?: string;
-      customerName: string;
-      status: string;
-      rentalType: "daily" | "weekly" | "monthly";
-      endTime?: string | null;
-      startTime?: string | null;
-    };
+    timeLabel?: string | null;
+    event?: Omit<SlotEvent, "startFrac" | "endFrac">;
+    events?: SlotEvent[];
   };
 
   const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
@@ -194,12 +200,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
-    const candidates: { result: SlotResult; overlapMs: number }[] = [];
+    const candidates: { result: SlotResult; overlapMs: number; eventForMulti: SlotEvent | null }[] = [];
     const { slotStart, slotEnd } = getSlotBounds(day, slot);
+    const slotLen = slotEnd.getTime() - slotStart.getTime();
     const computeOverlap = (sd: Date, sh: number | null, ed: Date, eh: number | null) => {
       const es = toDateTime(sd, sh, 9).getTime();
       const ee = toDateTime(ed, eh, 21).getTime();
       return Math.max(0, Math.min(slotEnd.getTime(), ee) - Math.max(slotStart.getTime(), es));
+    };
+    const computeFracs = (sd: Date, sh: number | null, ed: Date, eh: number | null) => {
+      const es = toDateTime(sd, sh, 9).getTime();
+      const ee = toDateTime(ed, eh, 21).getTime();
+      const startFrac = Math.max(0, Math.min(1, (es - slotStart.getTime()) / slotLen));
+      const endFrac = Math.max(0, Math.min(1, (ee - slotStart.getTime()) / slotLen));
+      return { startFrac, endFrac };
     };
 
     for (const rental of matchingRentals) {
@@ -207,7 +221,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && rentalType === "monthly") continue;
       if (hideWeekly && rentalType === "weekly") continue;
 
-      const event = {
+      const startDate = parseISO(rental.start_date);
+      const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
+      const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
+      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
+      const startHour = parseHour(rental.start_time);
+
+      const baseEvent = {
         type: "rental" as const,
         id: rental.id,
         customerName: rental.customer_name || "לקוח",
@@ -217,15 +237,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         startTime: rental.start_time as string | null,
       };
 
-      const startDate = parseISO(rental.start_date);
-      const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
-      const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
-      const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
-      const startHour = parseHour(rental.start_time);
-
-      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, baseEvent);
       if (result.status !== "free") {
-        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour) });
+        const fracs = computeFracs(startDate, startHour, endDate, endHour);
+        const evMulti: SlotEvent = { ...baseEvent, ...fracs, timeLabel: result.timeLabel };
+        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour), eventForMulti: evMulti });
       }
     }
 
@@ -245,7 +261,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && bookingType === "monthly") continue;
       if (hideWeekly && bookingType === "weekly") continue;
 
-      const event = {
+      const startDate = parseISO(booking.start_date);
+      const endDate = parseISO(booking.end_date);
+      const startHour = parseHour(booking.start_time);
+      const endHour = parseHour(booking.end_time);
+
+      const baseEvent = {
         type: "booking" as const,
         id: booking.id,
         customerName: booking.customer_name || "לקוח",
@@ -255,25 +276,23 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         startTime: booking.start_time as string | null,
       };
 
-      const startDate = parseISO(booking.start_date);
-      const endDate = parseISO(booking.end_date);
-      const startHour = parseHour(booking.start_time);
-      const endHour = parseHour(booking.end_time);
-
-      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, baseEvent);
       if (result.status !== "free") {
-        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour) });
+        const fracs = computeFracs(startDate, startHour, endDate, endHour);
+        const evMulti: SlotEvent = { ...baseEvent, ...fracs, timeLabel: result.timeLabel };
+        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour), eventForMulti: evMulti });
       }
     }
 
-    if (candidates.length > 0) {
-      // Prefer "full" over "partial"; among same status, the largest overlap.
-      candidates.sort((a, b) => {
-        const rank = (s: string) => (s === "full" ? 2 : s === "partial" ? 1 : 0);
-        const r = rank(b.result.status) - rank(a.result.status);
-        if (r !== 0) return r;
-        return b.overlapMs - a.overlapMs;
-      });
+    if (candidates.length > 1) {
+      // Multiple events in the same slot - render side by side by time
+      const events = candidates
+        .map(c => c.eventForMulti!)
+        .sort((a, b) => a.startFrac - b.startFrac);
+      return { status: "multi", events };
+    }
+
+    if (candidates.length === 1) {
       return candidates[0].result;
     }
 
@@ -556,6 +575,37 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                           >
                             <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
                             {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    if (slotData.status === "multi" && slotData.events && slotData.events.length > 0) {
+                      // RTL: צד ימין = תחילת הסלוט (startFrac=0), צד שמאל = סוף הסלוט (=1)
+                      return (
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
+                          <div className="relative h-full w-full" dir="ltr">
+                            {slotData.events.map((ev, i) => {
+                              const widthPct = Math.max(8, (ev.endFrac - ev.startFrac) * 100);
+                              const rightPct = ev.startFrac * 100;
+                              return (
+                                <div
+                                  key={(ev.id || "") + i}
+                                  onClick={() => {
+                                    if (onCellClick) onCellClick(day, vehicle, { id: ev.id, customerName: ev.customerName, status: ev.status, startTime: ev.startTime, endTime: ev.endTime, type: ev.type }, { slot: slotType, existingEndTime: ev.endTime });
+                                  }}
+                                  className={cn(
+                                    "absolute inset-y-0 px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden border rounded",
+                                    getStatusColor(ev.status)
+                                  )}
+                                  style={{ right: `${rightPct}%`, width: `${widthPct}%` }}
+                                  title={`${ev.customerName} - ${ev.status}${ev.timeLabel ? ` - ${ev.timeLabel}` : ""}`}
+                                >
+                                  <span className="truncate leading-tight w-full text-center">{ev.customerName.split(" ")[0]}</span>
+                                  {ev.timeLabel && <span className="text-[7px] opacity-70 leading-none">{ev.timeLabel}</span>}
+                                </div>
+                              );
+                            })}
                           </div>
                         </td>
                       );

@@ -362,24 +362,23 @@ Deno.serve(async (req) => {
       VATIncluded: true,
       Credentials: creds,
     };
-    // Sumit J5: official API uses the regular charge endpoint with AuthoriseOnly=true.
-    // The undocumented /billing/payments/authorize/ endpoint can return ValidPayment without a real hold.
+    let r: Awaited<ReturnType<typeof sumitFetch>>;
     if (isAuthorize) {
-      payload.AuthoriseOnly = true;
-      payload.PreventDocumentCreation = true;
-      payload.SendDocumentByEmail = false;
-      payload.Payments_Count = null;
+      // J5 must use CreditGuy gateway AuthorizeOnly. Billing AuthoriseOnly only validates and may not hold funds.
+      r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, "AuthorizeOnly (5)"));
+      if (!r.ok && isParamJError(r.data)) {
+        r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, 5));
+      }
+    } else {
+      r = await sumitFetch("/billing/payments/charge/", payload);
     }
-
-    const endpoint = "/billing/payments/charge/";
-    const r = await sumitFetch(endpoint, payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
+    const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
     const validPayment = payment?.ValidPayment === true;
-    const providerStatus = String(payment?.Status || r.data?.ResultCode || "");
+    const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
     // For J5 (authorize), require an actual auth number from the bank
-    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment && providerStatus === "000") : r.ok;
+    const sumitOk = isAuthorize ? (r.ok && data?.Success === true && !!authNumber && providerStatus === "000") : r.ok;
     if (isAuthorize && r.ok && !authNumber) {
       console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
     }

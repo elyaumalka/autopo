@@ -156,12 +156,14 @@ Deno.serve(async (req) => {
         Credentials: creds,
       };
       const r = await sumitFetch("/billing/paymentmethods/setforcustomer/", payload);
-      const cardMask = r.data?.Data?.CreditCard_CardMask || r.data?.Data?.PaymentMethod?.CreditCard_CardMask;
-      const last4 = r.data?.Data?.CreditCard_LastDigits || r.data?.Data?.PaymentMethod?.CreditCard_LastDigits;
+      const pm = r.data?.Data?.PaymentMethod || r.data?.Data || {};
+      const token = pm?.CreditCard_Token || null;
+      const cardMask = pm?.CreditCard_CardMask || null;
+      const last4 = pm?.CreditCard_LastDigits || null;
 
-      if (r.ok && cardMask && body.customer?.id) {
+      if (r.ok && token && body.customer?.id) {
         await supabaseAdmin.from("customers").update({
-          payment_token: cardMask,
+          payment_token: token,
           card_last4: last4,
           card_expiry: body.card?.expMonth && body.card?.expYear ? `${body.card.expMonth}/${body.card.expYear}` : null,
           payment_provider: "sumit",

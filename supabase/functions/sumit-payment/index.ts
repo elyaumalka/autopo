@@ -38,21 +38,24 @@ interface CustomerInput {
 
 interface RequestBody {
   action:
-    | "authorize"      // J5 - hold credit (AuthoriseOnly=true)
-    | "charge"         // J4 - immediate charge
-    | "charge_token"   // charge using saved token
-    | "save_token"     // save card token for recurring
-    | "get_pdf";       // get document PDF
+    | "authorize"            // J5 - hold credit (AuthoriseOnly=true)
+    | "charge"               // J4 - immediate charge
+    | "charge_token"         // charge using saved token
+    | "save_token"           // save card token for recurring
+    | "release_authorization" // release J5 hold
+    | "delete_card"          // delete saved card from customer
+    | "get_pdf";             // get document PDF
   amount?: number;
   customer?: CustomerInput;
   card?: CardInput;
   items?: ItemInput[];
   description?: string;
-  payments?: number;  // installments
+  payments?: number;
   sendInvoiceEmail?: boolean;
   bookingId?: string;
   rentalId?: string;
   documentId?: string;
+  authNumber?: string;
 }
 
 function getCreds() {
@@ -145,6 +148,81 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(r.data), {
         status: r.ok ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Release J5 authorization ---
+    if (body.action === "release_authorization") {
+      // Try to find auth number from booking/rental if not provided
+      let authNumber = body.authNumber || null;
+      let amount = body.amount || null;
+      if (!authNumber && body.bookingId) {
+        const { data } = await supabaseAdmin.from("bookings").select("sumit_auth_number, sumit_authorized_amount").eq("id", body.bookingId).maybeSingle();
+        authNumber = data?.sumit_auth_number || null;
+        amount = amount ?? data?.sumit_authorized_amount ?? null;
+      }
+      if (!authNumber && body.rentalId) {
+        const { data } = await supabaseAdmin.from("rentals").select("sumit_auth_number, sumit_authorized_amount").eq("id", body.rentalId).maybeSingle();
+        authNumber = data?.sumit_auth_number || null;
+        amount = amount ?? data?.sumit_authorized_amount ?? null;
+      }
+      if (!authNumber) {
+        return new Response(JSON.stringify({ error: "Missing auth number" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const r = await sumitFetch("/billing/payments/cancelauthorization/", {
+        AuthorizationNumber: authNumber,
+        Amount: amount,
+        Credentials: creds,
+      });
+      if (r.ok) {
+        const update: any = { sumit_auth_number: null, sumit_authorized_amount: null, sumit_authorized_at: null };
+        if (body.bookingId) await supabaseAdmin.from("bookings").update(update).eq("id", body.bookingId);
+        if (body.rentalId) await supabaseAdmin.from("rentals").update(update).eq("id", body.rentalId);
+      }
+      await supabaseAdmin.from("payment_transactions").insert({
+        transaction_type: "release_authorization",
+        status: r.ok ? "success" : "failed",
+        amount,
+        auth_number: authNumber,
+        customer_id: body.customer?.id || null,
+        customer_name: body.customer?.name || null,
+        booking_id: body.bookingId || null,
+        rental_id: body.rentalId || null,
+        error_message: r.ok ? null : JSON.stringify(r.data),
+        raw_response: r.data,
+        created_by: user.id,
+      });
+      return new Response(JSON.stringify({ success: r.ok, raw: r.data }), {
+        status: r.ok ? 200 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Delete saved card from customer ---
+    if (body.action === "delete_card") {
+      if (!body.customer?.id) {
+        return new Response(JSON.stringify({ error: "Missing customer id" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      await supabaseAdmin.from("customers").update({
+        payment_token: null,
+        card_last4: null,
+        card_expiry: null,
+        payment_provider: null,
+      }).eq("id", body.customer.id);
+
+      await supabaseAdmin.from("payment_transactions").insert({
+        transaction_type: "delete_card",
+        status: "success",
+        customer_id: body.customer.id,
+        customer_name: body.customer?.name || null,
+        created_by: user.id,
+      });
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

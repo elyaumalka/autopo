@@ -364,11 +364,10 @@ Deno.serve(async (req) => {
     };
     let r: Awaited<ReturnType<typeof sumitFetch>>;
     if (isAuthorize) {
-      // J5 must use CreditGuy gateway AuthorizeOnly. Billing AuthoriseOnly only validates and may not hold funds.
-      r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, "AuthorizeOnly (5)"));
-      if (!r.ok && isParamJError(r.data)) {
-        r = await sumitFetch("/creditguy/gateway/transaction/", buildGatewayAuthorization(body.card, body.amount, creds, 5));
-      }
+      // Use Sumit billing endpoint with AuthoriseOnly so the transaction is recorded in Sumit dashboard
+      // (CreditGuy gateway holds funds at the bank but does NOT show up in the Sumit panel)
+      payload.AuthoriseOnly = true;
+      r = await sumitFetch("/billing/payments/charge/", payload);
     } else {
       r = await sumitFetch("/billing/payments/charge/", payload);
     }

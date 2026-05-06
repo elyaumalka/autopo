@@ -59,18 +59,6 @@ interface RequestBody {
   authNumber?: string;
   email?: string;
 }
-  amount?: number;
-  customer?: CustomerInput;
-  card?: CardInput;
-  items?: ItemInput[];
-  description?: string;
-  payments?: number;
-  sendInvoiceEmail?: boolean;
-  bookingId?: string;
-  rentalId?: string;
-  documentId?: string;
-  authNumber?: string;
-}
 
 function getCreds() {
   const CompanyID = Number(Deno.env.get("SUMIT_COMPANY_ID"));

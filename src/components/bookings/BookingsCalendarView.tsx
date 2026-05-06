@@ -194,6 +194,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
+    const candidates: { result: SlotResult; overlapMs: number }[] = [];
+    const { slotStart, slotEnd } = getSlotBounds(day, slot);
+    const computeOverlap = (sd: Date, sh: number | null, ed: Date, eh: number | null) => {
+      const es = toDateTime(sd, sh, 9).getTime();
+      const ee = toDateTime(ed, eh, 21).getTime();
+      return Math.max(0, Math.min(slotEnd.getTime(), ee) - Math.max(slotStart.getTime(), es));
+    };
+
     for (const rental of matchingRentals) {
       const rentalType = getRentalType(rental.billing_rate_type, rental.start_date, rental.actual_end_date || rental.planned_end_date);
       if (hideMonthly && rentalType === "monthly") continue;
@@ -216,7 +224,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const startHour = parseHour(rental.start_time);
 
       const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      if (result.status !== "free") {
+        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour) });
+      }
     }
 
     // Check bookings
@@ -251,7 +261,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const endHour = parseHour(booking.end_time);
 
       const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      if (result.status !== "free") {
+        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour) });
+      }
+    }
+
+    if (candidates.length > 0) {
+      // Prefer "full" over "partial"; among same status, the largest overlap.
+      candidates.sort((a, b) => {
+        const rank = (s: string) => (s === "full" ? 2 : s === "partial" ? 1 : 0);
+        const r = rank(b.result.status) - rank(a.result.status);
+        if (r !== 0) return r;
+        return b.overlapMs - a.overlapMs;
+      });
+      return candidates[0].result;
     }
 
     // Check maintenance tasks

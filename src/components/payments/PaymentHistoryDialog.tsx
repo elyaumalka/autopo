@@ -14,6 +14,7 @@ interface Props {
   customerId?: string;
   bookingId?: string;
   rentalId?: string;
+  customerEmail?: string;
   title?: string;
 }
 
@@ -47,7 +48,7 @@ const typeLabel: Record<string, string> = {
   save_token: "שמירת כרטיס",
 };
 
-export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId, rentalId, title }: Props) {
+export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId, rentalId, customerEmail, title }: Props) {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [invs, setInvs] = useState<Inv[]>([]);
   const [loading, setLoading] = useState(false);

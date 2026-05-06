@@ -463,6 +463,48 @@ export default function QuickBookingDialog({
             </div>
           </div>
 
+          {customerId && (
+            <div className="rounded-lg border bg-cyan-50/50 p-3 space-y-2">
+              <Label className="text-xs font-medium">סליקה דרך SUMIT</Label>
+              <div className="flex flex-wrap gap-2">
+                <PaymentButton
+                  defaultAction="authorize"
+                  label="תפיסת מסגרת J5"
+                  amount={parseFloat(rentalCost) || 0}
+                  description="תפיסת מסגרת אשראי"
+                  customer={(() => {
+                    const c = customers.find(x => x.id === customerId);
+                    return c ? {
+                      id: c.id, name: `${c.first_name} ${c.last_name}`,
+                      phone: c.phone, email: c.email || undefined,
+                      address: c.address || undefined, city: c.city || undefined,
+                      citizenId: c.id_number,
+                      payment_token: (c as any).payment_token,
+                      card_last4: (c as any).card_last4,
+                    } : undefined;
+                  })()}
+                />
+                <PaymentButton
+                  defaultAction="charge"
+                  label="חיוב מקדמה"
+                  amount={parseFloat(rentalCost) || 0}
+                  description="מקדמה להשכרה"
+                  customer={(() => {
+                    const c = customers.find(x => x.id === customerId);
+                    return c ? {
+                      id: c.id, name: `${c.first_name} ${c.last_name}`,
+                      phone: c.phone, email: c.email || undefined,
+                      address: c.address || undefined, city: c.city || undefined,
+                      citizenId: c.id_number,
+                      payment_token: (c as any).payment_token,
+                      card_last4: (c as any).card_last4,
+                    } : undefined;
+                  })()}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="space-y-3 pt-2">
             <div className="flex gap-3">
               <Button

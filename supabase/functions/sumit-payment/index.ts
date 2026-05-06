@@ -348,7 +348,7 @@ Deno.serve(async (req) => {
     const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
 
     // Save card token if returned
-    if (r.ok && token && body.customer?.id) {
+    if (sumitOk && token && body.customer?.id) {
       await supabaseAdmin.from("customers").update({
         payment_token: token,
         card_last4: last4,
@@ -358,7 +358,7 @@ Deno.serve(async (req) => {
 
     // Save invoice
     let invoiceId: string | null = null;
-    if (r.ok && docId && !isAuthorize) {
+    if (sumitOk && docId && !isAuthorize) {
       const { data: inv } = await supabaseAdmin.from("sumit_invoices").insert({
         document_id: String(docId),
         document_number: docNumber ? String(docNumber) : null,
@@ -375,9 +375,14 @@ Deno.serve(async (req) => {
     }
 
     // Save transaction
+    const errorMsg = !sumitOk
+      ? (isAuthorize && r.ok && !authNumber
+          ? "סומיט החזירה הצלחה אך ללא מספר אישור — תפיסת המסגרת לא בוצעה בפועל"
+          : JSON.stringify(r.data))
+      : null;
     await supabaseAdmin.from("payment_transactions").insert({
       transaction_type: isAuthorize ? "authorize" : (body.card?.token ? "charge_token" : "charge"),
-      status: r.ok ? "success" : "failed",
+      status: sumitOk ? "success" : "failed",
       amount: body.amount,
       auth_number: authNumber,
       card_last4: last4,
@@ -387,13 +392,13 @@ Deno.serve(async (req) => {
       booking_id: body.bookingId || null,
       rental_id: body.rentalId || null,
       invoice_id: invoiceId,
-      error_message: r.ok ? null : JSON.stringify(r.data),
+      error_message: errorMsg,
       raw_response: r.data,
       created_by: user.id,
     });
 
     // Update booking/rental with J5 details
-    if (r.ok && isAuthorize && authNumber) {
+    if (sumitOk && isAuthorize && authNumber) {
       const update = {
         sumit_auth_number: String(authNumber),
         sumit_authorized_amount: body.amount,
@@ -404,7 +409,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      success: r.ok,
+      success: sumitOk,
       authNumber,
       documentId: docId,
       documentNumber: docNumber,

@@ -44,6 +44,7 @@ interface RequestBody {
     | "save_token"           // save card token for recurring
     | "release_authorization" // release J5 hold
     | "delete_card"          // delete saved card from customer
+    | "send_invoice"         // send invoice PDF by email
     | "get_pdf";             // get document PDF
   amount?: number;
   customer?: CustomerInput;
@@ -56,6 +57,7 @@ interface RequestBody {
   rentalId?: string;
   documentId?: string;
   authNumber?: string;
+  email?: string;
 }
 
 function getCreds() {
@@ -85,6 +87,8 @@ function buildPaymentMethod(card?: CardInput) {
   if (card.token) {
     return {
       CreditCard_Token: card.token,
+      CreditCard_ExpirationMonth: card.expMonth,
+      CreditCard_ExpirationYear: card.expYear,
       Type: 1,
     };
   }
@@ -145,7 +149,39 @@ Deno.serve(async (req) => {
         DocumentID: body.documentId,
         Credentials: creds,
       });
-      return new Response(JSON.stringify(r.data), {
+      const url = r.data?.Data?.PDFUrl || r.data?.Data?.URL || r.data?.PDFUrl || null;
+      if (r.ok && url && body.documentId) {
+        await supabaseAdmin.from("sumit_invoices").update({ pdf_url: url }).eq("document_id", String(body.documentId));
+      }
+      return new Response(JSON.stringify({ ...r.data, pdfUrl: url }), {
+        status: r.ok ? 200 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Send invoice by email ---
+    if (body.action === "send_invoice") {
+      if (!body.documentId) {
+        return new Response(JSON.stringify({ error: "Missing documentId" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const r = await sumitFetch("/accounting/documents/send/", {
+        DocumentID: body.documentId,
+        EmailAddress: body.email || body.customer?.email,
+        SendBy: 1,
+        Credentials: creds,
+      });
+      await supabaseAdmin.from("payment_transactions").insert({
+        transaction_type: "send_invoice",
+        status: r.ok ? "success" : "failed",
+        customer_id: body.customer?.id || null,
+        customer_name: body.customer?.name || null,
+        error_message: r.ok ? null : JSON.stringify(r.data),
+        raw_response: r.data,
+        created_by: user.id,
+      });
+      return new Response(JSON.stringify({ success: r.ok, raw: r.data }), {
         status: r.ok ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

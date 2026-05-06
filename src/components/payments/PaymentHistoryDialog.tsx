@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { History, FileText, RefreshCw } from "lucide-react";
+import { History, FileText, RefreshCw, Mail, Loader2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
 interface Props {
@@ -12,6 +14,7 @@ interface Props {
   customerId?: string;
   bookingId?: string;
   rentalId?: string;
+  customerEmail?: string;
   title?: string;
 }
 
@@ -45,7 +48,7 @@ const typeLabel: Record<string, string> = {
   save_token: "שמירת כרטיס",
 };
 
-export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId, rentalId, title }: Props) {
+export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId, rentalId, customerEmail, title }: Props) {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [invs, setInvs] = useState<Inv[]>([]);
   const [loading, setLoading] = useState(false);
@@ -65,12 +68,40 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
 
   useEffect(() => { if (open) load(); }, [open, customerId, bookingId, rentalId]);
 
-  const openPdf = async (docId: string) => {
-    const { data } = await supabase.functions.invoke("sumit-payment", {
-      body: { action: "get_pdf", documentId: docId },
-    });
-    const url = (data as any)?.Data?.PDFUrl || (data as any)?.Data?.URL || (data as any)?.PDFUrl;
-    if (url) window.open(url, "_blank");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [emailDoc, setEmailDoc] = useState<string | null>(null);
+  const [emailValue, setEmailValue] = useState(customerEmail || "");
+
+  const openPdf = async (inv: Inv) => {
+    if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }
+    setBusyId(inv.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("sumit-payment", {
+        body: { action: "get_pdf", documentId: inv.document_id },
+      });
+      if (error) throw error;
+      const url = (data as any)?.pdfUrl || (data as any)?.Data?.PDFUrl || (data as any)?.Data?.URL || (data as any)?.PDFUrl;
+      if (url) { window.open(url, "_blank"); load(); }
+      else throw new Error("לא נמצא קישור PDF");
+    } catch (e: any) {
+      toast({ title: "שגיאה בהורדת PDF", description: e.message, variant: "destructive" });
+    } finally { setBusyId(null); }
+  };
+
+  const sendEmail = async (docId: string) => {
+    if (!emailValue) { toast({ title: "נא להזין אימייל", variant: "destructive" }); return; }
+    setBusyId(docId);
+    try {
+      const { data, error } = await supabase.functions.invoke("sumit-payment", {
+        body: { action: "send_invoice", documentId: docId, email: emailValue },
+      });
+      if (error) throw error;
+      if (!(data as any)?.success) throw new Error((data as any)?.raw?.UserErrorMessage || "שליחה נכשלה");
+      toast({ title: "החשבונית נשלחה" });
+      setEmailDoc(null);
+    } catch (e: any) {
+      toast({ title: "שגיאה בשליחה", description: e.message, variant: "destructive" });
+    } finally { setBusyId(null); }
   };
 
   return (
@@ -130,17 +161,30 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
             ) : (
               <div className="space-y-2">
                 {invs.map(i => (
-                  <div key={i.id} className="border rounded-lg p-3 text-sm flex items-center justify-between">
-                    <div>
-                      <span className="font-medium">{i.document_type_name || "מסמך"} #{i.document_number || i.document_id}</span>
-                      <span className="text-muted-foreground mr-3">₪{i.amount}</span>
+                  <div key={i.id} className="border rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{i.document_type_name || "חשבונית"} #{i.document_number || i.document_id}</span>
+                        <span className="text-muted-foreground mr-3">₪{i.amount}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{format(new Date(i.created_at), "dd/MM/yy")}</span>
+                        <Button size="sm" variant="outline" onClick={() => openPdf(i)} disabled={busyId === i.id}>
+                          {busyId === i.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEmailDoc(emailDoc === i.document_id ? null : i.document_id); setEmailValue(customerEmail || emailValue); }}>
+                          <Mail className="h-4 w-4" /> שלח
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{format(new Date(i.created_at), "dd/MM/yy")}</span>
-                      <Button size="sm" variant="outline" onClick={() => openPdf(i.document_id)}>
-                        <FileText className="h-4 w-4" /> PDF
-                      </Button>
-                    </div>
+                    {emailDoc === i.document_id && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input type="email" placeholder="email@example.com" value={emailValue} onChange={(e) => setEmailValue(e.target.value)} />
+                        <Button size="sm" onClick={() => sendEmail(i.document_id)} disabled={busyId === i.document_id}>
+                          {busyId === i.document_id ? <Loader2 className="h-4 w-4 animate-spin" /> : "שלח"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

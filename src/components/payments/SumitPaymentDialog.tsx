@@ -27,6 +27,7 @@ interface SumitPaymentDialogProps {
     citizenId?: string;
     payment_token?: string | null;
     card_last4?: string | null;
+    card_expiry?: string | null;
   };
   bookingId?: string;
   rentalId?: string;
@@ -73,15 +74,20 @@ export function SumitPaymentDialog({
 
     setLoading(true);
     try {
-      const card = useToken && customer?.payment_token
-        ? { token: customer.payment_token }
-        : {
-            number: cardNumber.replace(/\s/g, ""),
-            expMonth: parseInt(expMonth),
-            expYear: parseInt(expYear),
-            cvv,
-            citizenId: citizenId || customer?.citizenId,
-          };
+      let card: any;
+      if (useToken && customer?.payment_token) {
+        const exp = (customer as any).card_expiry as string | undefined;
+        const [em, ey] = exp ? exp.split("/").map((s) => parseInt(s.trim())) : [undefined, undefined];
+        card = { token: customer.payment_token, expMonth: em, expYear: ey };
+      } else {
+        card = {
+          number: cardNumber.replace(/\s/g, ""),
+          expMonth: parseInt(expMonth),
+          expYear: parseInt(expYear),
+          cvv,
+          citizenId: citizenId || customer?.citizenId,
+        };
+      }
 
       const { data, error } = await supabase.functions.invoke("sumit-payment", {
         body: {

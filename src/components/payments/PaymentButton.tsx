@@ -144,6 +144,7 @@ export function PaymentButton({
         customerId={customer?.id}
         bookingId={bookingId}
         rentalId={rentalId}
+        customerEmail={customer?.email}
         title={customer?.name}
       />
     </div>

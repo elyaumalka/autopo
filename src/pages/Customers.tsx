@@ -113,6 +113,34 @@ export default function Customers() {
     enabled: !!selectedCustomer?.id,
   });
 
+  const { data: customerInvoices = [] } = useQuery({
+    queryKey: ["customer-invoices", selectedCustomer?.id],
+    queryFn: async () => {
+      if (!selectedCustomer?.id) return [];
+      const { data } = await supabase
+        .from("sumit_invoices")
+        .select("*")
+        .eq("customer_id", selectedCustomer.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!selectedCustomer?.id && viewMode,
+  });
+
+  const handleDownloadInvoice = async (inv: any) => {
+    if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }
+    const { data } = await supabase.functions.invoke("sumit-payment", {
+      body: { action: "get_pdf", documentId: inv.document_id },
+    });
+    const url = (data as any)?.pdfUrl;
+    if (url) {
+      window.open(url, "_blank");
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+    } else {
+      toast({ title: "לא נמצא קישור להורדה", variant: "destructive" });
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (customer: CustomerInsert) => {
       const { error } = await supabase.from("customers").insert(customer);
@@ -641,6 +669,30 @@ export default function Customers() {
                           )}
                           {rental.invoice_number && <span>חשבונית: {rental.invoice_number}</span>}
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Invoices */}
+              <div>
+                <h3 className="font-semibold mb-3">חשבוניות</h3>
+                {customerInvoices.length === 0 ? (
+                  <p className="text-gray-500">אין חשבוניות</p>
+                ) : (
+                  <div className="space-y-2">
+                    {customerInvoices.map((inv: any) => (
+                      <div key={inv.id} className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">חשבונית #{inv.document_number || inv.document_id}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(inv.created_at), "dd/MM/yyyy")} · ₪{Number(inv.amount).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadInvoice(inv)}>
+                          <FileText className="w-4 h-4 ml-1" /> הורד PDF
+                        </Button>
                       </div>
                     ))}
                   </div>

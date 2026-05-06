@@ -167,40 +167,23 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return h + (isNaN(m) ? 0 : m / 60);
   };
 
-  type SlotEvent = {
-    type: "rental" | "booking";
-    id?: string;
-    customerName: string;
-    status: string;
-    rentalType: "daily" | "weekly" | "monthly";
-    endTime?: string | null;
-    startTime?: string | null;
+  type SlotResult = {
+    status: "full" | "partial" | "free";
+    partialSide?: "start" | "end";
+  timeLabel?: string | null;
+    event?: {
+      type: "rental" | "booking";
+      id?: string;
+      customerName: string;
+      status: string;
+      rentalType: "daily" | "weekly" | "monthly";
+      endTime?: string | null;
+      startTime?: string | null;
+    };
   };
 
-  type Segment = {
-    startMs: number;
-    endMs: number;
-    event: SlotEvent | null; // null = free
-    /** label time when this segment starts/ends inside the slot */
-    timeLabel?: string | null;
-  };
-
-  type SlotData = {
-    segments: Segment[];
-    slotStartMs: number;
-    slotEndMs: number;
-  };
-
-  const getSlotData = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotData => {
-    const { slotStart, slotEnd } = getSlotBounds(day, slot);
-    const slotStartMs = slotStart.getTime();
-    const slotEndMs = slotEnd.getTime();
-    const minuteMs = 60_000;
-
-    type RawOcc = { startMs: number; endMs: number; event: SlotEvent };
-    const occupations: RawOcc[] = [];
-
-    // Rentals
+  const getSlotStatus = (vehicle: Vehicle, day: Date, slot: "am" | "pm"): SlotResult => {
+    // Check active rentals first
     const matchingRentals = rentals.filter(r => {
       const matchById = r.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, r.vehicle_details);
@@ -216,8 +199,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && rentalType === "monthly") continue;
       if (hideWeekly && rentalType === "weekly") continue;
 
-      const event: SlotEvent = {
-        type: "rental",
+      const event = {
+        type: "rental" as const,
         id: rental.id,
         customerName: rental.customer_name || "לקוח",
         status: rental.status,
@@ -225,21 +208,18 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         endTime: (rental.actual_end_time || rental.planned_end_time) as string | null,
         startTime: rental.start_time as string | null,
       };
+
       const startDate = parseISO(rental.start_date);
       const effectiveEndDate = rental.actual_end_date || rental.planned_end_date;
       const endDate = effectiveEndDate ? parseISO(effectiveEndDate) : addDays(startDate, 30);
-      const startHour = parseHour(rental.start_time);
       const endHour = parseHour(rental.actual_end_time || rental.planned_end_time);
-      const eventStartMs = toDateTime(startDate, startHour, 9).getTime();
-      const eventEndMs = toDateTime(endDate, endHour, 21).getTime();
-      const overlapStart = Math.max(slotStartMs, eventStartMs);
-      const overlapEnd = Math.min(slotEndMs, eventEndMs);
-      if (overlapEnd - overlapStart > minuteMs / 2) {
-        occupations.push({ startMs: overlapStart, endMs: overlapEnd, event });
-      }
+      const startHour = parseHour(rental.start_time);
+
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      if (result.status !== "free") return result;
     }
 
-    // Bookings
+    // Check bookings
     const matchingBookings = bookings.filter(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
@@ -255,8 +235,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       if (hideMonthly && bookingType === "monthly") continue;
       if (hideWeekly && bookingType === "weekly") continue;
 
-      const event: SlotEvent = {
-        type: "booking",
+      const event = {
+        type: "booking" as const,
         id: booking.id,
         customerName: booking.customer_name || "לקוח",
         status: booking.status,
@@ -264,31 +244,28 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         endTime: booking.end_time as string | null,
         startTime: booking.start_time as string | null,
       };
+
       const startDate = parseISO(booking.start_date);
       const endDate = parseISO(booking.end_date);
       const startHour = parseHour(booking.start_time);
       const endHour = parseHour(booking.end_time);
-      const eventStartMs = toDateTime(startDate, startHour, 9).getTime();
-      const eventEndMs = toDateTime(endDate, endHour, 21).getTime();
-      const overlapStart = Math.max(slotStartMs, eventStartMs);
-      const overlapEnd = Math.min(slotEndMs, eventEndMs);
-      if (overlapEnd - overlapStart > minuteMs / 2) {
-        occupations.push({ startMs: overlapStart, endMs: overlapEnd, event });
-      }
+
+      const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
+      if (result.status !== "free") return result;
     }
 
-    // Maintenance
+    // Check maintenance tasks
     const maintenance = maintenanceTasks.find(m => {
       if (m.vehicle_id !== vehicle.id) return false;
       if (!m.due_date) return false;
       return isSameDay(day, parseISO(m.due_date));
     });
+
     if (maintenance) {
-      occupations.push({
-        startMs: slotStartMs,
-        endMs: slotEndMs,
+      return {
+        status: "full",
         event: {
-          type: "booking",
+          type: "booking" as const,
           id: maintenance.id,
           customerName: maintenance.type || "טיפול",
           status: "בטיפול",
@@ -296,36 +273,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
           endTime: null,
           startTime: null,
         }
-      });
+      };
     }
 
-    // Sort by start, then build segments alternating free/occupied
-    occupations.sort((a, b) => a.startMs - b.startMs);
-    const segments: Segment[] = [];
-    let cursor = slotStartMs;
-    for (const occ of occupations) {
-      const occStart = Math.max(cursor, occ.startMs);
-      const occEnd = Math.min(slotEndMs, occ.endMs);
-      if (occEnd <= cursor) continue;
-      if (occStart > cursor) {
-        segments.push({ startMs: cursor, endMs: occStart, event: null });
-      }
-      // Determine label: show start time if event starts inside slot, else end time if ends inside
-      const startsInSlot = occ.event.startTime && Math.abs(occ.startMs - slotStartMs) > minuteMs;
-      const endsInSlot = occ.event.endTime && Math.abs(occ.endMs - slotEndMs) > minuteMs;
-      let timeLabel: string | null = null;
-      if (startsInSlot) timeLabel = occ.event.startTime?.slice(0, 5) ?? null;
-      else if (endsInSlot) timeLabel = occ.event.endTime?.slice(0, 5) ?? null;
-      segments.push({ startMs: occStart, endMs: occEnd, event: occ.event, timeLabel });
-      cursor = occEnd;
-    }
-    if (cursor < slotEndMs) {
-      segments.push({ startMs: cursor, endMs: slotEndMs, event: null });
-    }
-    if (segments.length === 0) {
-      segments.push({ startMs: slotStartMs, endMs: slotEndMs, event: null });
-    }
-    return { segments, slotStartMs, slotEndMs };
+    return { status: "free" };
   };
 
   const getSlotBounds = (day: Date, slot: "am" | "pm") => {
@@ -352,7 +303,74 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return result;
   };
 
-  // (computeSlot removed — replaced by getSlotData segment-based logic above)
+  const computeSlot = (
+    day: Date,
+    slot: "am" | "pm",
+    startDate: Date,
+    endDate: Date,
+    startHour: number | null,
+    endHour: number | null,
+    event: SlotResult["event"]
+  ): SlotResult => {
+    const { slotStart, slotEnd } = getSlotBounds(day, slot);
+    const eventStart = toDateTime(startDate, startHour, 9);
+    const eventEnd = toDateTime(endDate, endHour, 21);
+    const minuteMs = 60_000;
+    const slotStartMs = slotStart.getTime();
+    const slotEndMs = slotEnd.getTime();
+    const eventStartMs = eventStart.getTime();
+    const eventEndMs = eventEnd.getTime();
+
+    const overlapStart = new Date(Math.max(slotStartMs, eventStartMs));
+    const overlapEnd = new Date(Math.min(slotEndMs, eventEndMs));
+    const overlapStartMs = overlapStart.getTime();
+    const overlapEndMs = overlapEnd.getTime();
+
+    if (overlapEndMs <= overlapStartMs) {
+      return { status: "free" };
+    }
+
+    const slotLength = slotEndMs - slotStartMs;
+    const overlapLength = overlapEndMs - overlapStartMs;
+    const startsInSlot = eventStartMs >= slotStartMs && eventStartMs < slotEndMs;
+    const endsInSlot = eventEndMs > slotStartMs && eventEndMs <= slotEndMs;
+    const startLabel = event?.startTime?.slice(0, 5) ?? null;
+    const endLabel = event?.endTime?.slice(0, 5) ?? null;
+
+    if (overlapLength >= slotLength - minuteMs) {
+      return {
+        status: "full",
+        event,
+        timeLabel: startsInSlot ? startLabel : endsInSlot ? endLabel : null,
+      };
+    }
+
+    const touchesSlotStart = overlapStartMs <= slotStartMs + minuteMs;
+    const touchesSlotEnd = overlapEndMs >= slotEndMs - minuteMs;
+
+    let partialSide: "start" | "end";
+    if (touchesSlotStart && !touchesSlotEnd) {
+      partialSide = "start";
+    } else if (!touchesSlotStart && touchesSlotEnd) {
+      partialSide = "end";
+    } else {
+      const overlapMidpoint = (overlapStartMs + overlapEndMs) / 2;
+      const slotMidpoint = (slotStartMs + slotEndMs) / 2;
+      partialSide = overlapMidpoint <= slotMidpoint ? "start" : "end";
+    }
+
+    const timeLabel = startsInSlot && !endsInSlot
+      ? startLabel
+      : !startsInSlot && endsInSlot
+        ? endLabel
+        : startsInSlot && endsInSlot
+          ? partialSide === "start"
+            ? startLabel
+            : endLabel
+          : endLabel || startLabel || null;
+
+    return { status: "partial", partialSide, event, timeLabel };
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -468,26 +486,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             {vehicles.map((vehicle) => (
               <tr key={vehicle.id} className="hover:bg-muted/20">
                 {weekDays.map((day) => {
-                  const amSlot = getSlotData(vehicle, day, "am");
-                  const pmSlot = getSlotData(vehicle, day, "pm");
+                  const amSlot = getSlotStatus(vehicle, day, "am");
+                  const pmSlot = getSlotStatus(vehicle, day, "pm");
 
-                  const formatMs = (ms: number) => {
-                    const d = new Date(ms);
-                    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-                  };
-
-                  const renderSlot = (slotData: SlotData, slotKey: string, slotType: "am" | "pm") => {
+                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
                     const soldDate = (vehicle as any).sold_date;
                     const dayStr = format(day, "yyyy-MM-dd");
                     const isSoldAfter = vehicle.status === "נמכר" && soldDate && dayStr > soldDate;
 
-                    const daySeparatorClass = slotType === "pm"
-                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
-                      : "border border-y-2 border-r-2 border-l border-foreground/20";
-
                     if (isSoldAfter) {
+                      const daySeparatorClass2 = slotType === "pm"
+                        ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                        : "border border-y-2 border-r-2 border-l border-foreground/20";
                       return (
-                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass)}>
+                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass2)}>
                           <div className="h-full w-full flex items-center justify-center">
                             <span className="text-[8px] text-muted-foreground/40">נמכר</span>
                           </div>
@@ -495,90 +507,90 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       );
                     }
 
-                    const totalLength = slotData.slotEndMs - slotData.slotStartMs;
-                    const segments = slotData.segments;
+                    const handleClick = () => {
+                      if (onCellClick) {
+                        onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
+                      } else if (slotData.status === "free" && onNewBooking) {
+                        onNewBooking();
+                      }
+                    };
 
-                    // Single free segment → simple "+" button
-                    if (segments.length === 1 && !segments[0].event) {
-                      return (
-                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          <button
-                            onClick={() => {
-                              if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: null });
-                              else if (onNewBooking) onNewBooking();
-                            }}
-                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                          </button>
-                        </td>
-                      );
-                    }
+                    const daySeparatorClass = slotType === "pm"
+                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                      : "border border-y-2 border-r-2 border-l border-foreground/20";
 
-                    // Single full event covering whole slot
-                    if (segments.length === 1 && segments[0].event) {
-                      const seg = segments[0];
-                      const ev = seg.event!;
-                      const timeStr = seg.timeLabel || "";
+                    if (slotData.status === "full" && slotData.event) {
+                      const timeStr = slotData.timeLabel || "";
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div
-                            onClick={() => onCellClick && onCellClick(day, vehicle, { ...ev }, { slot: slotType, existingEndTime: ev.endTime })}
+                            onClick={handleClick}
                             className={cn(
                               "h-full rounded px-0.5 py-0 text-[10px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                              getStatusColor(ev.status)
+                              getStatusColor(slotData.event.status)
                             )}
-                            title={`${ev.customerName} - ${ev.status}${timeStr ? ` - ${timeStr}` : ""}`}
+                            title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""}`}
                           >
-                            <span className="truncate w-full text-center leading-tight">{ev.customerName}</span>
+                            <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
                             {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
                           </div>
                         </td>
                       );
                     }
 
-                    // Multiple segments: render side-by-side. In RTL the first child is on the right,
-                    // so iterate segments in chronological order and they appear right→left as time flows.
+                    if (slotData.status === "partial" && slotData.event) {
+                      // בתוך כל חצי-יום הזמן מתקדם מימין לשמאל: תחילת הסלוט בימין, סוף הסלוט בשמאל.
+                      // 09:00-15:00 תופס את צד ימין של הבוקר; 15:00-16:00 תופס את צד שמאל של הבוקר.
+                      const occupiedRight = slotData.partialSide === "start";
+                      const occupiedContent = (
+                        <div
+                          onClick={handleClick}
+                          className={cn(
+                            "absolute inset-y-0 w-1/2 px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                            occupiedRight ? "right-0 rounded-r border-l" : "left-0 rounded-l border-r",
+                            getStatusColor(slotData.event.status)
+                          )}
+                          title={`${slotData.event.customerName} - ${slotData.event.status}`}
+                        >
+                          <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
+                          {slotData.timeLabel && <span className="text-[7px] opacity-70 leading-none">{slotData.timeLabel}</span>}
+                        </div>
+                      );
+
+                      const freeContent = (
+                        <button
+                          onClick={() => {
+                            if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
+                            else if (onNewBooking) onNewBooking();
+                          }}
+                          className={cn(
+                            "absolute inset-y-0 w-1/2 flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors",
+                            occupiedRight ? "left-0" : "right-0"
+                          )}
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      );
+
+                      return (
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
+                          <div className="relative h-full w-full">
+                            {freeContent}
+                            {occupiedContent}
+                          </div>
+                        </td>
+                      );
+                    }
+
+                    // Free
                     return (
                       <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                        <div className="flex h-full w-full">
-                          {segments.map((seg, i) => {
-                            const widthPct = ((seg.endMs - seg.startMs) / totalLength) * 100;
-                            if (!seg.event) {
-                              return (
-                                <button
-                                  key={i}
-                                  onClick={() => {
-                                    if (onCellClick) {
-                                      onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: formatMs(seg.startMs) });
-                                    } else if (onNewBooking) onNewBooking();
-                                  }}
-                                  style={{ width: `${widthPct}%` }}
-                                  className="h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                                  title={`פנוי ${formatMs(seg.startMs)}-${formatMs(seg.endMs)}`}
-                                >
-                                  <Plus className="h-2.5 w-2.5" />
-                                </button>
-                              );
-                            }
-                            const ev = seg.event;
-                            return (
-                              <div
-                                key={i}
-                                onClick={() => onCellClick && onCellClick(day, vehicle, { ...ev }, { slot: slotType, existingEndTime: ev.endTime })}
-                                style={{ width: `${widthPct}%` }}
-                                className={cn(
-                                  "h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                                  getStatusColor(ev.status)
-                                )}
-                                title={`${ev.customerName} - ${ev.status} ${formatMs(seg.startMs)}-${formatMs(seg.endMs)}`}
-                              >
-                                <span className="truncate leading-tight">{ev.customerName.split(" ")[0]}</span>
-                                {seg.timeLabel && <span className="text-[7px] opacity-70 leading-none">{seg.timeLabel}</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
+                        <button
+                          onClick={handleClick}
+                          className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
                       </td>
                     );
                   };

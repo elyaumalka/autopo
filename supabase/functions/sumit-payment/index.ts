@@ -44,7 +44,21 @@ interface RequestBody {
     | "save_token"           // save card token for recurring
     | "release_authorization" // release J5 hold
     | "delete_card"          // delete saved card from customer
+    | "send_invoice"         // send invoice PDF by email
     | "get_pdf";             // get document PDF
+  amount?: number;
+  customer?: CustomerInput;
+  card?: CardInput;
+  items?: ItemInput[];
+  description?: string;
+  payments?: number;
+  sendInvoiceEmail?: boolean;
+  bookingId?: string;
+  rentalId?: string;
+  documentId?: string;
+  authNumber?: string;
+  email?: string;
+}
   amount?: number;
   customer?: CustomerInput;
   card?: CardInput;

@@ -675,6 +675,30 @@ export default function Customers() {
                 )}
               </div>
 
+              {/* Invoices */}
+              <div>
+                <h3 className="font-semibold mb-3">חשבוניות</h3>
+                {customerInvoices.length === 0 ? (
+                  <p className="text-gray-500">אין חשבוניות</p>
+                ) : (
+                  <div className="space-y-2">
+                    {customerInvoices.map((inv: any) => (
+                      <div key={inv.id} className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">חשבונית #{inv.document_number || inv.document_id}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {format(new Date(inv.created_at), "dd/MM/yyyy")} · ₪{Number(inv.amount).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleDownloadInvoice(inv)}>
+                          <FileText className="w-4 h-4 ml-1" /> הורד PDF
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Debts Summary */}
               {(() => {
                 const totalDebt = getCustomerRentals(selectedCustomer.id)

@@ -452,7 +452,46 @@ export default function RentalDetailsDialog({
                 <p className={`text-2xl font-bold ${rental.remaining_payment && rental.remaining_payment > 0 ? "text-red-700" : "text-green-700"}`}>
                   ₪{rental.remaining_payment?.toLocaleString() || 0}
                 </p>
+            </div>
+
+            {/* Sumit payment actions */}
+            <div className="rounded-lg border bg-cyan-50/50 p-4 space-y-2">
+              <Label className="font-medium">סליקה דרך SUMIT</Label>
+              <div className="flex flex-wrap gap-2">
+                <PaymentButton
+                  defaultAction="charge"
+                  label="חיוב באשראי"
+                  amount={rental.remaining_payment || 0}
+                  description={`השכרה - ${rental.vehicle_details || ''}`}
+                  customer={customer ? {
+                    id: customer.id,
+                    name: `${customer.first_name} ${customer.last_name}`,
+                    phone: customer.phone, email: customer.email,
+                    address: customer.address, city: customer.city,
+                    citizenId: customer.id_number,
+                    payment_token: customer.payment_token,
+                    card_last4: customer.card_last4,
+                  } : { name: rental.customer_name || '' }}
+                  rentalId={rental.id}
+                  onSuccess={() => queryClient.invalidateQueries({ queryKey: ["rentals"] })}
+                />
+                <PaymentButton
+                  defaultAction="authorize"
+                  label="תפיסת מסגרת J5"
+                  amount={rental.credit_hold || 0}
+                  description="תפיסת מסגרת"
+                  customer={customer ? {
+                    id: customer.id,
+                    name: `${customer.first_name} ${customer.last_name}`,
+                    phone: customer.phone, email: customer.email,
+                    citizenId: customer.id_number,
+                    payment_token: customer.payment_token,
+                    card_last4: customer.card_last4,
+                  } : { name: rental.customer_name || '' }}
+                  rentalId={rental.id}
+                />
               </div>
+            </div>
             </div>
 
             {/* Add payment */}

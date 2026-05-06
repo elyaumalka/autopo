@@ -352,74 +352,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     return result;
   };
 
-  const computeSlot = (
-    day: Date,
-    slot: "am" | "pm",
-    startDate: Date,
-    endDate: Date,
-    startHour: number | null,
-    endHour: number | null,
-    event: SlotResult["event"]
-  ): SlotResult => {
-    const { slotStart, slotEnd } = getSlotBounds(day, slot);
-    const eventStart = toDateTime(startDate, startHour, 9);
-    const eventEnd = toDateTime(endDate, endHour, 21);
-    const minuteMs = 60_000;
-    const slotStartMs = slotStart.getTime();
-    const slotEndMs = slotEnd.getTime();
-    const eventStartMs = eventStart.getTime();
-    const eventEndMs = eventEnd.getTime();
-
-    const overlapStart = new Date(Math.max(slotStartMs, eventStartMs));
-    const overlapEnd = new Date(Math.min(slotEndMs, eventEndMs));
-    const overlapStartMs = overlapStart.getTime();
-    const overlapEndMs = overlapEnd.getTime();
-
-    if (overlapEndMs <= overlapStartMs) {
-      return { status: "free" };
-    }
-
-    const slotLength = slotEndMs - slotStartMs;
-    const overlapLength = overlapEndMs - overlapStartMs;
-    const startsInSlot = eventStartMs >= slotStartMs && eventStartMs < slotEndMs;
-    const endsInSlot = eventEndMs > slotStartMs && eventEndMs <= slotEndMs;
-    const startLabel = event?.startTime?.slice(0, 5) ?? null;
-    const endLabel = event?.endTime?.slice(0, 5) ?? null;
-
-    if (overlapLength >= slotLength - minuteMs) {
-      return {
-        status: "full",
-        event,
-        timeLabel: startsInSlot ? startLabel : endsInSlot ? endLabel : null,
-      };
-    }
-
-    const touchesSlotStart = overlapStartMs <= slotStartMs + minuteMs;
-    const touchesSlotEnd = overlapEndMs >= slotEndMs - minuteMs;
-
-    let partialSide: "start" | "end";
-    if (touchesSlotStart && !touchesSlotEnd) {
-      partialSide = "start";
-    } else if (!touchesSlotStart && touchesSlotEnd) {
-      partialSide = "end";
-    } else {
-      const overlapMidpoint = (overlapStartMs + overlapEndMs) / 2;
-      const slotMidpoint = (slotStartMs + slotEndMs) / 2;
-      partialSide = overlapMidpoint <= slotMidpoint ? "start" : "end";
-    }
-
-    const timeLabel = startsInSlot && !endsInSlot
-      ? startLabel
-      : !startsInSlot && endsInSlot
-        ? endLabel
-        : startsInSlot && endsInSlot
-          ? partialSide === "start"
-            ? startLabel
-            : endLabel
-          : endLabel || startLabel || null;
-
-    return { status: "partial", partialSide, event, timeLabel };
-  };
+  // (computeSlot removed — replaced by getSlotData segment-based logic above)
 
   const getStatusColor = (status: string) => {
     switch (status) {

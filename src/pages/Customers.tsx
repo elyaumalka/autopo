@@ -28,6 +28,7 @@ import { Users, Search, Phone, Edit, Trash2, Eye, Upload, Loader2, Sparkles, Fil
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 
 type Customer = Database["public"]["Tables"]["customers"]["Row"];
 type CustomerInsert = Database["public"]["Tables"]["customers"]["Insert"];

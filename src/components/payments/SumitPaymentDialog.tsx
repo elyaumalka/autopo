@@ -27,6 +27,7 @@ interface SumitPaymentDialogProps {
     citizenId?: string;
     payment_token?: string | null;
     card_last4?: string | null;
+    card_expiry?: string | null;
   };
   bookingId?: string;
   rentalId?: string;

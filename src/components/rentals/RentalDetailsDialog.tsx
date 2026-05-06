@@ -489,6 +489,8 @@ export default function RentalDetailsDialog({
                     card_last4: customer.card_last4,
                   } : { name: rental.customer_name || '' }}
                   rentalId={rental.id}
+                  hasAuthorization={!!(rental as any).sumit_auth_number}
+                  onSuccess={() => queryClient.invalidateQueries({ queryKey: ["rentals"] })}
                 />
               </div>
             </div>

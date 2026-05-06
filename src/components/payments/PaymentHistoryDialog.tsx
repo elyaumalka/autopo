@@ -68,12 +68,40 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
 
   useEffect(() => { if (open) load(); }, [open, customerId, bookingId, rentalId]);
 
-  const openPdf = async (docId: string) => {
-    const { data } = await supabase.functions.invoke("sumit-payment", {
-      body: { action: "get_pdf", documentId: docId },
-    });
-    const url = (data as any)?.Data?.PDFUrl || (data as any)?.Data?.URL || (data as any)?.PDFUrl;
-    if (url) window.open(url, "_blank");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [emailDoc, setEmailDoc] = useState<string | null>(null);
+  const [emailValue, setEmailValue] = useState(customerEmail || "");
+
+  const openPdf = async (inv: Inv) => {
+    if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }
+    setBusyId(inv.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("sumit-payment", {
+        body: { action: "get_pdf", documentId: inv.document_id },
+      });
+      if (error) throw error;
+      const url = (data as any)?.pdfUrl || (data as any)?.Data?.PDFUrl || (data as any)?.Data?.URL || (data as any)?.PDFUrl;
+      if (url) { window.open(url, "_blank"); load(); }
+      else throw new Error("לא נמצא קישור PDF");
+    } catch (e: any) {
+      toast({ title: "שגיאה בהורדת PDF", description: e.message, variant: "destructive" });
+    } finally { setBusyId(null); }
+  };
+
+  const sendEmail = async (docId: string) => {
+    if (!emailValue) { toast({ title: "נא להזין אימייל", variant: "destructive" }); return; }
+    setBusyId(docId);
+    try {
+      const { data, error } = await supabase.functions.invoke("sumit-payment", {
+        body: { action: "send_invoice", documentId: docId, email: emailValue },
+      });
+      if (error) throw error;
+      if (!(data as any)?.success) throw new Error((data as any)?.raw?.UserErrorMessage || "שליחה נכשלה");
+      toast({ title: "החשבונית נשלחה" });
+      setEmailDoc(null);
+    } catch (e: any) {
+      toast({ title: "שגיאה בשליחה", description: e.message, variant: "destructive" });
+    } finally { setBusyId(null); }
   };
 
   return (

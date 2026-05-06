@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentsList from "@/components/shared/DocumentsList";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 
 type Rental = Tables<"rentals">;
 type Vehicle = Tables<"vehicles">;

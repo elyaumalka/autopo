@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
       cardLast4: last4,
       raw: r.data,
     }), {
-      status: r.ok ? 200 : 400,
+      status: sumitOk ? 200 : 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {

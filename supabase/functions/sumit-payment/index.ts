@@ -375,7 +375,6 @@ Deno.serve(async (req) => {
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
     const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
-    const validPayment = payment?.ValidPayment === true;
     const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
     // For J5 (authorize), require an actual auth number from the bank
     const sumitOk = isAuthorize ? (r.ok && data?.Success === true && !!authNumber && providerStatus === "000") : r.ok;
@@ -385,9 +384,9 @@ Deno.serve(async (req) => {
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
-    const token = payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
-    const cardMask = payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
-    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
+    const token = data?.CardToken || payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
+    const cardMask = data?.CardPattern || payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
+    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || (typeof cardMask === "string" ? cardMask.slice(-4) : null);
 
     // Save card token if returned
     if (sumitOk && token && body.customer?.id) {

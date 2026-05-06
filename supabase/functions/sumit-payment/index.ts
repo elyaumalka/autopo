@@ -71,14 +71,17 @@ async function sumitFetch(path: string, body: any) {
   const text = await res.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  return { ok: res.ok, status: res.status, data: json };
+  // Sumit returns Status: 0 on success even with HTTP 200 on errors
+  const sumitStatus = typeof json?.Status === "number" ? json.Status : null;
+  const ok = res.ok && (sumitStatus === null || sumitStatus === 0);
+  return { ok, status: res.status, data: json };
 }
 
 function buildPaymentMethod(card?: CardInput) {
   if (!card) return null;
   if (card.token) {
     return {
-      CreditCard_CardMask: card.token,
+      CreditCard_Token: card.token,
       Type: 1,
     };
   }
@@ -153,12 +156,14 @@ Deno.serve(async (req) => {
         Credentials: creds,
       };
       const r = await sumitFetch("/billing/paymentmethods/setforcustomer/", payload);
-      const cardMask = r.data?.Data?.CreditCard_CardMask || r.data?.Data?.PaymentMethod?.CreditCard_CardMask;
-      const last4 = r.data?.Data?.CreditCard_LastDigits || r.data?.Data?.PaymentMethod?.CreditCard_LastDigits;
+      const pm = r.data?.Data?.PaymentMethod || r.data?.Data || {};
+      const token = pm?.CreditCard_Token || null;
+      const cardMask = pm?.CreditCard_CardMask || null;
+      const last4 = pm?.CreditCard_LastDigits || null;
 
-      if (r.ok && cardMask && body.customer?.id) {
+      if (r.ok && token && body.customer?.id) {
         await supabaseAdmin.from("customers").update({
-          payment_token: cardMask,
+          payment_token: token,
           card_last4: last4,
           card_expiry: body.card?.expMonth && body.card?.expYear ? `${body.card.expMonth}/${body.card.expYear}` : null,
           payment_provider: "sumit",
@@ -212,13 +217,14 @@ Deno.serve(async (req) => {
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
+    const token = data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
     const cardMask = data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
     const last4 = data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
 
     // Save card token if returned
-    if (r.ok && cardMask && body.customer?.id) {
+    if (r.ok && token && body.customer?.id) {
       await supabaseAdmin.from("customers").update({
-        payment_token: cardMask,
+        payment_token: token,
         card_last4: last4,
         payment_provider: "sumit",
       }).eq("id", body.customer.id);

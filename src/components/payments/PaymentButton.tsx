@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CreditCard } from "lucide-react";
+import { CreditCard, History } from "lucide-react";
 import { SumitPaymentDialog, type PaymentAction } from "./SumitPaymentDialog";
+import { PaymentHistoryDialog } from "./PaymentHistoryDialog";
 
 interface PaymentButtonProps {
   defaultAction?: PaymentAction;
@@ -15,6 +16,7 @@ interface PaymentButtonProps {
   size?: "default" | "sm" | "icon";
   className?: string;
   onSuccess?: (result: any) => void;
+  showHistory?: boolean;
 }
 
 export function PaymentButton({
@@ -26,14 +28,21 @@ export function PaymentButton({
   size = "sm",
   className,
   onSuccess,
+  showHistory = true,
 }: PaymentButtonProps) {
   const [open, setOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   return (
-    <>
+    <div className="inline-flex items-center gap-1">
       <Button type="button" variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
         <CreditCard className="w-4 h-4 ml-2" />
         {label}
       </Button>
+      {showHistory && (
+        <Button type="button" variant="ghost" size="icon" title="היסטוריית תשלומים" onClick={() => setHistoryOpen(true)}>
+          <History className="w-4 h-4" />
+        </Button>
+      )}
       <SumitPaymentDialog
         open={open} onOpenChange={setOpen}
         defaultAction={defaultAction}
@@ -41,6 +50,13 @@ export function PaymentButton({
         customer={customer} bookingId={bookingId} rentalId={rentalId}
         onSuccess={onSuccess}
       />
-    </>
+      <PaymentHistoryDialog
+        open={historyOpen} onOpenChange={setHistoryOpen}
+        customerId={customer?.id}
+        bookingId={bookingId}
+        rentalId={rentalId}
+        title={customer?.name}
+      />
+    </div>
   );
 }

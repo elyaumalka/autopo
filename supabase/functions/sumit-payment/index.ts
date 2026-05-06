@@ -114,6 +114,33 @@ function buildCustomer(c?: CustomerInput) {
   };
 }
 
+function buildGatewayAuthorization(card: CardInput | undefined, amount: number | undefined, creds: ReturnType<typeof getCreds>, paramJ: string | number) {
+  const payload: any = {
+    Credentials: creds,
+    ParamJ: paramJ,
+    Amount: amount,
+  };
+  if (card?.singleUseToken) {
+    payload.SingleUseToken = card.singleUseToken;
+  } else if (card?.token) {
+    payload.CardToken = card.token;
+    payload.ExpirationMonth = card.expMonth;
+    payload.ExpirationYear = card.expYear;
+  } else {
+    payload.CardNumber = card?.number;
+    payload.ExpirationMonth = card?.expMonth;
+    payload.ExpirationYear = card?.expYear;
+    payload.CVV = card?.cvv;
+    payload.CitizenID = card?.citizenId;
+  }
+  return payload;
+}
+
+function isParamJError(data: any) {
+  const msg = `${data?.UserErrorMessage || ""} ${data?.TechnicalErrorDetails || ""}`.toLowerCase();
+  return msg.includes("paramj") || msg.includes("param j") || msg.includes("transaction type");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 

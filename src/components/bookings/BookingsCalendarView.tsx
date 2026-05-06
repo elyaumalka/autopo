@@ -261,7 +261,20 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const endHour = parseHour(booking.end_time);
 
       const result = computeSlot(day, slot, startDate, endDate, startHour, endHour, event);
-      if (result.status !== "free") return result;
+      if (result.status !== "free") {
+        candidates.push({ result, overlapMs: computeOverlap(startDate, startHour, endDate, endHour) });
+      }
+    }
+
+    if (candidates.length > 0) {
+      // Prefer "full" over "partial"; among same status, the largest overlap.
+      candidates.sort((a, b) => {
+        const rank = (s: string) => (s === "full" ? 2 : s === "partial" ? 1 : 0);
+        const r = rank(b.result.status) - rank(a.result.status);
+        if (r !== 0) return r;
+        return b.overlapMs - a.overlapMs;
+      });
+      return candidates[0].result;
     }
 
     // Check maintenance tasks

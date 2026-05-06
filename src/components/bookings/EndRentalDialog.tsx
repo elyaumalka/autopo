@@ -37,6 +37,15 @@ export default function EndRentalDialog({
   onSaved,
 }: EndRentalDialogProps) {
   const queryClient = useQueryClient();
+  const { data: customer } = useQuery({
+    queryKey: ["customer-end-rental", booking?.customer_id],
+    queryFn: async () => {
+      if (!booking?.customer_id) return null;
+      const { data } = await supabase.from("customers").select("*").eq("id", booking.customer_id).maybeSingle();
+      return data;
+    },
+    enabled: isOpen && !!booking?.customer_id,
+  });
   const [endData, setEndData] = useState({
     actual_end_date: "",
     actual_end_time: "",

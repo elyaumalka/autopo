@@ -161,17 +161,30 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
             ) : (
               <div className="space-y-2">
                 {invs.map(i => (
-                  <div key={i.id} className="border rounded-lg p-3 text-sm flex items-center justify-between">
-                    <div>
-                      <span className="font-medium">{i.document_type_name || "מסמך"} #{i.document_number || i.document_id}</span>
-                      <span className="text-muted-foreground mr-3">₪{i.amount}</span>
+                  <div key={i.id} className="border rounded-lg p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="font-medium">{i.document_type_name || "חשבונית"} #{i.document_number || i.document_id}</span>
+                        <span className="text-muted-foreground mr-3">₪{i.amount}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{format(new Date(i.created_at), "dd/MM/yy")}</span>
+                        <Button size="sm" variant="outline" onClick={() => openPdf(i)} disabled={busyId === i.id}>
+                          {busyId === i.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} PDF
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => { setEmailDoc(emailDoc === i.document_id ? null : i.document_id); setEmailValue(customerEmail || emailValue); }}>
+                          <Mail className="h-4 w-4" /> שלח
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{format(new Date(i.created_at), "dd/MM/yy")}</span>
-                      <Button size="sm" variant="outline" onClick={() => openPdf(i.document_id)}>
-                        <FileText className="h-4 w-4" /> PDF
-                      </Button>
-                    </div>
+                    {emailDoc === i.document_id && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <Input type="email" placeholder="email@example.com" value={emailValue} onChange={(e) => setEmailValue(e.target.value)} />
+                        <Button size="sm" onClick={() => sendEmail(i.document_id)} disabled={busyId === i.document_id}>
+                          {busyId === i.document_id ? <Loader2 className="h-4 w-4 animate-spin" /> : "שלח"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

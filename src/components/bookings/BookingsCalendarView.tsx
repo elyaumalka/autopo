@@ -586,8 +586,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div className="relative h-full w-full" dir="ltr">
                             {slotData.events.map((ev, i) => {
-                              const widthPct = Math.max(8, (ev.endFrac - ev.startFrac) * 100);
-                              const rightPct = ev.startFrac * 100;
+                              const n = slotData.events!.length;
+                              const widthPct = 100 / n;
+                              const rightPct = i * widthPct;
                               return (
                                 <div
                                   key={(ev.id || "") + i}

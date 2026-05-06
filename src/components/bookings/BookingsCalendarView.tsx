@@ -580,6 +580,37 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       );
                     }
 
+                    if (slotData.status === "multi" && slotData.events && slotData.events.length > 0) {
+                      // RTL: צד ימין = תחילת הסלוט (startFrac=0), צד שמאל = סוף הסלוט (=1)
+                      return (
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
+                          <div className="relative h-full w-full" dir="ltr">
+                            {slotData.events.map((ev, i) => {
+                              const widthPct = Math.max(8, (ev.endFrac - ev.startFrac) * 100);
+                              const rightPct = ev.startFrac * 100;
+                              return (
+                                <div
+                                  key={(ev.id || "") + i}
+                                  onClick={() => {
+                                    if (onCellClick) onCellClick(day, vehicle, { id: ev.id, customerName: ev.customerName, status: ev.status, startTime: ev.startTime, endTime: ev.endTime, type: ev.type }, { slot: slotType, existingEndTime: ev.endTime });
+                                  }}
+                                  className={cn(
+                                    "absolute inset-y-0 px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden border rounded",
+                                    getStatusColor(ev.status)
+                                  )}
+                                  style={{ right: `${rightPct}%`, width: `${widthPct}%` }}
+                                  title={`${ev.customerName} - ${ev.status}${ev.timeLabel ? ` - ${ev.timeLabel}` : ""}`}
+                                >
+                                  <span className="truncate leading-tight w-full text-center">{ev.customerName.split(" ")[0]}</span>
+                                  {ev.timeLabel && <span className="text-[7px] opacity-70 leading-none">{ev.timeLabel}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      );
+                    }
+
                     if (slotData.status === "partial" && slotData.event) {
                       // בתוך כל חצי-יום הזמן מתקדם מימין לשמאל: תחילת הסלוט בימין, סוף הסלוט בשמאל.
                       // 09:00-15:00 תופס את צד ימין של הבוקר; 15:00-16:00 תופס את צד שמאל של הבוקר.

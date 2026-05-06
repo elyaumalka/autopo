@@ -200,14 +200,6 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);
     });
 
-    const candidates: { result: SlotResult; overlapMs: number }[] = [];
-    const { slotStart, slotEnd } = getSlotBounds(day, slot);
-    const computeOverlap = (sd: Date, sh: number | null, ed: Date, eh: number | null) => {
-      const es = toDateTime(sd, sh, 9).getTime();
-      const ee = toDateTime(ed, eh, 21).getTime();
-      return Math.max(0, Math.min(slotEnd.getTime(), ee) - Math.max(slotStart.getTime(), es));
-    };
-
     const candidates: { result: SlotResult; overlapMs: number; eventForMulti: SlotEvent | null }[] = [];
     const { slotStart, slotEnd } = getSlotBounds(day, slot);
     const slotLen = slotEnd.getTime() - slotStart.getTime();

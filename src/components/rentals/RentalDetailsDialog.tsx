@@ -73,6 +73,16 @@ export default function RentalDetailsDialog({
     enabled: isOpen && showVehicleSwap,
   });
 
+  const { data: customer } = useQuery({
+    queryKey: ["customer-for-payment", rental?.customer_id],
+    queryFn: async () => {
+      if (!rental?.customer_id) return null;
+      const { data } = await supabase.from("customers").select("*").eq("id", rental.customer_id).maybeSingle();
+      return data;
+    },
+    enabled: isOpen && !!rental?.customer_id,
+  });
+
   useEffect(() => {
     if (rental) {
       setInvoiceNumber(rental.invoice_number || "");

@@ -468,20 +468,26 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             {vehicles.map((vehicle) => (
               <tr key={vehicle.id} className="hover:bg-muted/20">
                 {weekDays.map((day) => {
-                  const amSlot = getSlotStatus(vehicle, day, "am");
-                  const pmSlot = getSlotStatus(vehicle, day, "pm");
+                  const amSlot = getSlotData(vehicle, day, "am");
+                  const pmSlot = getSlotData(vehicle, day, "pm");
 
-                  const renderSlot = (slotData: SlotResult, slotKey: string, slotType: "am" | "pm") => {
+                  const formatMs = (ms: number) => {
+                    const d = new Date(ms);
+                    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+                  };
+
+                  const renderSlot = (slotData: SlotData, slotKey: string, slotType: "am" | "pm") => {
                     const soldDate = (vehicle as any).sold_date;
                     const dayStr = format(day, "yyyy-MM-dd");
                     const isSoldAfter = vehicle.status === "נמכר" && soldDate && dayStr > soldDate;
 
+                    const daySeparatorClass = slotType === "pm"
+                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
+                      : "border border-y-2 border-r-2 border-l border-foreground/20";
+
                     if (isSoldAfter) {
-                      const daySeparatorClass2 = slotType === "pm"
-                        ? "border border-y-2 border-l-2 border-r border-foreground/20"
-                        : "border border-y-2 border-r-2 border-l border-foreground/20";
                       return (
-                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass2)}>
+                        <td key={slotKey} className={cn("p-0 h-8 bg-muted/40", daySeparatorClass)}>
                           <div className="h-full w-full flex items-center justify-center">
                             <span className="text-[8px] text-muted-foreground/40">נמכר</span>
                           </div>
@@ -489,90 +495,90 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                       );
                     }
 
-                    const handleClick = () => {
-                      if (onCellClick) {
-                        onCellClick(day, vehicle, slotData.event ? { ...slotData.event } : undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
-                      } else if (slotData.status === "free" && onNewBooking) {
-                        onNewBooking();
-                      }
-                    };
+                    const totalLength = slotData.slotEndMs - slotData.slotStartMs;
+                    const segments = slotData.segments;
 
-                    const daySeparatorClass = slotType === "pm"
-                      ? "border border-y-2 border-l-2 border-r border-foreground/20"
-                      : "border border-y-2 border-r-2 border-l border-foreground/20";
+                    // Single free segment → simple "+" button
+                    if (segments.length === 1 && !segments[0].event) {
+                      return (
+                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
+                          <button
+                            onClick={() => {
+                              if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: null });
+                              else if (onNewBooking) onNewBooking();
+                            }}
+                            className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                          >
+                            <Plus className="h-2.5 w-2.5" />
+                          </button>
+                        </td>
+                      );
+                    }
 
-                    if (slotData.status === "full" && slotData.event) {
-                      const timeStr = slotData.timeLabel || "";
+                    // Single full event covering whole slot
+                    if (segments.length === 1 && segments[0].event) {
+                      const seg = segments[0];
+                      const ev = seg.event!;
+                      const timeStr = seg.timeLabel || "";
                       return (
                         <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
                           <div
-                            onClick={handleClick}
+                            onClick={() => onCellClick && onCellClick(day, vehicle, { ...ev }, { slot: slotType, existingEndTime: ev.endTime })}
                             className={cn(
                               "h-full rounded px-0.5 py-0 text-[10px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                              getStatusColor(slotData.event.status)
+                              getStatusColor(ev.status)
                             )}
-                            title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""}`}
+                            title={`${ev.customerName} - ${ev.status}${timeStr ? ` - ${timeStr}` : ""}`}
                           >
-                            <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
+                            <span className="truncate w-full text-center leading-tight">{ev.customerName}</span>
                             {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
                           </div>
                         </td>
                       );
                     }
 
-                    if (slotData.status === "partial" && slotData.event) {
-                      // בתוך כל חצי-יום הזמן מתקדם מימין לשמאל: תחילת הסלוט בימין, סוף הסלוט בשמאל.
-                      // 09:00-15:00 תופס את צד ימין של הבוקר; 15:00-16:00 תופס את צד שמאל של הבוקר.
-                      const occupiedRight = slotData.partialSide === "start";
-                      const occupiedContent = (
-                        <div
-                          onClick={handleClick}
-                          className={cn(
-                            "absolute inset-y-0 w-1/2 px-0.5 text-[8px] font-medium flex flex-col items-center justify-center cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
-                            occupiedRight ? "right-0 rounded-r border-l" : "left-0 rounded-l border-r",
-                            getStatusColor(slotData.event.status)
-                          )}
-                          title={`${slotData.event.customerName} - ${slotData.event.status}`}
-                        >
-                          <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
-                          {slotData.timeLabel && <span className="text-[7px] opacity-70 leading-none">{slotData.timeLabel}</span>}
-                        </div>
-                      );
-
-                      const freeContent = (
-                        <button
-                          onClick={() => {
-                            if (onCellClick) onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: slotData.event?.endTime });
-                            else if (onNewBooking) onNewBooking();
-                          }}
-                          className={cn(
-                            "absolute inset-y-0 w-1/2 flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors",
-                            occupiedRight ? "left-0" : "right-0"
-                          )}
-                        >
-                          <Plus className="h-2.5 w-2.5" />
-                        </button>
-                      );
-
-                      return (
-                        <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                          <div className="relative h-full w-full">
-                            {freeContent}
-                            {occupiedContent}
-                          </div>
-                        </td>
-                      );
-                    }
-
-                    // Free
+                    // Multiple segments: render side-by-side. In RTL the first child is on the right,
+                    // so iterate segments in chronological order and they appear right→left as time flows.
                     return (
                       <td key={slotKey} className={cn("p-0 h-8", daySeparatorClass)}>
-                        <button
-                          onClick={handleClick}
-                          className="h-full w-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
-                        >
-                          <Plus className="h-2.5 w-2.5" />
-                        </button>
+                        <div className="flex h-full w-full">
+                          {segments.map((seg, i) => {
+                            const widthPct = ((seg.endMs - seg.startMs) / totalLength) * 100;
+                            if (!seg.event) {
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => {
+                                    if (onCellClick) {
+                                      onCellClick(day, vehicle, undefined, { slot: slotType, existingEndTime: formatMs(seg.startMs) });
+                                    } else if (onNewBooking) onNewBooking();
+                                  }}
+                                  style={{ width: `${widthPct}%` }}
+                                  className="h-full flex items-center justify-center text-muted-foreground/20 hover:text-muted-foreground/50 hover:bg-muted/30 transition-colors"
+                                  title={`פנוי ${formatMs(seg.startMs)}-${formatMs(seg.endMs)}`}
+                                >
+                                  <Plus className="h-2.5 w-2.5" />
+                                </button>
+                              );
+                            }
+                            const ev = seg.event;
+                            return (
+                              <div
+                                key={i}
+                                onClick={() => onCellClick && onCellClick(day, vehicle, { ...ev }, { slot: slotType, existingEndTime: ev.endTime })}
+                                style={{ width: `${widthPct}%` }}
+                                className={cn(
+                                  "h-full px-0.5 text-[8px] font-medium flex flex-col items-center justify-center border cursor-pointer hover:opacity-80 transition-opacity overflow-hidden",
+                                  getStatusColor(ev.status)
+                                )}
+                                title={`${ev.customerName} - ${ev.status} ${formatMs(seg.startMs)}-${formatMs(seg.endMs)}`}
+                              >
+                                <span className="truncate leading-tight">{ev.customerName.split(" ")[0]}</span>
+                                {seg.timeLabel && <span className="text-[7px] opacity-70 leading-none">{seg.timeLabel}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </td>
                     );
                   };

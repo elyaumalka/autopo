@@ -113,6 +113,34 @@ export default function Customers() {
     enabled: !!selectedCustomer?.id,
   });
 
+  const { data: customerInvoices = [] } = useQuery({
+    queryKey: ["customer-invoices", selectedCustomer?.id],
+    queryFn: async () => {
+      if (!selectedCustomer?.id) return [];
+      const { data } = await supabase
+        .from("sumit_invoices")
+        .select("*")
+        .eq("customer_id", selectedCustomer.id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!selectedCustomer?.id && viewMode,
+  });
+
+  const handleDownloadInvoice = async (inv: any) => {
+    if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }
+    const { data } = await supabase.functions.invoke("sumit-payment", {
+      body: { action: "get_pdf", documentId: inv.document_id },
+    });
+    const url = (data as any)?.pdfUrl;
+    if (url) {
+      window.open(url, "_blank");
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+    } else {
+      toast({ title: "לא נמצא קישור להורדה", variant: "destructive" });
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (customer: CustomerInsert) => {
       const { error } = await supabase.from("customers").insert(customer);

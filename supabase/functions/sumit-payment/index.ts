@@ -71,7 +71,10 @@ async function sumitFetch(path: string, body: any) {
   const text = await res.text();
   let json: any;
   try { json = JSON.parse(text); } catch { json = { raw: text }; }
-  return { ok: res.ok, status: res.status, data: json };
+  // Sumit returns Status: 0 on success even with HTTP 200 on errors
+  const sumitStatus = typeof json?.Status === "number" ? json.Status : null;
+  const ok = res.ok && (sumitStatus === null || sumitStatus === 0);
+  return { ok, status: res.status, data: json };
 }
 
 function buildPaymentMethod(card?: CardInput) {

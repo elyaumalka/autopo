@@ -85,6 +85,8 @@ function buildPaymentMethod(card?: CardInput) {
   if (card.token) {
     return {
       CreditCard_Token: card.token,
+      CreditCard_ExpirationMonth: card.expMonth,
+      CreditCard_ExpirationYear: card.expYear,
       Type: 1,
     };
   }

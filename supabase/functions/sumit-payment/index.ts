@@ -217,13 +217,14 @@ Deno.serve(async (req) => {
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
+    const token = data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
     const cardMask = data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
     const last4 = data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
 
     // Save card token if returned
-    if (r.ok && cardMask && body.customer?.id) {
+    if (r.ok && token && body.customer?.id) {
       await supabaseAdmin.from("customers").update({
-        payment_token: cardMask,
+        payment_token: token,
         card_last4: last4,
         payment_provider: "sumit",
       }).eq("id", body.customer.id);

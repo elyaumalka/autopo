@@ -427,6 +427,7 @@ export default function Customers() {
             citizenId: row.id_number,
             payment_token: (row as any).payment_token,
             card_last4: (row as any).card_last4,
+            card_expiry: (row as any).card_expiry,
           }}
           hasSavedCard={!!(row as any).payment_token}
           onSuccess={() => queryClient.invalidateQueries({ queryKey: ["customers"] })}

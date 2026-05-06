@@ -317,26 +317,38 @@ Deno.serve(async (req) => {
         UnitPrice: it.unitPrice,
       })),
       Payments_Count: body.payments || null,
-      SendDocumentByEmail: body.sendInvoiceEmail ?? true,
+      SendDocumentByEmail: isAuthorize ? false : (body.sendInvoiceEmail ?? true),
       VATIncluded: true,
-      AuthoriseOnly: isAuthorize ? true : null,
-      AuthorizeAmount: isAuthorize ? body.amount : null,
-      PreventDocumentCreation: isAuthorize ? true : null, // No invoice for J5
       Credentials: creds,
     };
+    // Sumit J5: use dedicated authorize endpoint, no document
+    if (isAuthorize) {
+      payload.Amount = body.amount;
+      payload.PreventDocumentCreation = true;
+    }
 
-    const r = await sumitFetch("/billing/payments/charge/", payload);
+    const endpoint = isAuthorize
+      ? "/billing/payments/authorize/"
+      : "/billing/payments/charge/";
+    const r = await sumitFetch(endpoint, payload);
     const data = r.data?.Data || {};
-    const authNumber = data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
+    const payment = data?.Payment || {};
+    const authNumber = payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || null;
+    const validPayment = payment?.ValidPayment === true;
+    // For J5 (authorize), require an actual auth number from the bank
+    const sumitOk = isAuthorize ? (r.ok && !!authNumber && validPayment) : r.ok;
+    if (isAuthorize && r.ok && !authNumber) {
+      console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
+    }
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
-    const token = data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
-    const cardMask = data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
-    const last4 = data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
+    const token = payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
+    const cardMask = payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
+    const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || null;
 
     // Save card token if returned
-    if (r.ok && token && body.customer?.id) {
+    if (sumitOk && token && body.customer?.id) {
       await supabaseAdmin.from("customers").update({
         payment_token: token,
         card_last4: last4,
@@ -346,7 +358,7 @@ Deno.serve(async (req) => {
 
     // Save invoice
     let invoiceId: string | null = null;
-    if (r.ok && docId && !isAuthorize) {
+    if (sumitOk && docId && !isAuthorize) {
       const { data: inv } = await supabaseAdmin.from("sumit_invoices").insert({
         document_id: String(docId),
         document_number: docNumber ? String(docNumber) : null,
@@ -363,9 +375,14 @@ Deno.serve(async (req) => {
     }
 
     // Save transaction
+    const errorMsg = !sumitOk
+      ? (isAuthorize && r.ok && !authNumber
+          ? "סומיט החזירה הצלחה אך ללא מספר אישור — תפיסת המסגרת לא בוצעה בפועל"
+          : JSON.stringify(r.data))
+      : null;
     await supabaseAdmin.from("payment_transactions").insert({
       transaction_type: isAuthorize ? "authorize" : (body.card?.token ? "charge_token" : "charge"),
-      status: r.ok ? "success" : "failed",
+      status: sumitOk ? "success" : "failed",
       amount: body.amount,
       auth_number: authNumber,
       card_last4: last4,
@@ -375,13 +392,13 @@ Deno.serve(async (req) => {
       booking_id: body.bookingId || null,
       rental_id: body.rentalId || null,
       invoice_id: invoiceId,
-      error_message: r.ok ? null : JSON.stringify(r.data),
+      error_message: errorMsg,
       raw_response: r.data,
       created_by: user.id,
     });
 
     // Update booking/rental with J5 details
-    if (r.ok && isAuthorize && authNumber) {
+    if (sumitOk && isAuthorize && authNumber) {
       const update = {
         sumit_auth_number: String(authNumber),
         sumit_authorized_amount: body.amount,
@@ -392,7 +409,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({
-      success: r.ok,
+      success: sumitOk,
       authNumber,
       documentId: docId,
       documentNumber: docNumber,
@@ -400,7 +417,7 @@ Deno.serve(async (req) => {
       cardLast4: last4,
       raw: r.data,
     }), {
-      status: r.ok ? 200 : 400,
+      status: sumitOk ? 200 : 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {

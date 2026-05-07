@@ -692,24 +692,12 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       <div className="flex items-center gap-4 text-sm flex-wrap">
         <span className="text-muted-foreground">מקרא:</span>
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded bg-yellow-100 border border-yellow-300"></div>
-          <span>פעיל</span>
-        </div>
-        <div className="flex items-center gap-1.5">
           <div className="w-4 h-4 rounded bg-green-100 border border-green-300"></div>
-          <span>מאושר</span>
+          <span>מאושר / פעיל / ממתין / בטיפול / הושלם</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded bg-blue-100 border border-blue-300"></div>
-          <span>ממתין</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded bg-red-100 border border-red-300"></div>
-          <span>בטיפול</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300"></div>
-          <span>הושלם</span>
+          <div className="w-4 h-4 rounded bg-gray-50 border border-gray-200"></div>
+          <span>בוטל</span>
         </div>
       </div>
     </div>

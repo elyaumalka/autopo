@@ -245,12 +245,14 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       }
     }
 
-    // Check bookings
+    // Check bookings - skip bookings that have a linked rental (to avoid duplicate slot capture)
+    const bookingIdsWithRentals = new Set(rentals.map(r => r.booking_id).filter(Boolean));
     const matchingBookings = bookings.filter(b => {
       const matchById = b.vehicle_id === vehicle.id;
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
       if (!matchById && !matchByDetails) return false;
       if (b.status === "בוטל") return false;
+      if (bookingIdsWithRentals.has(b.id)) return false;
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);

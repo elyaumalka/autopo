@@ -523,7 +523,7 @@ export default function Bookings() {
       let foundBooking: Booking | undefined;
       let foundRental: Rental | undefined;
 
-      if (booking.type === "rental" || booking.status === "פעיל") {
+      if (booking.type === "rental" || booking.status === "פעיל" || booking.status === "הושלם") {
         foundRental = rentals.find(r => r.id === booking.id);
         if (foundRental) {
           foundBooking = bookings.find(b => b.id === foundRental!.booking_id);
@@ -538,7 +538,7 @@ export default function Bookings() {
               b.vehicle_id === vehicle.id && 
               b.start_date <= format(date, "yyyy-MM-dd") && 
               b.end_date >= format(date, "yyyy-MM-dd") &&
-              b.status !== "בוטל" && b.status !== "הושלם" &&
+              b.status !== "בוטל" &&
               b.customer_name === booking.customerName
             );
       }

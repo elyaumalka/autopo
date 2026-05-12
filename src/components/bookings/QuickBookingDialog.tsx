@@ -190,6 +190,18 @@ export default function QuickBookingDialog({
     }
   };
 
+  // Recalculate rate whenever the total price is changed manually
+  const handleRentalCostChange = (value: string) => {
+    setRentalCost(value);
+    const total = parseFloat(value);
+    if (!isNaN(total)) {
+      const units = getUnits(rentalType, billingRateType || "יומי");
+      if (units > 0) {
+        setBillingRateAmount(String(Math.round((total / units) * 100) / 100));
+      }
+    }
+  };
+
   // Sync startTime when defaultStartTime prop changes
   React.useEffect(() => {
     setStartTime(defaultStartTime);

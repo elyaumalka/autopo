@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 import { format, addDays, isAfter, parseISO } from "date-fns";
 import { calculateRentalCost, getRateForType } from "@/lib/rentalCalculations";
 import { PageHeader } from "@/components/shared/PageHeader";

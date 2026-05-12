@@ -931,10 +931,14 @@ export default function Bookings() {
                       variant="outline"
                       className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
                       onClick={() => {
+                        const v = vehicles.find((x) => x.id === calendarActionBooking.vehicle_id);
+                        const dailyRate = v?.daily_rate ? String(v.daily_rate) : "";
                         setExtendData({
                           new_end_date: calendarActionBooking.end_date,
                           new_end_time: calendarActionBooking.end_time?.toString().slice(0,5) || "",
                           new_cost: calendarActionBooking.rental_cost?.toString() || "",
+                          daily_rate: dailyRate,
+                          added_cost: "",
                         });
                         setExtendDialogOpen(true);
                       }}

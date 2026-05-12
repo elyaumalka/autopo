@@ -432,7 +432,7 @@ export default function QuickBookingDialog({
               type="number"
               placeholder="0"
               value={rentalCost}
-              onChange={(e) => setRentalCost(e.target.value)}
+              onChange={(e) => handleRentalCostChange(e.target.value)}
             />
           </div>
 

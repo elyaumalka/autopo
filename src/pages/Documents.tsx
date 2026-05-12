@@ -18,8 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, FileText, Eye, CheckCircle, Clock } from "lucide-react";
+import { Search, FileText, Eye, CheckCircle, Clock, Download } from "lucide-react";
 import { motion } from "framer-motion";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
+import { toast } from "@/hooks/use-toast";
 
 const DOC_LABELS: Record<string, string> = {
   contract: "חוזה השכרה",
@@ -138,10 +140,26 @@ export default function Documents() {
                     {isSigned ? "נחתם" : "ממתין"}
                   </Badge>
                   {isSigned && doc.signature_data && (
-                    <Button size="sm" variant="outline" onClick={() => setViewingSignature(doc.signature_data)}>
-                      <Eye className="w-4 h-4 ml-1" />
-                      חתימה
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setViewingSignature(doc.signature_data)}>
+                        <Eye className="w-4 h-4 ml-1" />
+                        חתימה
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={async () => {
+                          try {
+                            await downloadSignedDocument(doc);
+                          } catch (e: any) {
+                            toast({ title: "שגיאה בהורדה", description: e?.message, variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 ml-1" />
+                        הורד PDF
+                      </Button>
+                    </>
                   )}
                 </div>
               </motion.div>

@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Copy, Send, ExternalLink, Eye, FileText, CheckCircle } from "lucide-react";
+import { Loader2, Copy, Send, ExternalLink, Eye, FileText, CheckCircle, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
 import DocumentContent from "@/components/signing/DocumentContent";
 import {
   Dialog,
@@ -105,10 +106,26 @@ export default function DocumentsList({ bookingId, customerPhone, customerName, 
 
               <div className="flex gap-2 flex-wrap">
                 {isSigned && (
-                  <Button size="sm" variant="outline" onClick={() => setViewingDoc(doc)}>
-                    <Eye className="w-3 h-3 ml-1" />
-                    צפה במסמך
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setViewingDoc(doc)}>
+                      <Eye className="w-3 h-3 ml-1" />
+                      צפה במסמך
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={async () => {
+                        try {
+                          await downloadSignedDocument(doc);
+                        } catch (e: any) {
+                          toast({ title: "שגיאה בהורדה", description: e?.message, variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Download className="w-3 h-3 ml-1" />
+                      הורד PDF
+                    </Button>
+                  </>
                 )}
                 {showActions && !isSigned && (
                   <>

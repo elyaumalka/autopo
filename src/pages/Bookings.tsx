@@ -1050,7 +1050,24 @@ export default function Bookings() {
               <Input
                 type="date"
                 value={extendData.new_end_date}
-                onChange={(e) => setExtendData({ ...extendData, new_end_date: e.target.value })}
+                min={calendarActionBooking?.end_date}
+                onChange={(e) => {
+                  const newEnd = e.target.value;
+                  const origEnd = calendarActionBooking?.end_date;
+                  const origCost = Number(calendarActionBooking?.rental_cost || 0);
+                  const rate = Number(extendData.daily_rate || 0);
+                  let added = 0;
+                  if (newEnd && origEnd && rate) {
+                    const days = Math.max(0, Math.ceil((new Date(newEnd).getTime() - new Date(origEnd).getTime()) / 86400000));
+                    added = Math.round(days * rate * 100) / 100;
+                  }
+                  setExtendData({
+                    ...extendData,
+                    new_end_date: newEnd,
+                    added_cost: added ? String(added) : "",
+                    new_cost: rate ? String(Math.round((origCost + added) * 100) / 100) : extendData.new_cost,
+                  });
+                }}
               />
             </div>
             <div>
@@ -1061,13 +1078,47 @@ export default function Bookings() {
                 onChange={(e) => setExtendData({ ...extendData, new_end_time: e.target.value })}
               />
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>תעריף יומי (₪)</Label>
+                <Input
+                  type="number"
+                  value={extendData.daily_rate}
+                  onChange={(e) => {
+                    const rate = Number(e.target.value || 0);
+                    const origEnd = calendarActionBooking?.end_date;
+                    const origCost = Number(calendarActionBooking?.rental_cost || 0);
+                    let added = 0;
+                    if (extendData.new_end_date && origEnd && rate) {
+                      const days = Math.max(0, Math.ceil((new Date(extendData.new_end_date).getTime() - new Date(origEnd).getTime()) / 86400000));
+                      added = Math.round(days * rate * 100) / 100;
+                    }
+                    setExtendData({
+                      ...extendData,
+                      daily_rate: e.target.value,
+                      added_cost: added ? String(added) : "",
+                      new_cost: rate ? String(Math.round((origCost + added) * 100) / 100) : extendData.new_cost,
+                    });
+                  }}
+                />
+              </div>
+              <div>
+                <Label>תוספת לתשלום (₪)</Label>
+                <Input
+                  type="number"
+                  value={extendData.added_cost}
+                  readOnly
+                  className="bg-muted/40"
+                />
+              </div>
+            </div>
             <div>
-              <Label>מחיר מעודכן (₪)</Label>
+              <Label>מחיר כולל מעודכן (₪)</Label>
               <Input
                 type="number"
                 value={extendData.new_cost}
                 onChange={(e) => setExtendData({ ...extendData, new_cost: e.target.value })}
-                placeholder="השאר ריק אם אין שינוי"
+                placeholder="ניתן לערוך ידנית"
               />
             </div>
             <div className="flex gap-3">

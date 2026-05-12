@@ -142,59 +142,53 @@ export default function QuickBookingDialog({
     }
   }, [rentalType, startTime]);
 
-  // Auto-calculate price from vehicle rate based on rental type
+  // Calculate units (number of days/weeks/months) for a given rental type
+  const getUnits = (type: string, rateType: string): number => {
+    if (type === "חצי יום") return 0.5;
+    if (type === "24 שעות") return 1;
+    if (type === "יומיים" || type === "שישי-שבת") return 2;
+    if (type === "שבוע") return rateType === "שבועי" ? 1 : 7;
+    if (type === "חודש") return rateType === "חודשי" ? 1 : 30;
+    if (type === "עד תאריך" && customEndDate && date) {
+      const days = Math.max(1, Math.ceil((new Date(customEndDate).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
+      if (rateType === "שבועי") return days / 7;
+      if (rateType === "חודשי") return days / 30;
+      return days;
+    }
+    return 1;
+  };
+
+  // Auto-fill rate type and rate amount from the vehicle when rental type changes
   React.useEffect(() => {
     if (!vehicle) return;
     const v: any = vehicle;
-    let price: number | null = null;
-    let rateType = "";
-    let rateAmount: number | null = null;
-    switch (rentalType) {
-      case "חצי יום":
-        price = v.half_day_rate ?? (v.daily_rate ? v.daily_rate / 2 : null);
-        rateType = "יומי";
-        rateAmount = v.daily_rate ?? null;
-        break;
-      case "24 שעות":
-        price = v.daily_rate ?? null;
-        rateType = "יומי";
-        rateAmount = v.daily_rate ?? null;
-        break;
-      case "יומיים":
-        price = v.daily_rate ? v.daily_rate * 2 : null;
-        rateType = "יומי";
-        rateAmount = v.daily_rate ?? null;
-        break;
-      case "שישי-שבת":
-        price = v.daily_rate ? v.daily_rate * 2 : null;
-        rateType = "יומי";
-        rateAmount = v.daily_rate ?? null;
-        break;
-      case "שבוע":
-        price = v.weekly_rate ?? (v.daily_rate ? v.daily_rate * 7 : null);
-        rateType = "שבועי";
-        rateAmount = v.weekly_rate ?? null;
-        break;
-      case "חודש":
-        price = v.monthly_rate ?? (v.daily_rate ? v.daily_rate * 30 : null);
-        rateType = "חודשי";
-        rateAmount = v.monthly_rate ?? null;
-        break;
-      case "עד תאריך": {
-        if (customEndDate && date && v.daily_rate) {
-          const days = Math.max(1, Math.ceil((new Date(customEndDate).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
-          price = v.daily_rate * days;
-        }
-        rateType = "יומי";
-        rateAmount = v.daily_rate ?? null;
-        break;
-      }
+    let rateType = "יומי";
+    let rateAmount: number | null = v.daily_rate ?? null;
+    if (rentalType === "שבוע" && v.weekly_rate) { rateType = "שבועי"; rateAmount = v.weekly_rate; }
+    else if (rentalType === "חודש" && v.monthly_rate) { rateType = "חודשי"; rateAmount = v.monthly_rate; }
+    else if (rentalType === "חצי יום" && v.half_day_rate) { rateType = "יומי"; rateAmount = v.daily_rate ?? v.half_day_rate * 2; }
+
+    setBillingRateType(rateType);
+    if (rateAmount != null) {
+      setBillingRateAmount(String(rateAmount));
+      // Set initial total = rate × units (for חצי יום, prefer half_day_rate if set)
+      const units = getUnits(rentalType, rateType);
+      let total = rateAmount * units;
+      if (rentalType === "חצי יום" && v.half_day_rate) total = v.half_day_rate;
+      setRentalCost(String(Math.round(total * 100) / 100));
     }
-    if (price != null) setRentalCost(String(price));
-    if (rateType) setBillingRateType(rateType);
-    if (rateAmount != null) setBillingRateAmount(String(rateAmount));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rentalType, vehicle?.id, customEndDate, date]);
+
+  // Recalculate total price whenever the rate amount is changed manually
+  const handleRateAmountChange = (value: string) => {
+    setBillingRateAmount(value);
+    const rate = parseFloat(value);
+    if (!isNaN(rate)) {
+      const units = getUnits(rentalType, billingRateType || "יומי");
+      setRentalCost(String(Math.round(rate * units * 100) / 100));
+    }
+  };
 
   // Sync startTime when defaultStartTime prop changes
   React.useEffect(() => {
@@ -442,7 +436,12 @@ export default function QuickBookingDialog({
                     "שבועי": (vehicle as any).weekly_rate,
                     "חודשי": vehicle.monthly_rate,
                   };
-                  if (rateMap[v]) setBillingRateAmount(String(rateMap[v]));
+                  const rate = rateMap[v];
+                  if (rate) {
+                    setBillingRateAmount(String(rate));
+                    const units = getUnits(rentalType, v);
+                    setRentalCost(String(Math.round(rate * units * 100) / 100));
+                  }
                 }
               }}>
                 <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
@@ -458,7 +457,7 @@ export default function QuickBookingDialog({
               <Input
                 type="number"
                 value={billingRateAmount}
-                onChange={(e) => setBillingRateAmount(e.target.value)}
+                onChange={(e) => handleRateAmountChange(e.target.value)}
                 placeholder="0"
               />
             </div>

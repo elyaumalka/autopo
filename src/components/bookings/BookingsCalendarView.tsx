@@ -251,6 +251,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const matchByDetails = matchVehicleToDetails(vehicle.license_plate, b.vehicle_details);
       if (!matchById && !matchByDetails) return false;
       if (b.status === "בוטל") return false;
+      // Skip bookings that have already been converted to a rental — the rental represents them
+      if (b.status === "פעיל" || b.status === "הושלם") return false;
       const start = parseISO(b.start_date);
       const end = parseISO(b.end_date);
       return isWithinInterval(day, { start, end }) || isSameDay(day, start) || isSameDay(day, end);

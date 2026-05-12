@@ -86,7 +86,7 @@ export default function Bookings() {
   const [calendarActionRental, setCalendarActionRental] = useState<Rental | null>(null);
   const [calendarActionOpen, setCalendarActionOpen] = useState(false);
   const [extendDialogOpen, setExtendDialogOpen] = useState(false);
-  const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "", new_cost: "" });
+  const [extendData, setExtendData] = useState({ new_end_date: "", new_end_time: "", new_cost: "", daily_rate: "", added_cost: "" });
   const [maintenanceActionTask, setMaintenanceActionTask] = useState<MaintenanceTask | null>(null);
   const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
   const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);

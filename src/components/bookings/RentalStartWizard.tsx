@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentContent from "@/components/signing/DocumentContent";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 import {
   Dialog,
   DialogContent,
@@ -431,6 +432,50 @@ export default function RentalStartWizard({
               <p className="font-semibold">₪{booking.rental_cost?.toLocaleString() || 0}</p>
             </div>
           </div>
+
+          {customer && (
+            <div className="rounded-lg border bg-cyan-50/50 p-3 space-y-2">
+              <Label className="text-xs font-medium">סליקה דרך SUMIT</Label>
+              <div className="flex flex-wrap gap-2">
+                <PaymentButton
+                  defaultAction="authorize"
+                  label="תפיסת מסגרת J5"
+                  amount={formData.base_cost || booking.rental_cost || 0}
+                  description="תפיסת מסגרת אשראי"
+                  customer={{
+                    id: customer.id,
+                    name: `${customer.first_name} ${customer.last_name}`,
+                    phone: customer.phone,
+                    email: customer.email || undefined,
+                    address: customer.address || undefined,
+                    city: customer.city || undefined,
+                    citizenId: customer.id_number,
+                    payment_token: (customer as any).payment_token,
+                    card_last4: (customer as any).card_last4,
+                    card_expiry: (customer as any).card_expiry,
+                  }}
+                />
+                <PaymentButton
+                  defaultAction="charge"
+                  label="חיוב תשלום"
+                  amount={Math.max(0, (formData.base_cost || 0) - (formData.paid_amount || 0))}
+                  description="תשלום השכרה"
+                  customer={{
+                    id: customer.id,
+                    name: `${customer.first_name} ${customer.last_name}`,
+                    phone: customer.phone,
+                    email: customer.email || undefined,
+                    address: customer.address || undefined,
+                    city: customer.city || undefined,
+                    citizenId: customer.id_number,
+                    payment_token: (customer as any).payment_token,
+                    card_last4: (customer as any).card_last4,
+                    card_expiry: (customer as any).card_expiry,
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

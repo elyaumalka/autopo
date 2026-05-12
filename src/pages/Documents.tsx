@@ -18,8 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Search, FileText, Eye, CheckCircle, Clock } from "lucide-react";
+import { Search, FileText, Eye, CheckCircle, Clock, Download } from "lucide-react";
 import { motion } from "framer-motion";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
+import { toast } from "@/hooks/use-toast";
 
 const DOC_LABELS: Record<string, string> = {
   contract: "חוזה השכרה",

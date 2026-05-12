@@ -140,10 +140,26 @@ export default function Documents() {
                     {isSigned ? "נחתם" : "ממתין"}
                   </Badge>
                   {isSigned && doc.signature_data && (
-                    <Button size="sm" variant="outline" onClick={() => setViewingSignature(doc.signature_data)}>
-                      <Eye className="w-4 h-4 ml-1" />
-                      חתימה
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setViewingSignature(doc.signature_data)}>
+                        <Eye className="w-4 h-4 ml-1" />
+                        חתימה
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={async () => {
+                          try {
+                            await downloadSignedDocument(doc);
+                          } catch (e: any) {
+                            toast({ title: "שגיאה בהורדה", description: e?.message, variant: "destructive" });
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 ml-1" />
+                        הורד PDF
+                      </Button>
+                    </>
                   )}
                 </div>
               </motion.div>

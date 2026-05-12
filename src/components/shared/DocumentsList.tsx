@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, Copy, Send, ExternalLink, Eye, FileText, CheckCircle } from "lucide-react";
+import { Loader2, Copy, Send, ExternalLink, Eye, FileText, CheckCircle, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { downloadSignedDocument } from "@/lib/downloadSignedDocument";
 import DocumentContent from "@/components/signing/DocumentContent";
 import {
   Dialog,

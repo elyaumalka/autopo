@@ -142,6 +142,60 @@ export default function QuickBookingDialog({
     }
   }, [rentalType, startTime]);
 
+  // Auto-calculate price from vehicle rate based on rental type
+  React.useEffect(() => {
+    if (!vehicle) return;
+    const v: any = vehicle;
+    let price: number | null = null;
+    let rateType = "";
+    let rateAmount: number | null = null;
+    switch (rentalType) {
+      case "חצי יום":
+        price = v.half_day_rate ?? (v.daily_rate ? v.daily_rate / 2 : null);
+        rateType = "יומי";
+        rateAmount = v.daily_rate ?? null;
+        break;
+      case "24 שעות":
+        price = v.daily_rate ?? null;
+        rateType = "יומי";
+        rateAmount = v.daily_rate ?? null;
+        break;
+      case "יומיים":
+        price = v.daily_rate ? v.daily_rate * 2 : null;
+        rateType = "יומי";
+        rateAmount = v.daily_rate ?? null;
+        break;
+      case "שישי-שבת":
+        price = v.daily_rate ? v.daily_rate * 2 : null;
+        rateType = "יומי";
+        rateAmount = v.daily_rate ?? null;
+        break;
+      case "שבוע":
+        price = v.weekly_rate ?? (v.daily_rate ? v.daily_rate * 7 : null);
+        rateType = "שבועי";
+        rateAmount = v.weekly_rate ?? null;
+        break;
+      case "חודש":
+        price = v.monthly_rate ?? (v.daily_rate ? v.daily_rate * 30 : null);
+        rateType = "חודשי";
+        rateAmount = v.monthly_rate ?? null;
+        break;
+      case "עד תאריך": {
+        if (customEndDate && date && v.daily_rate) {
+          const days = Math.max(1, Math.ceil((new Date(customEndDate).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24)));
+          price = v.daily_rate * days;
+        }
+        rateType = "יומי";
+        rateAmount = v.daily_rate ?? null;
+        break;
+      }
+    }
+    if (price != null) setRentalCost(String(price));
+    if (rateType) setBillingRateType(rateType);
+    if (rateAmount != null) setBillingRateAmount(String(rateAmount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rentalType, vehicle?.id, customEndDate, date]);
+
   // Sync startTime when defaultStartTime prop changes
   React.useEffect(() => {
     setStartTime(defaultStartTime);

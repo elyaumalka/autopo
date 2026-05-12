@@ -106,10 +106,26 @@ export default function DocumentsList({ bookingId, customerPhone, customerName, 
 
               <div className="flex gap-2 flex-wrap">
                 {isSigned && (
-                  <Button size="sm" variant="outline" onClick={() => setViewingDoc(doc)}>
-                    <Eye className="w-3 h-3 ml-1" />
-                    צפה במסמך
-                  </Button>
+                  <>
+                    <Button size="sm" variant="outline" onClick={() => setViewingDoc(doc)}>
+                      <Eye className="w-3 h-3 ml-1" />
+                      צפה במסמך
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={async () => {
+                        try {
+                          await downloadSignedDocument(doc);
+                        } catch (e: any) {
+                          toast({ title: "שגיאה בהורדה", description: e?.message, variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Download className="w-3 h-3 ml-1" />
+                      הורד PDF
+                    </Button>
+                  </>
                 )}
                 {showActions && !isSigned && (
                   <>

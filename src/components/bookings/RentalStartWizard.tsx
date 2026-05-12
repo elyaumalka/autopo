@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentContent from "@/components/signing/DocumentContent";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 import {
   Dialog,
   DialogContent,

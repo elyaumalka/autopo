@@ -978,6 +978,44 @@ export default function Bookings() {
                       <FileText className="w-4 h-4 ml-2" />
                       צפה במסמכים חתומים
                     </Button>
+                    {(() => {
+                      const c = customers.find(x => x.id === calendarActionBooking.customer_id);
+                      if (!c) return null;
+                      const customerProp = {
+                        id: c.id,
+                        name: `${c.first_name} ${c.last_name}`,
+                        phone: c.phone,
+                        email: c.email || undefined,
+                        address: c.address || undefined,
+                        city: c.city || undefined,
+                        citizenId: c.id_number,
+                        payment_token: (c as any).payment_token,
+                        card_last4: (c as any).card_last4,
+                        card_expiry: (c as any).card_expiry,
+                      };
+                      const amount = calendarActionBooking.rental_cost || 0;
+                      return (
+                        <div className="rounded-lg border bg-cyan-50/50 p-2 space-y-2">
+                          <div className="text-xs font-medium text-center">סליקה דרך SUMIT</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <PaymentButton
+                              defaultAction="authorize"
+                              label="תפיסת מסגרת J5"
+                              amount={amount}
+                              description="תפיסת מסגרת אשראי"
+                              customer={customerProp}
+                            />
+                            <PaymentButton
+                              defaultAction="charge"
+                              label="חיוב באשראי"
+                              amount={amount}
+                              description={`חיוב השכרה ${calendarActionBooking.id}`}
+                              customer={customerProp}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
 

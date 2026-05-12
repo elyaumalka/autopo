@@ -436,7 +436,12 @@ export default function QuickBookingDialog({
                     "שבועי": (vehicle as any).weekly_rate,
                     "חודשי": vehicle.monthly_rate,
                   };
-                  if (rateMap[v]) setBillingRateAmount(String(rateMap[v]));
+                  const rate = rateMap[v];
+                  if (rate) {
+                    setBillingRateAmount(String(rate));
+                    const units = getUnits(rentalType, v);
+                    setRentalCost(String(Math.round(rate * units * 100) / 100));
+                  }
                 }
               }}>
                 <SelectTrigger><SelectValue placeholder="בחר" /></SelectTrigger>
@@ -452,7 +457,7 @@ export default function QuickBookingDialog({
               <Input
                 type="number"
                 value={billingRateAmount}
-                onChange={(e) => setBillingRateAmount(e.target.value)}
+                onChange={(e) => handleRateAmountChange(e.target.value)}
                 placeholder="0"
               />
             </div>

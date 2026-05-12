@@ -328,11 +328,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     const slotEnd = new Date(day);
 
     if (slot === "am") {
-      slotStart.setHours(9, 0, 0, 0);
+      // Morning slot covers from start of day to 16:00 (so early-hours events from previous-night bookings still render)
+      slotStart.setHours(0, 0, 0, 0);
       slotEnd.setHours(16, 0, 0, 0);
     } else {
+      // Evening/night slot covers 16:00 until end of day (so bookings starting in the late evening still render)
       slotStart.setHours(16, 0, 0, 0);
-      slotEnd.setHours(21, 0, 0, 0);
+      slotEnd.setHours(24, 0, 0, 0);
     }
 
     return { slotStart, slotEnd };

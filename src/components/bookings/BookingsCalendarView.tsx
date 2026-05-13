@@ -328,11 +328,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     const slotEnd = new Date(day);
 
     if (slot === "am") {
-      // Morning slot covers from start of day to 16:00 (so early-hours events from previous-night bookings still render)
-      slotStart.setHours(0, 0, 0, 0);
+      // Morning slot covers 09:00 to 16:00
+      slotStart.setHours(9, 0, 0, 0);
       slotEnd.setHours(16, 0, 0, 0);
     } else {
-      // Evening/night slot covers 16:00 until end of day (so bookings starting in the late evening still render)
+      // Evening slot covers 16:00 to 00:00 (midnight)
       slotStart.setHours(16, 0, 0, 0);
       slotEnd.setHours(24, 0, 0, 0);
     }
@@ -517,7 +517,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   {/* ב-RTL: ה-th הראשון בקוד מופיע משמאל, השני מימין */}
                   {/* שמאל = ערב */}
                   <th className="border border-y-2 border-l-2 border-r border-foreground/20 p-0.5 text-[10px] text-center bg-indigo-50 text-indigo-900 font-medium">
-                    ערב 16-9
+                    ערב 16-00
                   </th>
                   {/* ימין = בוקר */}
                   <th className="border border-y-2 border-r-2 border-l border-foreground/20 p-0.5 text-[10px] text-center bg-amber-50 text-amber-900 font-medium">

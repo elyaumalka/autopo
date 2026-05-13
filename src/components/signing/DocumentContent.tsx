@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+
 interface RentalDetails {
   customer_name?: string;
   customer_id_number?: string;

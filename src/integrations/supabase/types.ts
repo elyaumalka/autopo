@@ -695,8 +695,10 @@ export type Database = {
           description: string | null
           due_date: string | null
           due_km: number | null
+          end_time: string | null
           id: string
           notes: string | null
+          start_time: string | null
           status: Database["public"]["Enums"]["task_status"]
           type: Database["public"]["Enums"]["maintenance_type"]
           updated_at: string
@@ -711,8 +713,10 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_km?: number | null
+          end_time?: string | null
           id?: string
           notes?: string | null
+          start_time?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           type: Database["public"]["Enums"]["maintenance_type"]
           updated_at?: string
@@ -727,8 +731,10 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_km?: number | null
+          end_time?: string | null
           id?: string
           notes?: string | null
+          start_time?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           type?: Database["public"]["Enums"]["maintenance_type"]
           updated_at?: string

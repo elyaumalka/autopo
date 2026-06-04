@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, DollarSign, Calendar, Car, User, ScrollText, ArrowRightLeft, Plus, Trash2, Receipt } from "lucide-react";
+import { FileText, DollarSign, Calendar, Car, User, ScrollText, ArrowRightLeft, Plus, Trash2, Receipt, Check } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -457,6 +457,21 @@ export default function RentalDetailsDialog({
             {/* Sumit payment actions */}
             <div className="rounded-lg border bg-cyan-50/50 p-4 space-y-2">
               <Label className="font-medium">סליקה דרך SUMIT</Label>
+              {/* חיווי תפיסת מסגרת אשראי */}
+              {(rental as any).sumit_auth_number ? (
+                <div className="flex items-center gap-2 rounded-md bg-green-100 text-green-800 px-3 py-2 text-sm">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <span>
+                    מסגרת נתפסה{(rental as any).sumit_authorized_amount ? ` (₪${Number((rental as any).sumit_authorized_amount).toLocaleString()})` : ""}
+                    {(rental as any).sumit_auth_number ? ` · אישור ${(rental as any).sumit_auth_number}` : ""}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-md bg-orange-100 text-orange-800 px-3 py-2 text-sm">
+                  <span className="font-medium">⚠ טרם נתפסה מסגרת אשראי</span>
+                  {rental.credit_hold ? <span className="text-orange-700">(נדרש: ₪{Number(rental.credit_hold).toLocaleString()})</span> : null}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <PaymentButton
                   defaultAction="charge"

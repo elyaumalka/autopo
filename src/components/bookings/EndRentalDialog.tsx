@@ -341,6 +341,29 @@ export default function EndRentalDialog({
           <div className="p-4 bg-muted rounded-lg">
             <p className="font-medium">{booking.customer_name}</p>
             <p className="text-sm text-muted-foreground">{booking.vehicle_details}</p>
+            {/* פרטי תחילת ההשכרה - מתי נלקח הרכב */}
+            <div className="mt-2 pt-2 border-t text-sm space-y-0.5">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">תחילת השכרה:</span>
+                <span className="font-medium">
+                  {rental?.start_date || booking.start_date || "-"}
+                  {(rental?.start_time || booking.start_time) ? ` בשעה ${(rental?.start_time || booking.start_time)?.toString().slice(0, 5)}` : ""}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">סיום מתוכנן:</span>
+                <span className="font-medium">
+                  {rental?.planned_end_date || booking.end_date || "-"}
+                  {(rental?.planned_end_time || booking.end_time) ? ` בשעה ${(rental?.planned_end_time || booking.end_time)?.toString().slice(0, 5)}` : ""}
+                </span>
+              </div>
+              {rental?.start_km != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ק"מ בלקיחה:</span>
+                  <span className="font-medium">{Number(rental.start_km).toLocaleString()}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Dates */}

@@ -312,18 +312,24 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
     });
 
     if (maintenance) {
-      return {
-        status: "full",
-        event: {
-          type: "booking" as const,
-          id: maintenance.id,
-          customerName: maintenance.type || "טיפול",
-          status: "בטיפול",
-          rentalType: "daily",
-          endTime: null,
-          startTime: null,
-        }
+      const mStartTime = (maintenance as any).start_time as string | null;
+      const mEndTime = (maintenance as any).end_time as string | null;
+      const baseEvent = {
+        type: "booking" as const,
+        id: maintenance.id,
+        customerName: maintenance.type || "טיפול",
+        status: "בטיפול",
+        rentalType: "daily",
+        endTime: mEndTime,
+        startTime: mStartTime,
       };
+      // שריון לטיפול לחצי יום / שעות - אם הוגדרו שעות, נחשב רק את ה-slot הרלוונטי (משאיר את השאר פנוי)
+      if (mStartTime || mEndTime) {
+        const mDay = parseISO(maintenance.due_date!);
+        const result = computeSlot(day, slot, mDay, mDay, parseHour(mStartTime), parseHour(mEndTime), baseEvent);
+        return result;
+      }
+      return { status: "full", event: baseEvent };
     }
 
     return { status: "free" };

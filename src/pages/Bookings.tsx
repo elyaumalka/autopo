@@ -79,6 +79,8 @@ export default function Bookings() {
     type: "טיפול תקופתי" as string,
     due_date: "",
     end_date: "",
+    start_time: "",
+    end_time: "",
     description: "",
     notes: "",
     activate_now: false,
@@ -354,11 +356,15 @@ export default function Bookings() {
       }
 
       const vehicle = maintenanceVehicle;
+      // שעות שריון רלוונטיות רק לשריון של יום בודד (חצי יום / טווח שעות)
+      const isSingleDay = dates.length === 1;
       const rows = dates.map((date) => ({
         vehicle_id: vehicle.id,
         vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
         type: maintenanceData.type as any,
         due_date: date,
+        start_time: isSingleDay ? (maintenanceData.start_time || null) : null,
+        end_time: isSingleDay ? (maintenanceData.end_time || null) : null,
         description: maintenanceData.description || null,
         notes: maintenanceData.notes || null,
         status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
@@ -376,7 +382,7 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       setMaintenanceDialogOpen(false);
       setMaintenanceVehicle(null);
-      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", end_date: "", description: "", notes: "", activate_now: false });
+      setMaintenanceData({ type: "טיפול תקופתי", due_date: "", end_date: "", start_time: "", end_time: "", description: "", notes: "", activate_now: false });
       toast({ title: "שריון טיפול נשמר בהצלחה" });
     },
     onError: (error) => {
@@ -471,6 +477,8 @@ export default function Bookings() {
       type: "טיפול תקופתי",
       due_date: selectedDate,
       end_date: selectedDate,
+      start_time: "",
+      end_time: "",
       description: "",
       notes: "",
       activate_now: false,
@@ -504,7 +512,7 @@ export default function Bookings() {
     );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // חסימה: תאריך החזרה לא יכול להיות לפני תאריך הלקיחה
     if (formData.start_date && formData.end_date) {
       const startDT = parseISO(`${formData.start_date}T${formData.start_time || "00:00"}`);
@@ -527,6 +535,9 @@ export default function Bookings() {
       credit_hold: formData.credit_hold ? Number(formData.credit_hold) : 0,
       status: formData.status || "מאושר"
     };
+
+    // לקוח חדש שהוקלד ידנית (שם ללא בחירה מהרשימה) - נשמר ככרטיס לקוח כדי שניתן יהיה להשלים פרטים
+    await createCustomerIfNeeded(data);
 
     if (selectedBooking) {
       updateMutation.mutate({ id: selectedBooking.id, data });
@@ -1292,13 +1303,14 @@ export default function Bookings() {
                     customers={customers}
                     value={formData.customer_id || ""}
                     onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
-                    placeholder="בחר לקוח"
+                    placeholder="בחר לקוח או הקלד שם חדש"
+                    allowCreate
+                    nameValue={!formData.customer_id ? (formData.customer_name || "") : ""}
+                    onNameChange={(name) => setFormData({ ...formData, customer_id: "", customer_name: name })}
                   />
-                  {selectedBooking && !formData.customer_id && formData.customer_name && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      לקוח נוכחי: <span className="font-medium">{formData.customer_name}</span>
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    הקלד שם לחיפוש; אם הלקוח לא קיים תוכל להוסיף אותו כלקוח חדש (יישמר במערכת להשלמת פרטים).
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1870,6 +1882,47 @@ export default function Bookings() {
                   />
                 </div>
               </div>
+
+              {/* שעות שריון - לשריון חצי יום / טווח שעות (כשהשריון ליום בודד) */}
+              {maintenanceData.due_date === maintenanceData.end_date && (
+                <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">שעות שריון (אופציונלי - ריק = יום מלא)</Label>
+                    <div className="flex gap-1">
+                      <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                        onClick={() => setMaintenanceData({ ...maintenanceData, start_time: "09:00", end_time: "13:00" })}>
+                        חצי יום (בוקר)
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
+                        onClick={() => setMaintenanceData({ ...maintenanceData, start_time: "14:00", end_time: "18:00" })}>
+                        חצי יום (צהריים)
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 text-xs"
+                        onClick={() => setMaintenanceData({ ...maintenanceData, start_time: "", end_time: "" })}>
+                        נקה
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">משעה</Label>
+                      <Input
+                        type="time"
+                        value={maintenanceData.start_time}
+                        onChange={(e) => setMaintenanceData({ ...maintenanceData, start_time: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">עד שעה</Label>
+                      <Input
+                        type="time"
+                        value={maintenanceData.end_time}
+                        onChange={(e) => setMaintenanceData({ ...maintenanceData, end_time: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <Label>תיאור (מה צריך לעשות / מי הנהג)</Label>

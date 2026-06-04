@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import { PaymentButton } from "@/components/payments/PaymentButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -210,17 +211,15 @@ export default function QuickBookingDialog({
   }, [defaultStartTime]);
 
   const getBookingData = (): BookingData => {
-    const selectedCustomer = customerType === "existing" 
-      ? customers.find(c => c.id === customerId)
-      : null;
+    const selectedCustomer = customerId ? customers.find(c => c.id === customerId) : null;
 
     // Always use customEndTime (which is auto-calculated but editable)
     const endTime = customEndTime;
 
     return {
       customer_id: customerId || null,
-      customer_name: customerType === "existing" 
-        ? (selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : "")
+      customer_name: selectedCustomer
+        ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}`
         : newCustomerName,
       vehicle_id: vehicle?.id || "",
       vehicle_details: vehicle ? `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}` : "",
@@ -263,7 +262,6 @@ export default function QuickBookingDialog({
   };
 
   const resetForm = () => {
-    setCustomerType("existing");
     setCustomerId("");
     setNewCustomerName("");
     setStartTime("10:00");
@@ -281,8 +279,7 @@ export default function QuickBookingDialog({
   };
 
   const isFormValid = () => {
-    if (customerType === "existing" && !customerId) return false;
-    if (customerType === "new" && !newCustomerName) return false;
+    if (!customerId && !newCustomerName.trim()) return false;
     if (rentalType === "עד תאריך" && !customEndDate) return false;
     return true;
   };
@@ -306,83 +303,20 @@ export default function QuickBookingDialog({
           </div>
 
           <div>
-            <Label>סוג לקוח</Label>
-            <Select value={customerType} onValueChange={(v) => setCustomerType(v as "existing" | "new")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="existing">לקוח קיים</SelectItem>
-                <SelectItem value="new">לקוח חדש</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>לקוח *</Label>
+            <CustomerSearchSelect
+              customers={customers}
+              value={customerId}
+              onValueChange={(v) => { setCustomerId(v); if (v) setNewCustomerName(""); }}
+              placeholder="בחר לקוח או הקלד שם חדש"
+              allowCreate
+              nameValue={!customerId ? newCustomerName : ""}
+              onNameChange={(name) => { setNewCustomerName(name); setCustomerId(""); }}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              הקלד שם לחיפוש; אם הלקוח לא קיים בחר "הוסף כלקוח חדש" (יישמר במערכת).
+            </p>
           </div>
-
-          {customerType === "existing" ? (
-            <div>
-              <Label>בחר לקוח *</Label>
-              <Popover open={open} onOpenChange={setOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className="w-full justify-between"
-                  >
-                    {customerId
-                      ? (() => {
-                          const selected = customers.find(c => c.id === customerId);
-                          return selected ? `${selected.first_name} ${selected.last_name} - ${selected.phone}` : "בחר לקוח";
-                        })()
-                      : "בחר לקוח..."}
-                    <ChevronsUpDown className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-full p-0" align="start">
-                  <div className="p-2">
-                    <Input
-                      placeholder="חיפוש לפי שם או טלפון..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="mb-2"
-                    />
-                    <div className="max-h-60 overflow-y-auto">
-                      {filteredCustomers.length === 0 ? (
-                        <div className="p-2 text-sm text-muted-foreground text-center">לא נמצאו לקוחות</div>
-                      ) : (
-                        filteredCustomers.map((c) => (
-                          <div
-                            key={c.id}
-                            className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted rounded text-sm"
-                            onClick={() => {
-                              setCustomerId(c.id);
-                              setOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={`h-4 w-4 ${customerId === c.id ? "opacity-100" : "opacity-0"}`}
-                            />
-                            <div>
-                              {c.first_name} {c.last_name} - {c.phone}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          ) : (
-            <div>
-              <Label>שם הלקוח *</Label>
-              <Input
-                placeholder="שם מלא"
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
-              />
-            </div>
-          )}
 
           <div>
             <Label>שעת יציאה</Label>

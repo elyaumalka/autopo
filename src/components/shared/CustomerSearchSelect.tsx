@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronsUpDown, Check, Search } from "lucide-react";
+import { ChevronsUpDown, Check, Search, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Tables } from "@/integrations/supabase/types";
@@ -20,6 +20,12 @@ interface CustomerSearchSelectProps {
   placeholder?: string;
   showNone?: boolean;
   noneLabel?: string;
+  /** מאפשר להקליד שם חופשי שאינו ברשימה (יוגדר כלקוח חדש) */
+  allowCreate?: boolean;
+  /** השם החופשי הנוכחי (כשאין לקוח קיים נבחר) */
+  nameValue?: string;
+  /** נקרא כשבוחרים שם חופשי (לקוח חדש) */
+  onNameChange?: (name: string) => void;
 }
 
 export function CustomerSearchSelect({
@@ -29,6 +35,9 @@ export function CustomerSearchSelect({
   placeholder = "בחר לקוח...",
   showNone = false,
   noneLabel = "ללא לקוח",
+  allowCreate = false,
+  nameValue = "",
+  onNameChange,
 }: CustomerSearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -54,10 +63,17 @@ export function CustomerSearchSelect({
   });
 
   const selected = customers.find((c) => c.id === value);
+  const term = search.trim();
+  // האם השם שהוקלד תואם במדויק ללקוח קיים?
+  const hasExactMatch = customers.some(
+    (c) => `${c.first_name} ${c.last_name}`.trim() === term
+  );
   const displayText = selected
     ? `${selected.first_name} ${selected.last_name} - ${selected.phone}`
     : value === "none" && showNone
     ? noneLabel
+    : allowCreate && nameValue
+    ? `${nameValue} (לקוח חדש)`
     : placeholder;
 
   return (
@@ -122,6 +138,7 @@ export function CustomerSearchSelect({
                   )}
                   onClick={() => {
                     onValueChange(c.id);
+                    onNameChange?.("");
                     setOpen(false);
                   }}
                 >
@@ -136,6 +153,19 @@ export function CustomerSearchSelect({
                   </span>
                 </button>
               ))
+            )}
+            {allowCreate && term && !hasExactMatch && (
+              <button
+                className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent cursor-pointer text-green-700 border-t mt-1"
+                onClick={() => {
+                  onNameChange?.(term);
+                  onValueChange("");
+                  setOpen(false);
+                }}
+              >
+                <UserPlus className="h-4 w-4 shrink-0" />
+                <span>הוסף כלקוח חדש: <span className="font-medium">"{term}"</span></span>
+              </button>
             )}
           </div>
         </ScrollArea>

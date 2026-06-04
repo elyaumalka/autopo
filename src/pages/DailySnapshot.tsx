@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowRight, ArrowLeft, Car, User, Clock, Phone, Trash2, Users, Calendar, ChevronRight, ChevronLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
+import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
+import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isToday, isSameMonth } from "date-fns";
 import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
@@ -26,7 +28,44 @@ export default function DailySnapshot() {
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [newCustomerId, setNewCustomerId] = useState("");
   const [monthViewDate, setMonthViewDate] = useState(new Date());
+  // סעיף 21 - לחיצה על ריבוע רכב פותחת חלון לפי מצב הרכב
+  const [detailRental, setDetailRental] = useState<Rental | null>(null);
+  const [quickBookVehicle, setQuickBookVehicle] = useState<Vehicle | null>(null);
   const queryClient = useQueryClient();
+
+  // פתיחת רכב תפוס -> חלון השכרה פעילה
+  const openVehicleRental = (vehicleId: string) => {
+    const r = rentals.find((x) => x.vehicle_id === vehicleId && x.status === "פעיל")
+      || rentals.find((x) => x.vehicle_id === vehicleId && x.status !== "הושלם" && x.status !== "בוטל");
+    if (r) setDetailRental(r);
+    else toast({ title: "לא נמצאה השכרה פעילה לרכב זה" });
+  };
+
+  // יצירת הזמנה מהירה מתוך תמונת המצב
+  const handleSnapshotBooking = async (bookingData: any) => {
+    try {
+      if (!bookingData.customer_id && bookingData.customer_name) {
+        const parts = bookingData.customer_name.trim().split(/\s+/);
+        const { data: nc, error: ce } = await supabase.from("customers").insert({
+          first_name: parts[0] || bookingData.customer_name,
+          last_name: parts.slice(1).join(" ") || "-",
+          phone: "0000000000",
+          id_number: "0000",
+          notes: "לקוח חדש - יש להשלים פרטים",
+        }).select().single();
+        if (ce) throw ce;
+        bookingData.customer_id = nc.id;
+      }
+      const { error } = await supabase.from("bookings").insert({ ...bookingData, status: bookingData.status || "מאושר" });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast({ title: "ההזמנה נוצרה בהצלחה" });
+      setQuickBookVehicle(null);
+    } catch (e: any) {
+      toast({ title: "שגיאה ביצירת הזמנה", description: e.message, variant: "destructive" });
+    }
+  };
 
   const { data: rentals = [] } = useQuery({
     queryKey: ["rentals"],
@@ -350,10 +389,15 @@ export default function DailySnapshot() {
                   <p className="text-muted-foreground text-sm">אין רכבים פנויים</p>
                 ) : (
                   availableVehicles.map(v => (
-                    <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-green-50 rounded">
+                    <button
+                      key={v.id}
+                      onClick={() => setQuickBookVehicle(v)}
+                      className="flex w-full items-center gap-2 text-sm p-2 bg-green-50 rounded hover:bg-green-100 transition-colors text-right"
+                      title="לחץ להזמנה חדשה"
+                    >
                       <Car className="w-4 h-4 text-green-600" />
                       <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -366,10 +410,15 @@ export default function DailySnapshot() {
                   <p className="text-muted-foreground text-sm">אין רכבים תפוסים</p>
                 ) : (
                   busyVehicles.map(v => (
-                    <div key={v.id} className="flex items-center gap-2 text-sm p-2 bg-red-50 rounded">
+                    <button
+                      key={v.id}
+                      onClick={() => openVehicleRental(v.id)}
+                      className="flex w-full items-center gap-2 text-sm p-2 bg-red-50 rounded hover:bg-red-100 transition-colors text-right"
+                      title="לחץ לצפייה/ניהול ההשכרה"
+                    >
                       <Car className="w-4 h-4 text-destructive" />
                       <span>{v.license_plate} - {v.manufacturer} {v.model}</span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>
@@ -504,6 +553,23 @@ export default function DailySnapshot() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* סעיף 21 - חלון השכרה פעילה בלחיצה על רכב תפוס */}
+      <RentalDetailsDialog
+        rental={detailRental}
+        isOpen={!!detailRental}
+        onClose={() => setDetailRental(null)}
+      />
+
+      {/* סעיף 21 - הזמנה חדשה בלחיצה על רכב פנוי */}
+      <QuickBookingDialog
+        isOpen={!!quickBookVehicle}
+        onClose={() => setQuickBookVehicle(null)}
+        onSubmit={handleSnapshotBooking}
+        date={selectedDate}
+        vehicle={quickBookVehicle}
+        customers={customers}
+      />
     </div>
   );
 }

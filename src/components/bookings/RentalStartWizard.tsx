@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentContent from "@/components/signing/DocumentContent";
 import { PaymentButton } from "@/components/payments/PaymentButton";
+import { getStationSettings } from "@/lib/stationSettings";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,9 @@ export default function RentalStartWizard({
   const queryClient = useQueryClient();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const stationSettings = getStationSettings();
+  // האם נתפסה מסגרת אשראי (מההזמנה הקיימת או שנתפסה כעת בתחנה)
+  const [holdCaptured, setHoldCaptured] = useState(!!(booking as any).sumit_auth_number);
 
   // Documents
   const [documents, setDocuments] = useState<any[]>([]);
@@ -364,6 +368,12 @@ export default function RentalStartWizard({
   const currentDoc = documents[currentDocIndex];
   const details = currentDoc?.rental_details || {};
 
+  // אכיפת הגדרות מנהל לתחנת ההשכרה (מסגרת/תשלום מראש)
+  const stationRemaining = (formData.base_cost || 0) - (formData.paid_amount || 0);
+  const blockHold = stationSettings.requireHold && !holdCaptured;
+  const blockPrepay = stationSettings.requirePrepay && stationRemaining > 0;
+  const stationBlocked = blockHold || blockPrepay;
+
   return (
     <div className="space-y-6">
       {/* Customer incomplete warning */}
@@ -442,6 +452,7 @@ export default function RentalStartWizard({
                   label="תפיסת מסגרת J5"
                   amount={formData.base_cost || booking.rental_cost || 0}
                   description="תפיסת מסגרת אשראי"
+                  bookingId={booking.id}
                   customer={{
                     id: customer.id,
                     name: `${customer.first_name} ${customer.last_name}`,
@@ -454,12 +465,14 @@ export default function RentalStartWizard({
                     card_last4: (customer as any).card_last4,
                     card_expiry: (customer as any).card_expiry,
                   }}
+                  onSuccess={(r: any) => { if (r?.action === "authorize" && r?.success) setHoldCaptured(true); }}
                 />
                 <PaymentButton
                   defaultAction="charge"
                   label="חיוב תשלום"
                   amount={Math.max(0, (formData.base_cost || 0) - (formData.paid_amount || 0))}
                   description="תשלום השכרה"
+                  bookingId={booking.id}
                   customer={{
                     id: customer.id,
                     name: `${customer.first_name} ${customer.last_name}`,
@@ -471,6 +484,12 @@ export default function RentalStartWizard({
                     payment_token: (customer as any).payment_token,
                     card_last4: (customer as any).card_last4,
                     card_expiry: (customer as any).card_expiry,
+                  }}
+                  onSuccess={(r: any) => {
+                    if (r?.action === "charge" && r?.success) {
+                      const charged = Number(r?.amount || 0);
+                      if (charged > 0) setFormData((prev) => ({ ...prev, paid_amount: Number(prev.paid_amount || 0) + charged }));
+                    }
                   }}
                 />
               </div>
@@ -559,6 +578,15 @@ export default function RentalStartWizard({
                   <span>₪{(formData.base_cost - formData.paid_amount).toLocaleString()}</span>
                 </div>
               </div>
+
+              {/* חסימות לפי הגדרות מנהל */}
+              {stationBlocked && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 space-y-1">
+                  <p className="font-bold">לא ניתן להפעיל את ההשכרה:</p>
+                  {blockHold && <p>• חובה לתפוס מסגרת אשראי (לחץ "תפיסת מסגרת J5" בשלב הפרטים)</p>}
+                  {blockPrepay && <p>• חובה לגבות תשלום מלא מראש (נותר ₪{stationRemaining.toLocaleString()})</p>}
+                </div>
+              )}
             </div>
           ) : currentDoc ? (
             // Show current document for signing
@@ -629,7 +657,7 @@ export default function RentalStartWizard({
             <ChevronLeft className="w-4 h-4 mr-1" />
           </Button>
         ) : allDocsSigned ? (
-          <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
+          <Button onClick={handleSubmit} disabled={isSubmitting || stationBlocked} className="bg-green-600 hover:bg-green-700">
             {isSubmitting ? (
               <><Loader2 className="w-4 h-4 ml-2 animate-spin" />מעבד...</>
             ) : (

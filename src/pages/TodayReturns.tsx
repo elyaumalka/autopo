@@ -15,8 +15,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Calendar, User, Car, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
+import { PaymentButton } from "@/components/payments/PaymentButton";
 import type { Tables } from "@/integrations/supabase/types";
 
 const LOGO_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/693ff630f364c7fbf1f677cd/fe961bf61_myname.jpg";
@@ -34,7 +38,20 @@ export default function TodayReturns() {
     end_km: 0,
     additional_charges: 0,
     additional_charges_details: "",
+    // שאלון החזרה
+    drove_toll: false,
+    toll_amount: 0,
+    had_damage: false,
+    damage_amount: 0,
+    damage_desc: "",
+    full_fuel: true,
+    fuel_amount: 0,
+    // תשלום
+    paid_now: 0,
+    payment_method: "מזומן" as string,
   });
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+  const [invoiceData, setInvoiceData] = useState<{ name: string; amount: number; method: string; vehicle: string; period: string; rentalId: string } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -79,6 +96,15 @@ export default function TodayReturns() {
       end_km: vehicle?.current_km || 0,
       additional_charges: 0,
       additional_charges_details: "",
+      drove_toll: false,
+      toll_amount: 0,
+      had_damage: false,
+      damage_amount: 0,
+      damage_desc: "",
+      full_fuel: true,
+      fuel_amount: 0,
+      paid_now: 0,
+      payment_method: "מזומן",
     });
     setEndRentalOpen(true);
   };
@@ -93,11 +119,27 @@ export default function TodayReturns() {
       const extraKm = Math.max(0, kmDiff - kmLimit);
       const extraKmCost = extraKm * (vehicle?.extra_km_price || 0);
 
+      // חיובי שאלון ההחזרה
+      const tollCharge = endRentalData.drove_toll ? Number(endRentalData.toll_amount || 0) : 0;
+      const damageCharge = endRentalData.had_damage ? Number(endRentalData.damage_amount || 0) : 0;
+      const fuelCharge = !endRentalData.full_fuel ? Number(endRentalData.fuel_amount || 0) : 0;
+      const questionnaireCharges = tollCharge + damageCharge + fuelCharge;
+
+      const detailsParts: string[] = [];
+      if (endRentalData.additional_charges_details) detailsParts.push(endRentalData.additional_charges_details);
+      if (tollCharge) detailsParts.push(`כבישי אגרה: ₪${tollCharge}`);
+      if (damageCharge) detailsParts.push(`נזק: ₪${damageCharge}${endRentalData.damage_desc ? ` (${endRentalData.damage_desc})` : ""}`);
+      if (fuelCharge) detailsParts.push(`דלק חסר: ₪${fuelCharge}`);
+      const mergedDetails = detailsParts.join(" | ");
+
+      const additionalTotal = (endRentalData.additional_charges || 0) + questionnaireCharges;
+
       const totalCost =
         (selectedRental.base_cost || 0) +
         extraKmCost +
-        (endRentalData.additional_charges || 0);
-      const remainingPayment = totalCost - (selectedRental.paid_amount || 0);
+        additionalTotal;
+      const paidTotal = (selectedRental.paid_amount || 0) + Number(endRentalData.paid_now || 0);
+      const remainingPayment = Math.max(0, totalCost - paidTotal);
 
       // Update rental
       const { error: rentalError } = await supabase
@@ -108,15 +150,32 @@ export default function TodayReturns() {
           end_km: endRentalData.end_km,
           extra_km: extraKm,
           extra_km_cost: extraKmCost,
-          additional_charges: endRentalData.additional_charges || 0,
-          additional_charges_details: endRentalData.additional_charges_details,
+          additional_charges: additionalTotal,
+          additional_charges_details: mergedDetails || null,
+          toll_charges: tollCharge,
           total_cost: totalCost,
+          paid_amount: paidTotal,
           remaining_payment: remainingPayment,
           status: "הושלם",
-        })
+        } as any)
         .eq("id", selectedRental.id);
 
       if (rentalError) throw rentalError;
+
+      // רישום הכנסה אם שולם עכשיו
+      if (Number(endRentalData.paid_now || 0) > 0) {
+        await supabase.from("incomes").insert({
+          customer_id: selectedRental.customer_id,
+          customer_name: selectedRental.customer_name,
+          rental_id: selectedRental.id,
+          vehicle_id: selectedRental.vehicle_id,
+          amount: Number(endRentalData.paid_now),
+          date: endRentalData.actual_end_date,
+          type: "השכרה",
+          payment_method: endRentalData.payment_method || null,
+          notes: "תשלום בהחזרת רכב (תחנה)",
+        } as any);
+      }
 
       // Update vehicle
       const { error: vehicleError } = await supabase
@@ -155,15 +214,40 @@ export default function TodayReturns() {
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
 
       toast({ title: "ההשכרה הסתיימה בהצלחה!" });
       setEndRentalOpen(false);
+      // פתיחת חשבונית אוטומטית בסיום
+      setInvoiceData({
+        name: selectedRental.customer_name || "",
+        amount: totalCost,
+        method: endRentalData.payment_method,
+        vehicle: selectedRental.vehicle_details || "",
+        period: `${selectedRental.start_date || ""} - ${endRentalData.actual_end_date}`,
+        rentalId: selectedRental.id,
+      });
+      setInvoiceOpen(true);
       setSelectedRental(null);
     } catch (error) {
       console.error(error);
       toast({ title: "שגיאה בסיום ההשכרה", variant: "destructive" });
     }
   };
+
+  // חישוב הסה"כ הכולל לתצוגה (כולל חיובי שאלון ההחזרה)
+  const returnVehicle = vehicles.find((v) => v.id === selectedRental?.vehicle_id);
+  const returnTotalCost = (() => {
+    if (!selectedRental) return 0;
+    const kmDiff = endRentalData.end_km - (selectedRental.start_km || 0);
+    const extraKm = Math.max(0, kmDiff - (returnVehicle?.km_limit || 0));
+    const extraKmCost = extraKm * (returnVehicle?.extra_km_price || 0);
+    const toll = endRentalData.drove_toll ? Number(endRentalData.toll_amount || 0) : 0;
+    const damage = endRentalData.had_damage ? Number(endRentalData.damage_amount || 0) : 0;
+    const fuel = !endRentalData.full_fuel ? Number(endRentalData.fuel_amount || 0) : 0;
+    return (selectedRental.base_cost || 0) + extraKmCost + (endRentalData.additional_charges || 0) + toll + damage + fuel;
+  })();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 p-6">
@@ -399,6 +483,37 @@ export default function TodayReturns() {
                 />
               </div>
 
+              {/* שאלון החזרה */}
+              <Card className="p-4 space-y-3 border-blue-200">
+                <h3 className="font-semibold text-sm">שאלון החזרה</h3>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">נסע בכביש 6 / כבישי אגרה?</Label>
+                  <Switch checked={endRentalData.drove_toll} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, drove_toll: v })} />
+                </div>
+                {endRentalData.drove_toll && (
+                  <Input type="number" placeholder="סכום אגרה (₪)" value={endRentalData.toll_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, toll_amount: parseFloat(e.target.value) || 0 })} />
+                )}
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">היה נזק לרכב?</Label>
+                  <Switch checked={endRentalData.had_damage} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, had_damage: v })} />
+                </div>
+                {endRentalData.had_damage && (
+                  <div className="space-y-2">
+                    <Input type="number" placeholder="סכום נזק (₪)" value={endRentalData.damage_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, damage_amount: parseFloat(e.target.value) || 0 })} />
+                    <Input placeholder="תיאור הנזק" value={endRentalData.damage_desc} onChange={(e) => setEndRentalData({ ...endRentalData, damage_desc: e.target.value })} />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">הוחזר עם דלק מלא?</Label>
+                  <Switch checked={endRentalData.full_fuel} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, full_fuel: v })} />
+                </div>
+                {!endRentalData.full_fuel && (
+                  <Input type="number" placeholder="חיוב דלק (₪)" value={endRentalData.fuel_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, fuel_amount: parseFloat(e.target.value) || 0 })} />
+                )}
+              </Card>
+
               <Card className="p-4 bg-blue-50">
                 <h3 className="font-semibold mb-2">סיכום עלויות</h3>
                 <div className="space-y-1 text-sm">
@@ -433,32 +548,74 @@ export default function TodayReturns() {
                       </span>
                     </div>
                   )}
+                  {endRentalData.drove_toll && endRentalData.toll_amount > 0 && (
+                    <div className="flex justify-between text-orange-600"><span>כבישי אגרה:</span><span>₪{endRentalData.toll_amount.toLocaleString()}</span></div>
+                  )}
+                  {endRentalData.had_damage && endRentalData.damage_amount > 0 && (
+                    <div className="flex justify-between text-orange-600"><span>נזק:</span><span>₪{endRentalData.damage_amount.toLocaleString()}</span></div>
+                  )}
+                  {!endRentalData.full_fuel && endRentalData.fuel_amount > 0 && (
+                    <div className="flex justify-between text-orange-600"><span>דלק חסר:</span><span>₪{endRentalData.fuel_amount.toLocaleString()}</span></div>
+                  )}
                   <div className="flex justify-between font-bold pt-2 border-t">
                     <span>סה"כ:</span>
-                    <span>
-                      ₪
-                      {(() => {
-                        const vehicle = vehicles.find(
-                          (v) => v.id === selectedRental.vehicle_id
-                        );
-                        const kmDiff =
-                          endRentalData.end_km - (selectedRental.start_km || 0);
-                        const extraKm = Math.max(
-                          0,
-                          kmDiff - (vehicle?.km_limit || 0)
-                        );
-                        const extraKmCost =
-                          extraKm * (vehicle?.extra_km_price || 0);
-                        return (
-                          (selectedRental.base_cost || 0) +
-                          extraKmCost +
-                          (endRentalData.additional_charges || 0)
-                        ).toLocaleString();
-                      })()}
-                    </span>
+                    <span>₪{returnTotalCost.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-green-700">
+                    <span>שולם קודם:</span>
+                    <span>₪{(selectedRental.paid_amount || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-red-600">
+                    <span>נותר לתשלום:</span>
+                    <span>₪{Math.max(0, returnTotalCost - (selectedRental.paid_amount || 0) - Number(endRentalData.paid_now || 0)).toLocaleString()}</span>
                   </div>
                 </div>
               </Card>
+
+              {/* תשלום */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>תשלום עכשיו (₪)</Label>
+                  <Input type="number" value={endRentalData.paid_now || ""} onChange={(e) => setEndRentalData({ ...endRentalData, paid_now: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <Label>אמצעי תשלום</Label>
+                  <Select value={endRentalData.payment_method} onValueChange={(v) => setEndRentalData({ ...endRentalData, payment_method: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="מזומן">מזומן</SelectItem>
+                      <SelectItem value="אשראי">אשראי</SelectItem>
+                      <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
+                      <SelectItem value="ביט">ביט</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {(() => {
+                const cust = customers.find((c) => c.id === selectedRental.customer_id);
+                const remaining = Math.max(0, returnTotalCost - (selectedRental.paid_amount || 0) - Number(endRentalData.paid_now || 0));
+                return (
+                  <div className="rounded-lg border bg-cyan-50/50 p-3">
+                    <Label className="text-xs font-medium">גביית יתרה באשראי</Label>
+                    <div className="mt-2">
+                      <PaymentButton
+                        defaultAction="charge"
+                        label={`חיוב נותר (₪${remaining.toLocaleString()})`}
+                        amount={remaining}
+                        description={`החזרת רכב - ${selectedRental.vehicle_details || ""}`}
+                        rentalId={selectedRental.id}
+                        customer={cust ? { id: cust.id, name: `${cust.first_name} ${cust.last_name}`, phone: cust.phone, email: cust.email || undefined, citizenId: cust.id_number, payment_token: (cust as any).payment_token, card_last4: (cust as any).card_last4, card_expiry: (cust as any).card_expiry } : { name: selectedRental.customer_name || "" }}
+                        onSuccess={(r: any) => {
+                          if (r?.action === "charge" && r?.success) {
+                            const charged = Number(r?.amount || 0);
+                            if (charged > 0) setEndRentalData((prev) => ({ ...prev, paid_now: Number(prev.paid_now || 0) + charged, payment_method: "אשראי" }));
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="flex gap-3 pt-4">
                 <Button
@@ -478,6 +635,18 @@ export default function TodayReturns() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* חשבונית אוטומטית בסיום ההחזרה */}
+      <InvoiceDialog
+        open={invoiceOpen}
+        onOpenChange={setInvoiceOpen}
+        rentalId={invoiceData?.rentalId}
+        defaultCustomerName={invoiceData?.name}
+        defaultAmount={invoiceData?.amount}
+        defaultPaymentMethod={invoiceData?.method}
+        defaultVehicleDetails={invoiceData?.vehicle}
+        defaultPeriod={invoiceData?.period}
+      />
     </div>
   );
 }

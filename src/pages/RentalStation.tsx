@@ -1,17 +1,37 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, ArrowRight, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
+import { getStationSettings, setStationSettings, type StationSettings } from "@/lib/stationSettings";
 
 const LOGO_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/693ff630f364c7fbf1f677cd/fe961bf61_myname.jpg";
 
 export default function RentalStation() {
   const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<StationSettings>(getStationSettings());
+
+  const updateSetting = (patch: Partial<StationSettings>) => {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    setStationSettings(next);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6">
       <div className="max-w-5xl mx-auto">
+        {/* כפתור הגדרות מנהל */}
+        <div className="flex justify-start mb-2">
+          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} className="text-gray-500">
+            <Settings className="w-4 h-4 ml-1" /> הגדרות מנהל
+          </Button>
+        </div>
         {/* Logo and Title */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
@@ -81,6 +101,32 @@ export default function RentalStation() {
           </button>
         </div>
       </div>
+
+      {/* הגדרות מנהל לתחנת ההשכרה */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>הגדרות תחנת השכרה</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <Label className="font-medium">חובה לתפוס מסגרת אשראי</Label>
+                <p className="text-sm text-muted-foreground">לא ניתן להפעיל השכרה ללא תפיסת מסגרת</p>
+              </div>
+              <Switch checked={settings.requireHold} onCheckedChange={(v) => updateSetting({ requireHold: v })} />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div>
+                <Label className="font-medium">חובה לשלם מראש</Label>
+                <p className="text-sm text-muted-foreground">לא ניתן להפעיל השכרה עם יתרה לתשלום</p>
+              </div>
+              <Switch checked={settings.requirePrepay} onCheckedChange={(v) => updateSetting({ requirePrepay: v })} />
+            </div>
+            <p className="text-xs text-muted-foreground">ההגדרות נשמרות במכשיר זה.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

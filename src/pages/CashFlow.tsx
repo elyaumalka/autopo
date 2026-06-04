@@ -92,7 +92,7 @@ export default function CashFlow() {
   const netCash = cashIn - cashOut;
   const netCredit = creditIn - creditOut;
   const netOther = otherIn - otherOut;
-  const netTotal = totalIncome - totalExpenses;
+  const netTotal = totalIncome - totalExpenses; // רווח נקי בפועל (לפני הכנסות צפויות)
 
   // Calculate expected income for the month
   const calculateExpectedIncome = () => {
@@ -137,6 +137,29 @@ export default function CashFlow() {
 
   const { expected: expectedIncome, missingPayments } = calculateExpectedIncome();
 
+  // רווח נקי כולל ההכנסות הצפויות (סעיף 25)
+  const netWithExpected = expectedIncome - totalExpenses;
+
+  // פילוח אשראי חוצה-חודשים (סעיף 26): מתוך האשראי שנגבה החודש - כמה שייך לחודש זה וכמה לחודשים אחרים
+  // ההשתייכות נקבעת לפי תקופת ההשכרה המקושרת לתשלום
+  const creditIncomes = incomes.filter(i => i.payment_method === "אשראי");
+  let creditCurrentMonth = 0;
+  let creditOtherMonths = 0;
+  creditIncomes.forEach(i => {
+    const rentalId = (i as any).rental_id;
+    const rental = rentalId ? rentals.find(r => r.id === rentalId) : null;
+    if (rental) {
+      const rStart = new Date(rental.start_date);
+      const rEnd = new Date(rental.actual_end_date || rental.planned_end_date || rental.start_date);
+      const overlapsMonth = !(rEnd < monthStart || rStart > monthEnd);
+      if (overlapsMonth) creditCurrentMonth += (i.amount || 0);
+      else creditOtherMonths += (i.amount || 0);
+    } else {
+      // ללא השכרה מקושרת - משויך לחודש שבו נגבה
+      creditCurrentMonth += (i.amount || 0);
+    }
+  });
+
   // All transactions sorted by date
   const allTransactions = [
     ...incomes.map(i => ({ ...i, transactionType: 'income' as const })),
@@ -166,13 +189,13 @@ export default function CashFlow() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             <StatCard
               title="הכנסות צפויות"
               value={formatCurrency(expectedIncome)}
               icon={TrendingUp}
               color="blue"
-              subtitle="לפי השכרות פעילות"
+              subtitle="לפי השכרות החודש"
             />
             <StatCard
               title="הכנסות בפועל"
@@ -181,22 +204,29 @@ export default function CashFlow() {
               color="green"
             />
             <StatCard
-              title="סה״כ הוצאות"
+              title="הכנסות באשראי"
+              value={formatCurrency(creditIn)}
+              icon={CreditCard}
+              color="blue"
+            />
+            <StatCard
+              title="הוצאות"
               value={formatCurrency(totalExpenses)}
               icon={TrendingDown}
               color="red"
-            />
-            <StatCard
-              title="רווח נקי"
-              value={formatCurrency(netTotal)}
-              icon={DollarSign}
-              color={netTotal >= 0 ? "green" : "red"}
             />
             <StatCard
               title="מזומן בקופה"
               value={formatCurrency(netCash)}
               icon={Wallet}
               color={netCash >= 0 ? "cyan" : "orange"}
+            />
+            <StatCard
+              title="רווח נקי"
+              value={formatCurrency(netTotal)}
+              icon={DollarSign}
+              color={netTotal >= 0 ? "green" : "red"}
+              subtitle={`כולל צפוי: ${formatCurrency(netWithExpected)}`}
             />
           </div>
 
@@ -324,6 +354,33 @@ export default function CashFlow() {
               </div>
             </Card>
           </div>
+
+          {/* Credit cross-month breakdown (סעיף 26) */}
+          <Card className="p-6 mb-6 border-r-4 border-r-blue-500">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-blue-100 rounded-xl">
+                <CreditCard className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">אשראי - פילוח לפי חודש</h3>
+                <p className="text-sm text-muted-foreground">מתוך האשראי שנגבה החודש, כמה שייך לחודש זה וכמה לחודשים אחרים</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">סה״כ אשראי שנגבה החודש</p>
+                <p className="text-2xl font-bold text-blue-700">{formatCurrency(creditIn)}</p>
+              </div>
+              <div className="p-4 bg-green-50 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">שייך לחודש הנוכחי</p>
+                <p className="text-2xl font-bold text-green-700">{formatCurrency(creditCurrentMonth)}</p>
+              </div>
+              <div className="p-4 bg-orange-50 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">שייך לחודשים אחרים</p>
+                <p className="text-2xl font-bold text-orange-700">{formatCurrency(creditOtherMonths)}</p>
+              </div>
+            </div>
+          </Card>
 
           {/* Recent Transactions */}
           <Card className="p-6">

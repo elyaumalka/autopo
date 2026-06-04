@@ -26,7 +26,7 @@ import {
 import { DollarSign, Phone, MessageSquare, Edit, Check, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { Tables, TablesInsert, Constants } from "@/integrations/supabase/types";
 import { Json } from "@/integrations/supabase/types";
 
@@ -206,6 +206,21 @@ export default function CollectionTasks() {
 
   const openCount = urgentTasks.filter(t => t.status === "פתוח").length;
 
+  // הפרדת גביה לפי חודש (סעיף 27): שייך לחודש הנוכחי מול חודשים אחרים, לפי מועד התשלום
+  const monthStart = startOfMonth(today);
+  const monthEnd = endOfMonth(today);
+  let currentMonthDebt = 0;
+  let otherMonthsDebt = 0;
+  tasks.forEach(t => {
+    if (t.status === "נסגר") return;
+    const outstanding = (t.amount || 0) - (t.paid_amount || 0);
+    if (outstanding <= 0) return;
+    if (!t.payment_due_date) { currentMonthDebt += outstanding; return; }
+    const d = new Date(t.payment_due_date);
+    if (d >= monthStart && d <= monthEnd) currentMonthDebt += outstanding;
+    else otherMonthsDebt += outstanding;
+  });
+
   const columns = [
     {
       header: "לקוח",
@@ -303,7 +318,7 @@ export default function CollectionTasks() {
       />
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card className="p-6 bg-red-50 border-red-200">
           <div className="flex items-center justify-between">
             <div>
@@ -322,6 +337,26 @@ export default function CollectionTasks() {
               <p className="text-xs text-muted-foreground mt-1">תשלומים שטרם הגיע מועדם</p>
             </div>
             <DollarSign className="w-12 h-12 text-blue-300" />
+          </div>
+        </Card>
+        <Card className="p-6 bg-green-50 border-green-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">גבייה לחודש הנוכחי</p>
+              <p className="text-3xl font-bold text-green-700">₪{currentMonthDebt.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">מועד תשלום בחודש זה</p>
+            </div>
+            <DollarSign className="w-12 h-12 text-green-300" />
+          </div>
+        </Card>
+        <Card className="p-6 bg-orange-50 border-orange-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">גבייה לחודשים אחרים</p>
+              <p className="text-3xl font-bold text-orange-700">₪{otherMonthsDebt.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">מועד תשלום בחודש אחר</p>
+            </div>
+            <DollarSign className="w-12 h-12 text-orange-300" />
           </div>
         </Card>
       </div>

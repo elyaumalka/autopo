@@ -370,7 +370,9 @@ export type Database = {
           is_foreign: boolean
           last_name: string
           license_back_url: string | null
+          license_expiry: string | null
           license_front_url: string | null
+          license_issue_date: string | null
           license_number: string | null
           notes: string | null
           passport_url: string | null
@@ -395,7 +397,9 @@ export type Database = {
           is_foreign?: boolean
           last_name: string
           license_back_url?: string | null
+          license_expiry?: string | null
           license_front_url?: string | null
+          license_issue_date?: string | null
           license_number?: string | null
           notes?: string | null
           passport_url?: string | null
@@ -420,7 +424,9 @@ export type Database = {
           is_foreign?: boolean
           last_name?: string
           license_back_url?: string | null
+          license_expiry?: string | null
           license_front_url?: string | null
+          license_issue_date?: string | null
           license_number?: string | null
           notes?: string | null
           passport_url?: string | null

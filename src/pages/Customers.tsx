@@ -55,6 +55,8 @@ interface CustomerFormData {
   is_foreign?: boolean;
   passport_url?: string;
   license_number?: string;
+  license_issue_date?: string;
+  license_expiry?: string;
 }
 
 interface CustomerDocument {
@@ -226,6 +228,8 @@ export default function Customers() {
       is_foreign: isForeign,
       passport_url: isForeign ? (formData.passport_url || null) : null,
       license_number: formData.license_number || null,
+      license_issue_date: formData.license_issue_date || null,
+      license_expiry: formData.license_expiry || null,
     };
 
     if (selectedCustomer) {
@@ -253,6 +257,8 @@ export default function Customers() {
       is_foreign: (customer as any).is_foreign || false,
       passport_url: (customer as any).passport_url || undefined,
       license_number: (customer as any).license_number || undefined,
+      license_issue_date: (customer as any).license_issue_date || undefined,
+      license_expiry: (customer as any).license_expiry || undefined,
     });
     setViewMode(false);
     setIsOpen(true);
@@ -276,6 +282,8 @@ export default function Customers() {
       is_foreign: (customer as any).is_foreign || false,
       passport_url: (customer as any).passport_url || undefined,
       license_number: (customer as any).license_number || undefined,
+      license_issue_date: (customer as any).license_issue_date || undefined,
+      license_expiry: (customer as any).license_expiry || undefined,
     });
     setViewMode(true);
     setIsOpen(true);
@@ -591,6 +599,36 @@ export default function Customers() {
                   <p className="font-medium">{(selectedCustomer as any).license_number}</p>
                 </div>
                 )}
+                {(selectedCustomer as any).license_issue_date && (
+                <div>
+                  <Label className="text-gray-500">תאריך הנפקת רישיון</Label>
+                  <p className="font-medium">
+                    {format(new Date((selectedCustomer as any).license_issue_date), "dd/MM/yyyy")}
+                    {(() => {
+                      const years = Math.floor((Date.now() - new Date((selectedCustomer as any).license_issue_date).getTime()) / (365.25 * 24 * 3600 * 1000));
+                      return years >= 0 ? <span className="text-muted-foreground"> · וותק נהיגה: {years} שנים</span> : null;
+                    })()}
+                  </p>
+                </div>
+                )}
+                {(selectedCustomer as any).license_expiry && (
+                <div>
+                  <Label className="text-gray-500">תוקף רישיון</Label>
+                  <p className="font-medium">
+                    {format(new Date((selectedCustomer as any).license_expiry), "dd/MM/yyyy")}
+                    {(() => {
+                      const exp = new Date((selectedCustomer as any).license_expiry);
+                      const today = new Date(); today.setHours(0, 0, 0, 0);
+                      const valid = exp >= today;
+                      return (
+                        <span className={`mr-2 inline-block px-2 py-0.5 rounded text-xs ${valid ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                          {valid ? "רישיון בתוקף" : "⚠ רישיון פג תוקף"}
+                        </span>
+                      );
+                    })()}
+                  </p>
+                </div>
+                )}
                 <div>
                   <Label className="text-gray-500">טלפון</Label>
                   <p className="font-medium">{selectedCustomer.phone}</p>
@@ -804,6 +842,14 @@ export default function Customers() {
                     <div>
                       <Label htmlFor="license_number">מספר רישיון נהיגה</Label>
                       <Input id="license_number" name="license_number" value={formData.license_number || ""} onChange={(e) => setFormData({ ...formData, license_number: e.target.value })} placeholder="מספר רישיון נהיגה" />
+                    </div>
+                    <div>
+                      <Label htmlFor="license_issue_date">תאריך הנפקת רישיון</Label>
+                      <Input id="license_issue_date" name="license_issue_date" type="date" value={formData.license_issue_date || ""} onChange={(e) => setFormData({ ...formData, license_issue_date: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label htmlFor="license_expiry">תוקף רישיון</Label>
+                      <Input id="license_expiry" name="license_expiry" type="date" value={formData.license_expiry || ""} onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })} />
                     </div>
                     <div>
                       <Label htmlFor="email">מייל</Label>

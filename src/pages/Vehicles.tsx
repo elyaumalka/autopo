@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Car, Search, Filter, Plus, Fuel, Gauge, Edit, Trash2, Calendar, Upload, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatNumber } from "@/lib/formatters";
+import { format } from "date-fns";
 import { motion } from "framer-motion";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -86,6 +87,22 @@ export default function Vehicles() {
         return v;
       });
     },
+  });
+
+  // היסטוריית טיפולים/תיקונים לרכב הנבחר (סעיף 23)
+  const { data: vehicleMaintenance = [] } = useQuery({
+    queryKey: ["vehicle-maintenance", editingVehicle?.id],
+    queryFn: async () => {
+      if (!editingVehicle?.id) return [];
+      const { data, error } = await supabase
+        .from("maintenance_tasks")
+        .select("*")
+        .eq("vehicle_id", editingVehicle.id)
+        .order("due_date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: viewMode && !!editingVehicle?.id,
   });
 
   const createMutation = useMutation({
@@ -447,6 +464,34 @@ export default function Vehicles() {
                   <p className="text-sm bg-gray-50 p-3 rounded">{editingVehicle.notes}</p>
                 </div>
               )}
+
+              {/* היסטוריית טיפולים ותיקונים (סעיף 23) */}
+              <div>
+                <Label className="text-gray-500 mb-2 block">היסטוריית טיפולים ותיקונים</Label>
+                {vehicleMaintenance.length === 0 ? (
+                  <p className="text-sm text-muted-foreground bg-gray-50 p-3 rounded">לא נרשמו טיפולים לרכב זה</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {vehicleMaintenance.map((m: any) => (
+                      <div key={m.id} className="flex items-start justify-between gap-2 border rounded-lg p-3 text-sm">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{m.type}</span>
+                            <StatusBadge status={m.status} />
+                          </div>
+                          {m.description && <p className="text-muted-foreground mt-1">{m.description}</p>}
+                          {m.notes && <p className="text-xs text-muted-foreground mt-0.5">{m.notes}</p>}
+                        </div>
+                        <div className="text-left shrink-0 text-muted-foreground">
+                          <div>{m.due_date ? format(new Date(m.due_date), "dd/MM/yy") : "-"}</div>
+                          {m.cost ? <div className="font-medium text-foreground">₪{Number(m.cost).toLocaleString()}</div> : null}
+                          {m.completed_date && <div className="text-xs text-green-600">הושלם {format(new Date(m.completed_date), "dd/MM/yy")}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <Button onClick={() => setViewMode(false)} className="w-full bg-cyan-600 hover:bg-cyan-700">
                 עריכה

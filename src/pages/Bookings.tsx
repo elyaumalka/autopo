@@ -28,13 +28,14 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon } from "lucide-react";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon, Receipt } from "lucide-react";
+import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import EndRentalDialog from "@/components/bookings/EndRentalDialog";
 import { toast } from "@/hooks/use-toast";
-import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
+import { CustomerNameInput } from "@/components/shared/CustomerNameInput";
 import { useUndo } from "@/contexts/UndoContext";
 import DocumentsList from "@/components/shared/DocumentsList";
 import type { Database } from "@/integrations/supabase/types";
@@ -71,6 +72,7 @@ export default function Bookings() {
   const [wizardBooking, setWizardBooking] = useState<Booking | null>(null);
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [deleteConfirmBooking, setDeleteConfirmBooking] = useState<Booking | null>(null);
+  const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
   const [endDialogBooking, setEndDialogBooking] = useState<Booking | null>(null);
   const [endDialogRental, setEndDialogRental] = useState<Rental | null>(null);
   const [endDialogOpen, setEndDialogOpen] = useState(false);
@@ -753,8 +755,19 @@ export default function Bookings() {
               סיים
             </Button>
           )}
-          <Button 
-            variant="destructive" 
+          {(row.status === "פעיל" || row.status === "הושלם") && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-cyan-700 border-cyan-300 hover:bg-cyan-50"
+              onClick={() => setInvoiceBooking(row)}
+              title="הפק חשבונית"
+            >
+              <Receipt className="w-4 h-4" />
+            </Button>
+          )}
+          <Button
+            variant="destructive"
             size="sm"
             onClick={() => setDeleteConfirmBooking(row)}
           >
@@ -1328,17 +1341,14 @@ export default function Bookings() {
               <div className="space-y-4">
                 <div>
                   <Label>לקוח *</Label>
-                  <CustomerSearchSelect
+                  <CustomerNameInput
                     customers={customers}
-                    value={formData.customer_id || ""}
-                    onValueChange={(v) => setFormData({ ...formData, customer_id: v })}
-                    placeholder="בחר לקוח או הקלד שם חדש"
-                    allowCreate
-                    nameValue={!formData.customer_id ? (formData.customer_name || "") : ""}
-                    onNameChange={(name) => setFormData({ ...formData, customer_id: "", customer_name: name })}
+                    customerId={formData.customer_id || ""}
+                    customerName={formData.customer_id ? (() => { const c = customers.find(x => x.id === formData.customer_id); return c ? `${c.first_name} ${c.last_name}` : (formData.customer_name || ""); })() : (formData.customer_name || "")}
+                    onChange={({ customerId, customerName }) => setFormData({ ...formData, customer_id: customerId, customer_name: customerId ? "" : customerName })}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    הקלד שם לחיפוש; אם הלקוח לא קיים תוכל להוסיף אותו כלקוח חדש (יישמר במערכת להשלמת פרטים).
+                    הקלד שם לחיפוש ובחר מהרשימה, או הקלד שם חדש שיישמר אוטומטית כלקוח חדש (להשלמת פרטים).
                   </p>
                 </div>
 
@@ -1839,6 +1849,23 @@ export default function Bookings() {
           setCalendarActionRental(null);
         }}
       />
+
+      {/* הפקת חשבונית מרשימת ההזמנות */}
+      {(() => {
+        const linkedRental = invoiceBooking ? rentals.find(r => r.booking_id === invoiceBooking.id) : null;
+        return (
+          <InvoiceDialog
+            open={!!invoiceBooking}
+            onOpenChange={(o) => { if (!o) setInvoiceBooking(null); }}
+            rentalId={linkedRental?.id}
+            defaultCustomerName={invoiceBooking?.customer_name || ""}
+            defaultAmount={Number(linkedRental?.total_cost ?? invoiceBooking?.rental_cost ?? 0)}
+            defaultPaymentMethod={invoiceBooking?.payment_method || ""}
+            defaultVehicleDetails={invoiceBooking?.vehicle_details || ""}
+            defaultPeriod={`${invoiceBooking?.start_date || ""} - ${invoiceBooking?.end_date || ""}`}
+          />
+        );
+      })()}
 
       {/* Rental Start Wizard Dialog */}
       <Dialog open={rentalWizardOpen} onOpenChange={(open) => { if (!open) { setRentalWizardOpen(false); setWizardBooking(null); } }}>

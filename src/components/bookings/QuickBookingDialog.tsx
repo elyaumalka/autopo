@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
+import { CustomerNameInput } from "@/components/shared/CustomerNameInput";
 import { PaymentButton } from "@/components/payments/PaymentButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -304,17 +304,14 @@ export default function QuickBookingDialog({
 
           <div>
             <Label>לקוח *</Label>
-            <CustomerSearchSelect
+            <CustomerNameInput
               customers={customers}
-              value={customerId}
-              onValueChange={(v) => { setCustomerId(v); if (v) setNewCustomerName(""); }}
-              placeholder="בחר לקוח או הקלד שם חדש"
-              allowCreate
-              nameValue={!customerId ? newCustomerName : ""}
-              onNameChange={(name) => { setNewCustomerName(name); setCustomerId(""); }}
+              customerId={customerId}
+              customerName={customerId ? (() => { const c = customers.find(x => x.id === customerId); return c ? `${c.first_name} ${c.last_name}` : ""; })() : newCustomerName}
+              onChange={({ customerId: id, customerName: name }) => { setCustomerId(id); setNewCustomerName(id ? "" : name); }}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              הקלד שם לחיפוש; אם הלקוח לא קיים בחר "הוסף כלקוח חדש" (יישמר במערכת).
+              הקלד שם לחיפוש ובחר מהרשימה, או הקלד שם חדש שיישמר אוטומטית כלקוח חדש.
             </p>
           </div>
 

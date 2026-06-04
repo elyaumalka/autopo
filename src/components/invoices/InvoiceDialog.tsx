@@ -16,13 +16,23 @@ export interface InvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   rentalId?: string;
+  bookingId?: string;
   defaultCustomerName?: string;
   defaultAmount?: number;
   defaultPaymentMethod?: string;
   defaultVehicleDetails?: string;
   defaultPeriod?: string;
+  // פרטי לקוח להפקת מסמך רשמי בסומיט (אופציונלי)
+  customerId?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerCitizenId?: string;
   onIssued?: (invoiceNumber: string) => void;
 }
+
+// מיפוי לקודי סומיט
+const DOC_TYPE_CODE: Record<string, number> = { "חשבונית": 2, "חשבונית מס קבלה": 3 };
+const PAYMENT_TYPE_CODE: Record<string, number> = { "מזומן": 1, "אשראי": 2, "העברה בנקאית": 3, "צ׳ק": 4, "ביט": 5 };
 
 const VAT_RATE = 0.18; // מע"מ בישראל
 
@@ -30,16 +40,22 @@ export function InvoiceDialog({
   open,
   onOpenChange,
   rentalId,
+  bookingId,
   defaultCustomerName = "",
   defaultAmount = 0,
   defaultPaymentMethod = "",
   defaultVehicleDetails = "",
   defaultPeriod = "",
+  customerId,
+  customerEmail,
+  customerPhone,
+  customerCitizenId,
   onIssued,
 }: InvoiceDialogProps) {
   const queryClient = useQueryClient();
   const [docType, setDocType] = useState("חשבונית מס קבלה");
   const [withVat, setWithVat] = useState(true);
+  const [issueInSumit, setIssueInSumit] = useState(true);
   const [customerName, setCustomerName] = useState(defaultCustomerName);
   const [amount, setAmount] = useState<string>(String(defaultAmount || ""));
   const [paymentMethod, setPaymentMethod] = useState(defaultPaymentMethod || "מזומן");
@@ -65,27 +81,68 @@ export function InvoiceDialog({
   const buildInvoiceNumber = (now: Date) =>
     `${format(now, "yyyyMMdd")}-${String(Math.floor((now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()))).padStart(5, "0")}`;
 
+  const recordOnRental = async (num: string) => {
+    if (rentalId) {
+      await supabase.from("rentals").update({ invoice_number: num } as any).eq("id", rentalId);
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+    }
+  };
+
   const handleIssue = async () => {
     setSaving(true);
     const now = new Date();
-    const invoiceNumber = buildInvoiceNumber(now);
     try {
-      // רישום מספר החשבונית על ההשכרה (חיווי שהופקה חשבונית)
-      if (rentalId) {
-        const { error } = await supabase.from("rentals").update({ invoice_number: invoiceNumber } as any).eq("id", rentalId);
+      if (issueInSumit) {
+        // הפקת מסמך רשמי בסומיט
+        const description = `${vehicleDetails || "השכרת רכב"}${period ? ` (${period})` : ""}`;
+        const { data, error } = await supabase.functions.invoke("sumit-payment", {
+          body: {
+            action: "create_document",
+            documentType: DOC_TYPE_CODE[docType] ?? 3,
+            documentTypeName: docType,
+            paymentType: PAYMENT_TYPE_CODE[paymentMethod] ?? 5,
+            vatIncluded: withVat,
+            amount: total,
+            description,
+            customer: { id: customerId, name: customerName, email: customerEmail, phone: customerPhone, citizenId: customerCitizenId },
+            rentalId,
+            bookingId,
+          },
+        });
         if (error) throw error;
-        queryClient.invalidateQueries({ queryKey: ["rentals"] });
-        queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+        if (!(data as any)?.success) {
+          throw new Error((data as any)?.raw?.UserErrorMessage || (data as any)?.raw?.TechnicalErrorDetails || "הפקת המסמך בסומיט נכשלה");
+        }
+        const docNumber = String((data as any).documentNumber || (data as any).documentId || buildInvoiceNumber(now));
+        await recordOnRental(docNumber);
+        const pdf = (data as any).pdfUrl;
+        if (pdf) window.open(pdf, "_blank");
+        toast({ title: "החשבונית הופקה בסומיט", description: `מסמך ${docNumber}` });
+        onIssued?.(docNumber);
+        onOpenChange(false);
+        return;
       }
 
-      // הפקת מסמך להדפסה
+      // הדפסה מקומית בלבד
+      const invoiceNumber = buildInvoiceNumber(now);
+      await recordOnRental(invoiceNumber);
       printInvoice(invoiceNumber, now);
-
       toast({ title: "החשבונית הופקה", description: `מספר: ${invoiceNumber}` });
       onIssued?.(invoiceNumber);
       onOpenChange(false);
     } catch (e: any) {
-      toast({ title: "שגיאה בהפקת חשבונית", description: e.message, variant: "destructive" });
+      if (issueInSumit) {
+        // נפילה חזרה להדפסה מקומית אם סומיט נכשל
+        toast({ title: "הפקה בסומיט נכשלה — מפיק להדפסה מקומית", description: e.message, variant: "destructive" });
+        const invoiceNumber = buildInvoiceNumber(now);
+        try { await recordOnRental(invoiceNumber); } catch { /* ignore */ }
+        printInvoice(invoiceNumber, now);
+        onIssued?.(invoiceNumber);
+        onOpenChange(false);
+      } else {
+        toast({ title: "שגיאה בהפקת חשבונית", description: e.message, variant: "destructive" });
+      }
     } finally {
       setSaving(false);
     }
@@ -156,6 +213,14 @@ export function InvoiceDialog({
             </div>
           </div>
 
+          <div className="flex items-center justify-between rounded-lg border p-3 bg-cyan-50/50">
+            <div>
+              <Label htmlFor="issue-sumit" className="cursor-pointer font-medium">הפק מסמך רשמי בסומיט</Label>
+              <p className="text-xs text-muted-foreground">כבוי = הדפסה מקומית בלבד (ללא מסמך רשמי)</p>
+            </div>
+            <Switch checked={issueInSumit} onCheckedChange={setIssueInSumit} id="issue-sumit" />
+          </div>
+
           <div>
             <Label>על שם</Label>
             <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
@@ -198,7 +263,7 @@ export function InvoiceDialog({
 
           <div className="flex gap-3">
             <Button onClick={handleIssue} disabled={saving || total <= 0} className="flex-1 bg-cyan-600 hover:bg-cyan-700">
-              <Printer className="h-4 w-4 ml-2" /> {saving ? "מפיק..." : "הפק והדפס"}
+              <Printer className="h-4 w-4 ml-2" /> {saving ? "מפיק..." : issueInSumit ? "הפק בסומיט" : "הפק והדפס"}
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>ביטול</Button>
           </div>

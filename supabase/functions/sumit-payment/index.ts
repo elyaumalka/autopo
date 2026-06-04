@@ -45,6 +45,7 @@ interface RequestBody {
     | "release_authorization" // release J5 hold
     | "delete_card"          // delete saved card from customer
     | "send_invoice"         // send invoice PDF by email
+    | "create_document"      // create an accounting document (invoice/receipt) WITHOUT charging
     | "get_pdf";             // get document PDF
   amount?: number;
   customer?: CustomerInput;
@@ -58,6 +59,11 @@ interface RequestBody {
   documentId?: string;
   authNumber?: string;
   email?: string;
+  // create_document
+  documentType?: number;       // 2=חשבונית מס, 3=חשבונית מס קבלה (Sumit enum)
+  documentTypeName?: string;
+  paymentType?: number;        // 1=מזומן 2=אשראי 3=העברה 4=צ'ק 5=אחר
+  vatIncluded?: boolean;
 }
 
 function getCreds() {
@@ -224,6 +230,78 @@ Deno.serve(async (req) => {
       });
       return new Response(JSON.stringify({ success: r.ok, raw: r.data }), {
         status: r.ok ? 200 : 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Create accounting document (invoice / tax-invoice-receipt) WITHOUT charging a card ---
+    if (body.action === "create_document") {
+      const docType = body.documentType ?? 3; // ברירת מחדל: חשבונית מס קבלה
+      // סוגי מסמך הכוללים תשלום (קבלה): 3=חשבונית מס קבלה, 4=קבלה
+      const includesPayment = docType === 3 || docType === 4;
+      const amount = body.amount || 0;
+      const itemName = body.description || "השכרת רכב";
+
+      const payload: any = {
+        Details: {
+          Customer: {
+            SearchMode: 0,
+            Name: body.customer?.name || "לקוח",
+            Phone: body.customer?.phone || null,
+            EmailAddress: body.customer?.email || null,
+            City: body.customer?.city || null,
+            Address: body.customer?.address || null,
+            CompanyNumber: body.customer?.citizenId || null,
+          },
+          SendByEmail: body.customer?.email
+            ? { EmailAddress: body.customer.email, Original: true, SendAsPaymentRequest: false }
+            : null,
+          Type: docType,
+          Description: null,
+        },
+        Items: [
+          { Quantity: 1, UnitPrice: amount, Item: { Name: itemName, SearchMode: 0 } },
+        ],
+        Payments: includesPayment ? [{ Amount: amount, Type: body.paymentType ?? 1 }] : null,
+        VATIncluded: body.vatIncluded ?? true,
+        Credentials: creds,
+      };
+
+      const r = await sumitFetch("/accounting/documents/create/", payload);
+      const data = r.data?.Data || {};
+      const docId = data?.DocumentID || data?.ID || data?.Document?.ID || null;
+      const docNumber = data?.DocumentNumber || data?.Number || data?.Document?.Number || null;
+      const pdfUrl = data?.DocumentDownloadURL || data?.Document?.DownloadURL || data?.PDFUrl || null;
+      const sumitOk = r.ok && !!docId;
+
+      let invoiceId: string | null = null;
+      if (sumitOk) {
+        const { data: inv } = await supabaseAdmin.from("sumit_invoices").insert({
+          document_id: String(docId),
+          document_number: docNumber ? String(docNumber) : null,
+          document_type: docType,
+          document_type_name: body.documentTypeName || null,
+          amount,
+          customer_id: body.customer?.id || null,
+          customer_name: body.customer?.name || null,
+          booking_id: body.bookingId || null,
+          rental_id: body.rentalId || null,
+          pdf_url: pdfUrl,
+          raw_response: r.data,
+          created_by: user.id,
+        }).select().single();
+        invoiceId = inv?.id || null;
+      }
+
+      return new Response(JSON.stringify({
+        success: sumitOk,
+        documentId: docId,
+        documentNumber: docNumber,
+        pdfUrl,
+        invoiceId,
+        raw: r.data,
+      }), {
+        status: sumitOk ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

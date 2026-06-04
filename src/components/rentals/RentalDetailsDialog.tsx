@@ -640,10 +640,15 @@ export default function RentalDetailsDialog({
       open={invoiceDialogOpen}
       onOpenChange={setInvoiceDialogOpen}
       rentalId={rental.id}
+      bookingId={rental.booking_id || undefined}
       defaultCustomerName={rental.customer_name || ""}
       defaultAmount={totalCost}
       defaultVehicleDetails={rental.vehicle_details || ""}
       defaultPeriod={`${rental.start_date || ""} - ${rental.actual_end_date || rental.planned_end_date || ""}`}
+      customerId={customer?.id}
+      customerEmail={customer?.email || undefined}
+      customerPhone={customer?.phone}
+      customerCitizenId={customer?.id_number}
       onIssued={(num) => { setInvoiceNumber(num); setInvoiceSaved(true); }}
     />
     </>

@@ -793,11 +793,16 @@ export default function EndRentalDialog({
         if (!o) { onClose(); onSaved?.(); }
       }}
       rentalId={rental?.id}
+      bookingId={booking.id}
       defaultCustomerName={booking.customer_name || ""}
       defaultAmount={costs.totalCost}
       defaultPaymentMethod={endData.payment_method}
       defaultVehicleDetails={booking.vehicle_details || ""}
       defaultPeriod={`${booking.start_date || ""} - ${endData.actual_end_date || ""}`}
+      customerId={customer?.id}
+      customerEmail={customer?.email || undefined}
+      customerPhone={customer?.phone}
+      customerCitizenId={customer?.id_number}
     />
     </>
   );

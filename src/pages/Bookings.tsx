@@ -261,16 +261,33 @@ export default function Bookings() {
       const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      queryClient.invalidateQueries({ queryKey: ["rentals"] });
-      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+    // עדכון אופטימי - השורה נעלמת מיד מהטבלה בלי להמתין לשרת/ריענון
+    onMutate: async (booking: Booking) => {
       setDeleteConfirmBooking(null);
       setCalendarActionOpen(false);
+      await queryClient.cancelQueries({ queryKey: ["bookings"] });
+      const previousBookings = queryClient.getQueryData<Booking[]>(["bookings"]);
+      queryClient.setQueryData<Booking[]>(["bookings"], (old) =>
+        (old ?? []).filter((b) => b.id !== booking.id)
+      );
+      return { previousBookings };
+    },
+    onError: (error, _booking, context) => {
+      // החזרת המצב הקודם אם המחיקה נכשלה בשרת
+      if (context?.previousBookings) {
+        queryClient.setQueryData(["bookings"], context.previousBookings);
+      }
+      toast({ title: "שגיאה במחיקת הזמנה", description: error.message, variant: "destructive" });
+    },
+    onSuccess: () => {
       toast({ title: "ההזמנה נמחקה בהצלחה" });
     },
-    onError: (error) => {
-      toast({ title: "שגיאה במחיקת הזמנה", description: error.message, variant: "destructive" });
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
     }
   });
 
@@ -488,9 +505,19 @@ export default function Bookings() {
   };
 
   const handleSubmit = () => {
+    // חסימה: תאריך החזרה לא יכול להיות לפני תאריך הלקיחה
+    if (formData.start_date && formData.end_date) {
+      const startDT = parseISO(`${formData.start_date}T${formData.start_time || "00:00"}`);
+      const endDT = parseISO(`${formData.end_date}T${formData.end_time || "00:00"}`);
+      if (endDT < startDT) {
+        toast({ title: "שגיאה בתאריכים", description: "תאריך/שעת ההחזרה לא יכולים להיות לפני תאריך/שעת הלקיחה", variant: "destructive" });
+        return;
+      }
+    }
+
     const customer = customers.find(c => c.id === formData.customer_id);
     const vehicle = vehicles.find(v => v.id === formData.vehicle_id);
-    
+
     const data: Partial<Booking> = {
       ...formData,
       customer_name: customer ? `${customer.first_name} ${customer.last_name}` : (formData.customer_name || selectedBooking?.customer_name || ""),
@@ -751,8 +778,8 @@ export default function Bookings() {
       header: "רכב",
       cell: (row: Booking) => (
         <div className="flex items-center gap-2">
-          <Car className="w-4 h-4 text-muted-foreground" />
-          <span>{row.vehicle_details}</span>
+          <Car className="w-5 h-5 text-muted-foreground" />
+          <span className="text-base font-bold tracking-wide">{row.vehicle_details}</span>
         </div>
       )
     },
@@ -760,8 +787,8 @@ export default function Bookings() {
       header: "לקוח",
       cell: (row: Booking) => (
         <div className="flex items-center gap-2">
-          <User className="w-4 h-4 text-muted-foreground" />
-          <span className="font-medium">{row.customer_name}</span>
+          <User className="w-5 h-5 text-muted-foreground" />
+          <span className="text-base font-bold">{row.customer_name}</span>
         </div>
       )
     }
@@ -837,12 +864,14 @@ export default function Bookings() {
               data={filteredBookings}
               isLoading={isLoading}
               emptyMessage="לא נמצאו הזמנות"
-              rowClassName={(row: Booking) => {
-                if (row.status === "הושלם") return "bg-muted/40 opacity-70";
-                if (row.status === "בוטל") return "bg-red-50/50 opacity-60 line-through";
-                if (row.status === "פעיל") return "bg-green-50/50";
-                if (row.status === "מאושר" || row.status === "ממתין") return "bg-yellow-50/50";
-                return "";
+              rowClassName={(row: Booking, i: number) => {
+                const odd = i % 2 === 1;
+                // צבע לפי סטטוס + גוון מתחלף בין שורה לשורה כדי להבדיל שורות סמוכות
+                if (row.status === "בוטל") return "bg-red-50 opacity-60 line-through";
+                if (row.status === "הושלם") return odd ? "bg-gray-200/80" : "bg-gray-100";
+                if (row.status === "פעיל") return odd ? "bg-green-100" : "bg-green-50";
+                if (row.status === "מאושר" || row.status === "ממתין") return odd ? "bg-yellow-100" : "bg-yellow-50";
+                return odd ? "bg-muted/30" : "";
               }}
             />
           </div>
@@ -1288,6 +1317,7 @@ export default function Bookings() {
                     <Input
                       type="date"
                       value={formData.end_date || ""}
+                      min={formData.start_date || undefined}
                       onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
                     />
                   </div>

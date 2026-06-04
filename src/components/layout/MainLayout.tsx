@@ -40,7 +40,7 @@ const menuItems = [
     name: "כספים", 
     icon: DollarSign,
     submenu: [
-      { name: "תזרים מזומנים", page: "/cash-flow" },
+      { name: "תזרים", page: "/cash-flow" },
       { name: "רווחיות רכבים", page: "/vehicle-financials" },
       { name: "הכנסות", page: "/incomes" },
       { name: "הוצאות", page: "/expenses" },

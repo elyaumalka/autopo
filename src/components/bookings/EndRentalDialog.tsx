@@ -675,7 +675,7 @@ export default function EndRentalDialog({
               disabled={endMutation.isPending || !endData.actual_end_date}
             >
               <Check className="w-4 h-4 ml-2" />
-              {endMutation.isPending ? "שומר..." : isCompleted ? "שמירה ועדכון חיוב" : "סיום + חיוב"}
+              {endMutation.isPending ? "שומר..." : isCompleted ? "שמירה" : "סיום"}
             </Button>
             <Button variant="outline" onClick={onClose}>
               <XCircle className="w-4 h-4 ml-1" />

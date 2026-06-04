@@ -16,12 +16,16 @@ import {
   startOfWeek, 
   endOfWeek, 
   addDays, 
-  addWeeks, 
-  subWeeks, 
-  isSameDay, 
-  parseISO, 
+  addWeeks,
+  subWeeks,
+  addMonths,
+  subMonths,
+  isSameDay,
+  parseISO,
   isWithinInterval,
-  differenceInDays
+  differenceInDays,
+  startOfMonth,
+  endOfMonth
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -78,8 +82,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const start = startOfWeek(currentDate, { weekStartsOn: 0 });
       return { start, days: 7 };
     } else if (viewMode === "month") {
-      const start = startOfWeek(currentDate, { weekStartsOn: 0 });
-      return { start, days: 30 };
+      // החודש הנוכחי מה-1 ועד סוף החודש (לא 30 הימים הבאים)
+      const start = startOfMonth(currentDate);
+      const days = differenceInDays(endOfMonth(currentDate), start) + 1;
+      return { start, days };
     } else {
       const start = startOfWeek(currentDate, { weekStartsOn: 0 });
       return { start, days: 60 };
@@ -453,11 +459,11 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>היום</Button>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, -visibleDays))}>
+          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(viewMode === "month" ? subMonths(currentDate, 1) : addDays(currentDate, -visibleDays))}>
             <ChevronRight className="h-4 w-4" />
           </Button>
           <span className="text-sm font-medium min-w-[140px] text-center">{formatDateRange()}</span>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(addDays(currentDate, visibleDays))}>
+          <Button variant="ghost" size="icon" onClick={() => setCurrentDate(viewMode === "month" ? addMonths(currentDate, 1) : addDays(currentDate, visibleDays))}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
         </div>
@@ -606,7 +612,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                                   style={{ right: `${rightPct}%`, width: `${widthPct}%` }}
                                   title={`${ev.customerName} - ${ev.status}${ev.timeLabel ? ` - ${ev.timeLabel}` : ""}`}
                                 >
-                                  <span className="truncate leading-tight w-full text-center">{ev.customerName.split(" ")[0]}</span>
+                                  <span className="truncate leading-tight w-full text-center">{ev.customerName.trim().split(" ").slice(-1)[0]}</span>
                                   {ev.timeLabel && <span className="text-[7px] opacity-70 leading-none">{ev.timeLabel}</span>}
                                 </div>
                               );
@@ -630,7 +636,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                           )}
                           title={`${slotData.event.customerName} - ${slotData.event.status}`}
                         >
-                          <span className="truncate leading-tight">{slotData.event.customerName.split(" ")[0]}</span>
+                          <span className="truncate leading-tight">{slotData.event.customerName.trim().split(" ").slice(-1)[0]}</span>
                           {slotData.timeLabel && <span className="text-[7px] opacity-70 leading-none">{slotData.timeLabel}</span>}
                         </div>
                       );

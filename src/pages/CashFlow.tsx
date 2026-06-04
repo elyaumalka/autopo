@@ -146,7 +146,7 @@ export default function CashFlow() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="תזרים מזומנים"
+        title="תזרים"
         subtitle="מעקב אחר כסף בקופה ומזומנים בפועל"
       />
 

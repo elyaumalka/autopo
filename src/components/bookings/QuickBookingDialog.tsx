@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 import { PaymentButton } from "@/components/payments/PaymentButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,6 +73,7 @@ export default function QuickBookingDialog({
   customers,
   defaultStartTime = "10:00"
 }: QuickBookingDialogProps) {
+  const { toast } = useToast();
   const [customerType, setCustomerType] = useState<"existing" | "new">("existing");
   const [customerId, setCustomerId] = useState("");
   const [newCustomerName, setNewCustomerName] = useState("");
@@ -239,7 +241,17 @@ export default function QuickBookingDialog({
   };
 
   const handleSubmit = () => {
-    onSubmit(getBookingData());
+    const data = getBookingData();
+    // חסימה: תאריך/שעת החזרה לא יכולים להיות לפני הלקיחה
+    if (data.start_date && data.end_date) {
+      const startDT = new Date(`${data.start_date}T${data.start_time || "00:00"}`);
+      const endDT = new Date(`${data.end_date}T${data.end_time || "00:00"}`);
+      if (endDT < startDT) {
+        toast({ title: "שגיאה בתאריכים", description: "תאריך/שעת ההחזרה לא יכולים להיות לפני תאריך/שעת הלקיחה", variant: "destructive" });
+        return;
+      }
+    }
+    onSubmit(data);
     resetForm();
   };
 

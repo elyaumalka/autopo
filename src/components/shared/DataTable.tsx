@@ -20,7 +20,7 @@ export interface DataTableProps<T> {
   isLoading?: boolean;
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
-  rowClassName?: (row: T) => string;
+  rowClassName?: (row: T, index: number) => string;
 }
 
 export function DataTable<T extends { id?: string }>({
@@ -86,7 +86,7 @@ export function DataTable<T extends { id?: string }>({
               <tr 
                 key={row.id || i} 
                 onClick={() => onRowClick?.(row)}
-                className={`border-b transition-colors hover:bg-muted/50 ${onRowClick ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row) : ""}`}
+                className={`border-b transition-colors hover:bg-muted/50 ${onRowClick ? "cursor-pointer" : ""} ${rowClassName ? rowClassName(row, i) : ""}`}
               >
                 {columns.map((col, j) => (
                   <td key={j} className="px-3 py-3 align-middle text-right whitespace-nowrap">

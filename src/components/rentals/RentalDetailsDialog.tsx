@@ -52,6 +52,7 @@ export default function RentalDetailsDialog({
   const [isUpdating, setIsUpdating] = useState(false);
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [newVehicleId, setNewVehicleId] = useState("");
+  const [swapDate, setSwapDate] = useState("");
   const [tollAmount, setTollAmount] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceSaved, setInvoiceSaved] = useState(false);
@@ -191,13 +192,18 @@ export default function RentalDetailsDialog({
       if (!newVehicle) throw new Error("Vehicle not found");
 
       const vehicleDetails = `${newVehicle.manufacturer} ${newVehicle.model} - ${newVehicle.license_plate}`;
+      const effectiveSwapDate = swapDate || format(new Date(), "yyyy-MM-dd");
+      // תיעוד ההחלפה בהערות - התנאים (מחיר/תקופה) נשמרים לפי ההשכרה המקורית
+      const swapNote = `[החלפת רכב ${effectiveSwapDate}] מ: ${rental.vehicle_details || "-"} ל: ${vehicleDetails} — התנאים נשמרים לפי ההשכרה המקורית`;
+      const mergedNotes = rental.notes ? `${rental.notes}\n${swapNote}` : swapNote;
 
-      // Update rental with new vehicle
+      // Update rental with new vehicle (terms/price unchanged)
       const { error: rentalError } = await supabase
         .from("rentals")
         .update({
           vehicle_id: newVehicleId,
           vehicle_details: vehicleDetails,
+          notes: mergedNotes,
         })
         .eq("id", rental.id);
 
@@ -323,7 +329,7 @@ export default function RentalDetailsDialog({
               {/* Vehicle Swap */}
               {showVehicleSwap && (
                 <div className="col-span-2 rounded-lg border-2 border-dashed border-primary/30 p-4 space-y-3">
-                  <Label>בחר רכב חדש</Label>
+                  <Label>החלפה לרכב חילופי</Label>
                   <Select value={newVehicleId} onValueChange={setNewVehicleId}>
                     <SelectTrigger>
                       <SelectValue placeholder="בחר רכב זמין" />
@@ -336,6 +342,13 @@ export default function RentalDetailsDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <div>
+                    <Label className="text-xs">תאריך ההחלפה</Label>
+                    <Input type="date" value={swapDate} onChange={(e) => setSwapDate(e.target.value)} placeholder="ברירת מחדל: היום" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    מזמן ההחלפה הרכב החדש מופיע על ההשכרה. כל התנאים (מחיר, תקופה) נשמרים לפי ההשכרה המקורית.
+                  </p>
                   <div className="flex gap-2">
                     <Button onClick={handleVehicleSwap} disabled={isUpdating} size="sm">
                       <ArrowRightLeft className="h-3.5 w-3.5 ml-1" />

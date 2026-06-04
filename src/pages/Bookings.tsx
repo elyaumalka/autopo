@@ -35,6 +35,7 @@ import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import EndRentalDialog from "@/components/bookings/EndRentalDialog";
 import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
+import { useUndo } from "@/contexts/UndoContext";
 import DocumentsList from "@/components/shared/DocumentsList";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -98,6 +99,7 @@ export default function Bookings() {
   const [docsViewerBookingId, setDocsViewerBookingId] = useState<string | null>(null);
   const [docsViewerCustomerName, setDocsViewerCustomerName] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { registerUndo } = useUndo();
 
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["bookings"],
@@ -262,6 +264,9 @@ export default function Bookings() {
 
       const { error } = await supabase.from("bookings").delete().eq("id", booking.id);
       if (error) throw error;
+
+      // החזרת הנתונים שנמחקו לצורך ביטול פעולה (Ctrl+Z)
+      return { deletedBooking: booking, deletedRental: linkedRental ?? null };
     },
     // עדכון אופטימי - השורה נעלמת מיד מהטבלה בלי להמתין לשרת/ריענון
     onMutate: async (booking: Booking) => {
@@ -281,8 +286,26 @@ export default function Bookings() {
       }
       toast({ title: "שגיאה במחיקת הזמנה", description: error.message, variant: "destructive" });
     },
-    onSuccess: () => {
-      toast({ title: "ההזמנה נמחקה בהצלחה" });
+    onSuccess: (data) => {
+      // רישום פעולת ביטול: שחזור ההזמנה (וההשכרה המקושרת) שנמחקו
+      const deletedBooking = (data as any)?.deletedBooking as Booking | undefined;
+      const deletedRental = (data as any)?.deletedRental as Rental | null | undefined;
+      if (deletedBooking) {
+        registerUndo("מחיקת הזמנה", async () => {
+          await supabase.from("bookings").insert(deletedBooking as any);
+          if (deletedRental) {
+            await supabase.from("rentals").insert(deletedRental as any);
+            if (deletedRental.vehicle_id && deletedRental.status === "פעיל") {
+              await supabase.from("vehicles").update({ status: "מושכר" }).eq("id", deletedRental.vehicle_id);
+            }
+          }
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["rentals"] });
+          queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        });
+      } else {
+        toast({ title: "ההזמנה נמחקה בהצלחה" });
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });

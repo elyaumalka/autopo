@@ -12,6 +12,28 @@ interface VehicleRates {
 
 export type RentalRateType = "חצי יום" | "24 שעות" | "שבוע" | "חודש";
 
+/**
+ * Effective per-day rate for an EXTENSION, derived from the rental's own billing rate type
+ * (so a monthly rental extends at monthlyRate/30, a weekly at weeklyRate/7), not the
+ * vehicle's flat daily rate. Falls back to the vehicle daily rate when no billing info.
+ */
+export function getDailyRateFromBilling(
+  billingRateType?: string | null,
+  billingRateAmount?: number | null,
+  fallbackDailyRate?: number | null,
+): number {
+  const amount = Number(billingRateAmount ?? 0);
+  if (amount > 0) {
+    switch (billingRateType) {
+      case "חודשי": return Math.round((amount / 30) * 100) / 100;
+      case "שבועי": return Math.round((amount / 7) * 100) / 100;
+      case "יומי": return amount;
+      default: return amount;
+    }
+  }
+  return Number(fallbackDailyRate ?? 0);
+}
+
 export function getRateForType(vehicle: VehicleRates, rateType: RentalRateType): number {
   switch (rateType) {
     case "חצי יום": return Number(vehicle.half_day_rate ?? 0);
@@ -23,8 +45,27 @@ export function getRateForType(vehicle: VehicleRates, rateType: RentalRateType):
 }
 
 /**
+ * Tiered late-return fee:
+ *  - up to 4 hours late  -> charged per hour (hourly delay rate)
+ *  - more than 4 hours   -> half-day price
+ *  - more than 6 hours   -> full-day price
+ * Falls back to the hourly calculation when the relevant tier rate is missing.
+ */
+export function tieredDelayCost(
+  delayHours: number,
+  hourlyDelayRate: number,
+  halfDayRate: number,
+  dailyRate: number,
+): number {
+  if (delayHours <= 0) return 0;
+  if (delayHours > 6 && dailyRate > 0) return Math.round(dailyRate);
+  if (delayHours > 4 && halfDayRate > 0) return Math.round(halfDayRate);
+  return Math.round(delayHours * (hourlyDelayRate || 0));
+}
+
+/**
  * Calculate rental cost based on rate type, dates, and times.
- * Handles proportional extra days and hourly delay charges.
+ * Handles proportional extra days and tiered late-return charges.
  */
 export function calculateRentalCost(params: {
   rateType: RentalRateType;
@@ -34,8 +75,10 @@ export function calculateRentalCost(params: {
   endDate: string;
   endTime?: string | null;
   hourlyDelayRate?: number;
+  halfDayRate?: number;
+  dailyRate?: number;
 }): { baseCost: number; delayHours: number; delayCost: number; totalRentalCost: number; breakdown: string } {
-  const { rateType, ratePerUnit, startDate, startTime, endDate, endTime, hourlyDelayRate = 0 } = params;
+  const { rateType, ratePerUnit, startDate, startTime, endDate, endTime, hourlyDelayRate = 0, halfDayRate = 0, dailyRate = 0 } = params;
 
   if (!startDate || !endDate || !ratePerUnit) {
     return { baseCost: 0, delayHours: 0, delayCost: 0, totalRentalCost: 0, breakdown: "" };
@@ -65,9 +108,9 @@ export function calculateRentalCost(params: {
       baseCost = fullDays * ratePerUnit;
       // Check for hourly delay beyond the planned return
       const expectedHours = fullDays * 24;
-      if (totalHours > expectedHours && hourlyDelayRate > 0) {
+      if (totalHours > expectedHours) {
         delayHours = totalHours - expectedHours;
-        delayCost = delayHours * hourlyDelayRate;
+        delayCost = tieredDelayCost(delayHours, hourlyDelayRate, halfDayRate, dailyRate);
       }
       breakdown = `${fullDays} ימים × ₪${ratePerUnit}`;
       break;
@@ -91,11 +134,11 @@ export function calculateRentalCost(params: {
         breakdown += ` + ${remainingDays} ימים × ₪${Math.round(dailyFromWeekly)}`;
       }
       
-      // Hourly delay
+      // Late return (tiered)
       const expectedDayHours = totalDays * 24;
-      if (totalHours > expectedDayHours && hourlyDelayRate > 0) {
+      if (totalHours > expectedDayHours) {
         delayHours = totalHours - expectedDayHours;
-        delayCost = delayHours * hourlyDelayRate;
+        delayCost = tieredDelayCost(delayHours, hourlyDelayRate, halfDayRate, dailyRate);
       }
       break;
     }
@@ -119,9 +162,9 @@ export function calculateRentalCost(params: {
       }
       
       const expectedDayHours2 = totalDays * 24;
-      if (totalHours > expectedDayHours2 && hourlyDelayRate > 0) {
+      if (totalHours > expectedDayHours2) {
         delayHours = totalHours - expectedDayHours2;
-        delayCost = delayHours * hourlyDelayRate;
+        delayCost = tieredDelayCost(delayHours, hourlyDelayRate, halfDayRate, dailyRate);
       }
       break;
     }
@@ -131,8 +174,9 @@ export function calculateRentalCost(params: {
   delayCost = Math.round(delayCost);
   const totalRentalCost = baseCost + delayCost;
 
-  if (delayHours > 0) {
-    breakdown += ` + ${delayHours} שעות איחור × ₪${hourlyDelayRate}`;
+  if (delayHours > 0 && delayCost > 0) {
+    const tierLabel = delayHours > 6 ? "מחיר יום מלא" : delayHours > 4 ? "מחיר חצי יום" : `${delayHours} שעות × ₪${hourlyDelayRate}`;
+    breakdown += ` + איחור (${delayHours} ש'): ${tierLabel} = ₪${delayCost}`;
   }
 
   return { baseCost, delayHours, delayCost, totalRentalCost, breakdown };

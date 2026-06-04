@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,15 @@ export function SumitPaymentDialog({
   const [amount, setAmount] = useState(initialAmount?.toString() || "");
   const [payments, setPayments] = useState("1");
   const [useToken, setUseToken] = useState(!!customer?.payment_token);
+
+  // סנכרון הסכום עם הסכום הנותר לתשלום בכל פעם שהחלון נפתח / הסכום משתנה
+  useEffect(() => {
+    if (open) {
+      setAmount(initialAmount != null ? String(initialAmount) : "");
+      setAction(defaultAction);
+      setUseToken(!!customer?.payment_token);
+    }
+  }, [open, initialAmount, defaultAction, customer?.payment_token]);
 
   // Card fields
   const [cardNumber, setCardNumber] = useState("");
@@ -121,7 +130,8 @@ export function SumitPaymentDialog({
                action === "save_token" ? "כרטיס נשמר בהצלחה" :
                `חיוב בוצע - חשבונית ${data.documentNumber || ""}`,
       });
-      onSuccess?.(data);
+      // מחזירים גם את הסכום והפעולה שבוצעו בפועל, כדי שהקורא יעדכן את ההשכרה
+      onSuccess?.({ ...data, amount: requiresAmount ? parseFloat(amount) : undefined, action });
       onOpenChange(false);
       // Reset
       setCardNumber(""); setCvv(""); setExpMonth(""); setExpYear("");

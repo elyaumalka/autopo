@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PaymentButton } from "@/components/payments/PaymentButton";
 import { format, addDays, isAfter, parseISO } from "date-fns";
-import { calculateRentalCost, getRateForType } from "@/lib/rentalCalculations";
+import { calculateRentalCost, getRateForType, getDailyRateFromBilling } from "@/lib/rentalCalculations";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -962,7 +962,13 @@ export default function Bookings() {
                       className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
                       onClick={() => {
                         const v = vehicles.find((x) => x.id === calendarActionBooking.vehicle_id);
-                        const dailyRate = v?.daily_rate ? String(v.daily_rate) : "";
+                        // תעריף ההארכה לפי סוג התעריף של ההשכרה (חודשי/שבועי/יומי), לא לפי התעריף היומי של הרכב
+                        const effectiveDaily = getDailyRateFromBilling(
+                          calendarActionBooking.billing_rate_type,
+                          calendarActionBooking.billing_rate_amount,
+                          v?.daily_rate,
+                        );
+                        const dailyRate = effectiveDaily ? String(effectiveDaily) : "";
                         setExtendData({
                           new_end_date: calendarActionBooking.end_date,
                           new_end_time: calendarActionBooking.end_time?.toString().slice(0,5) || "",

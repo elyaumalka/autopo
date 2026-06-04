@@ -59,6 +59,8 @@ export default function EndRentalDialog({
     discount_reason: "",
     override_total: false,
     final_total: 0,
+    override_delay: false,
+    delay_charge: 0,
     payment_amount: 0,
     payment_method: "" as string,
     collection_date: "",
@@ -86,6 +88,8 @@ export default function EndRentalDialog({
       discount_reason: "",
       override_total: false,
       final_total: 0,
+      override_delay: false,
+      delay_charge: 0,
       payment_amount: 0,
       payment_method: booking.payment_method || "",
       collection_date: "",
@@ -115,6 +119,8 @@ export default function EndRentalDialog({
         endDate: endData.actual_end_date,
         endTime: endData.actual_end_time || null,
         hourlyDelayRate: Number(vehicle?.hourly_delay_rate ?? 0),
+        halfDayRate: Number(vehicle?.half_day_rate ?? 0),
+        dailyRate: Number(vehicle?.daily_rate ?? 0),
       });
       baseCost = calc.baseCost;
       delayHours = calc.delayHours;
@@ -133,9 +139,15 @@ export default function EndRentalDialog({
     const extraKm = kmLimit > 0 ? Math.max(0, totalKmDriven - kmLimit) : 0;
     const extraKmCost = extraKm * extraKmPrice;
 
+    // חיוב איחור: אוטומטי (מדורג) או ידני אם המשתמש בחר לדרוס/לבטל
+    const autoDelayCost = delayCost;
+    const effectiveDelayCost = endData.override_delay
+      ? Math.max(0, Number(endData.delay_charge || 0))
+      : autoDelayCost;
+
     const tollCharges = Number(endData.toll_charges || 0);
     const additional = Number(endData.additional_charges || 0);
-    const subtotal = baseCost + delayCost + extraKmCost + tollCharges + additional;
+    const subtotal = baseCost + effectiveDelayCost + extraKmCost + tollCharges + additional;
 
     const discount = Math.max(0, Number(endData.discount_amount || 0));
     const afterDiscount = Math.max(0, subtotal - discount);
@@ -152,7 +164,8 @@ export default function EndRentalDialog({
     return {
       baseCost,
       delayHours,
-      delayCost,
+      delayCost: effectiveDelayCost,
+      autoDelayCost,
       breakdown,
       extraKm,
       extraKmCost,
@@ -513,6 +526,47 @@ export default function EndRentalDialog({
             )}
           </div>
 
+          {/* חיוב איחור - עריכה/ביטול ידני */}
+          {(costs.delayHours > 0 || costs.autoDelayCost > 0 || endData.override_delay) && (
+            <div className="p-3 border rounded-lg space-y-3 bg-orange-50/50">
+              <div className="flex items-center justify-between">
+                <Label className="text-orange-700">
+                  חיוב איחור{costs.delayHours > 0 ? ` (${costs.delayHours} שעות)` : ""}
+                </Label>
+                <span className="text-sm font-medium text-orange-700">
+                  חישוב אוטומטי: ₪{costs.autoDelayCost.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  id="override_delay"
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={endData.override_delay}
+                  onChange={(e) =>
+                    setEndData((prev) => ({
+                      ...prev,
+                      override_delay: e.target.checked,
+                      delay_charge: e.target.checked ? costs.autoDelayCost : 0,
+                    }))
+                  }
+                />
+                <Label htmlFor="override_delay" className="cursor-pointer text-sm">
+                  קבע חיוב איחור ידנית (להזין 0 לביטול החיוב)
+                </Label>
+              </div>
+              {endData.override_delay && (
+                <Input
+                  type="number"
+                  value={endData.delay_charge || ""}
+                  onChange={(e) =>
+                    setEndData((prev) => ({ ...prev, delay_charge: parseFloat(e.target.value || "0") || 0 }))
+                  }
+                />
+              )}
+            </div>
+          )}
+
           {/* Payment */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -664,6 +718,20 @@ export default function EndRentalDialog({
                 } : { name: booking?.customer_name || '' }}
                 bookingId={booking?.id}
                 rentalId={rental?.id}
+                onSuccess={(result: any) => {
+                  // אחרי חיוב מוצלח באשראי - מוסיפים את הסכום שנגבה לתשלום, כך שהיתרה מתעדכנת מיד
+                  if (result?.action === "charge") {
+                    const charged = Number(result?.amount || 0);
+                    if (charged > 0) {
+                      setEndData((prev) => ({
+                        ...prev,
+                        payment_amount: Number(prev.payment_amount || 0) + charged,
+                        payment_method: prev.payment_method || "אשראי",
+                      }));
+                      toast({ title: "החיוב נקלט", description: `₪${charged.toLocaleString()} נוספו לתשלום. לחץ "סיום" לשמירה.` });
+                    }
+                  }
+                }}
               />
             </div>
           </div>

@@ -474,7 +474,23 @@ export default function RentalDetailsDialog({
                     card_expiry: (customer as any).card_expiry,
                   } : { name: rental.customer_name || '' }}
                   rentalId={rental.id}
-                  onSuccess={() => queryClient.invalidateQueries({ queryKey: ["rentals"] })}
+                  onSuccess={async (result: any) => {
+                    // אחרי חיוב מוצלח - מעדכנים את הסכום ששולם והיתרה בהשכרה
+                    if (result?.action === "charge") {
+                      const charged = Number(result?.amount || 0);
+                      if (charged > 0) {
+                        const newPaid = Number(rental.paid_amount || 0) + charged;
+                        const newRemaining = Math.max(0, Number(totalCost || 0) - newPaid);
+                        await supabase.from("rentals").update({ paid_amount: newPaid, remaining_payment: newRemaining } as any).eq("id", rental.id);
+                        if (newRemaining <= 0) {
+                          await supabase.from("collection_tasks").update({ status: "נסגר" } as any).eq("rental_id", rental.id).in("status", ["פתוח", "בטיפול", "חלקי"]);
+                        }
+                      }
+                    }
+                    queryClient.invalidateQueries({ queryKey: ["rentals"] });
+                    queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
+                    queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
+                  }}
                 />
                 <PaymentButton
                   defaultAction="authorize"

@@ -285,6 +285,16 @@ export default function Rentals() {
       ),
     },
     {
+      header: "חשבונית",
+      cell: (row: Rental) => (
+        row.invoice_number ? (
+          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">✓ הופקה</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )
+      ),
+    },
+    {
       header: "סטטוס",
       cell: (row: Rental) => <StatusBadge status={row.status || "פעיל"} />,
     },

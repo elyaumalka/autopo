@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Check, XCircle } from "lucide-react";
 import { calculateRentalCost, getRateForType, type RentalRateType } from "@/lib/rentalCalculations";
 import { PaymentButton } from "@/components/payments/PaymentButton";
+import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 import { useQuery } from "@tanstack/react-query";
 
 type Booking = Database["public"]["Tables"]["bookings"]["Row"];
@@ -37,6 +38,7 @@ export default function EndRentalDialog({
   onSaved,
 }: EndRentalDialogProps) {
   const queryClient = useQueryClient();
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const { data: customer } = useQuery({
     queryKey: ["customer-end-rental", booking?.customer_id],
     queryFn: async () => {
@@ -314,8 +316,13 @@ export default function EndRentalDialog({
       queryClient.invalidateQueries({ queryKey: ["collection_tasks"] });
 
       toast({ title: "השכרה עודכנה בהצלחה" });
-      onClose();
-      onSaved?.();
+      // פתיחה אוטומטית של חלון החשבונית בסיום השכרה (לא בעריכת השכרה שכבר הושלמה)
+      if (!isCompleted) {
+        setInvoiceOpen(true);
+      } else {
+        onClose();
+        onSaved?.();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -331,6 +338,7 @@ export default function EndRentalDialog({
   const isCompleted = rental?.status === "הושלם" || booking.status === "הושלם";
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -776,5 +784,21 @@ export default function EndRentalDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* פתיחה אוטומטית של חשבונית בסיום השכרה (סעיף 28) */}
+    <InvoiceDialog
+      open={invoiceOpen}
+      onOpenChange={(o) => {
+        setInvoiceOpen(o);
+        if (!o) { onClose(); onSaved?.(); }
+      }}
+      rentalId={rental?.id}
+      defaultCustomerName={booking.customer_name || ""}
+      defaultAmount={costs.totalCost}
+      defaultPaymentMethod={endData.payment_method}
+      defaultVehicleDetails={booking.vehicle_details || ""}
+      defaultPeriod={`${booking.start_date || ""} - ${endData.actual_end_date || ""}`}
+    />
+    </>
   );
 }

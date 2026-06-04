@@ -25,6 +25,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Tables } from "@/integrations/supabase/types";
 import DocumentsList from "@/components/shared/DocumentsList";
 import { PaymentButton } from "@/components/payments/PaymentButton";
+import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 
 type Rental = Tables<"rentals">;
 type Vehicle = Tables<"vehicles">;
@@ -54,6 +55,7 @@ export default function RentalDetailsDialog({
   const [tollAmount, setTollAmount] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceSaved, setInvoiceSaved] = useState(false);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   // Payment entries
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -261,6 +263,7 @@ export default function RentalDetailsDialog({
   const totalCost = rental.total_cost || rental.base_cost || 0;
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -406,7 +409,13 @@ export default function RentalDetailsDialog({
                   <Button size="sm" onClick={handleSaveInvoice} disabled={isUpdating || invoiceSaved}>
                     {invoiceSaved ? "✓" : "שמור"}
                   </Button>
+                  <Button size="sm" variant="outline" className="text-cyan-700 border-cyan-300 hover:bg-cyan-50 shrink-0" onClick={() => setInvoiceDialogOpen(true)}>
+                    <Receipt className="h-4 w-4 ml-1" /> הפק חשבונית
+                  </Button>
                 </div>
+                {invoiceNumber && (
+                  <p className="text-xs text-green-600 mt-1">✓ הופקה חשבונית ({invoiceNumber})</p>
+                )}
               </div>
             </div>
 
@@ -612,5 +621,18 @@ export default function RentalDetailsDialog({
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    {/* הפקת חשבונית (סעיף 28) */}
+    <InvoiceDialog
+      open={invoiceDialogOpen}
+      onOpenChange={setInvoiceDialogOpen}
+      rentalId={rental.id}
+      defaultCustomerName={rental.customer_name || ""}
+      defaultAmount={totalCost}
+      defaultVehicleDetails={rental.vehicle_details || ""}
+      defaultPeriod={`${rental.start_date || ""} - ${rental.actual_end_date || rental.planned_end_date || ""}`}
+      onIssued={(num) => { setInvoiceNumber(num); setInvoiceSaved(true); }}
+    />
+    </>
   );
 }

@@ -754,6 +754,9 @@ export default function Bookings() {
         const paid = row.deposit_amount || 0;
         const remaining = total - paid;
         
+        const linkedRental = rentals.find(r => r.booking_id === row.id);
+        const hasInvoice = !!linkedRental?.invoice_number;
+
         return (
           <div className="text-sm">
             <div className="font-medium">₪{total.toLocaleString()}</div>
@@ -762,6 +765,9 @@ export default function Bookings() {
             )}
             {remaining > 0 && (
               <div className="text-red-600 text-xs">נותר: ₪{remaining.toLocaleString()}</div>
+            )}
+            {hasInvoice && (
+              <div className="text-green-700 text-xs mt-0.5">✓ חשבונית</div>
             )}
           </div>
         );

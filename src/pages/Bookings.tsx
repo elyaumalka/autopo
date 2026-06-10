@@ -631,14 +631,16 @@ export default function Bookings() {
       const nameParts = bookingData.customer_name.trim().split(/\s+/);
       const firstName = nameParts[0] || bookingData.customer_name;
       const lastName = nameParts.slice(1).join(" ") || "-";
-      
+      // ת.ז זמני וייחודי (העמודה UNIQUE) - הלקוח ישלים אותה אח"כ
+      const tempIdNumber = `חדש-${Date.now()}${Math.floor(Math.random() * 1000)}`;
+
       const { data: newCustomer, error } = await supabase
         .from("customers")
         .insert({
           first_name: firstName,
           last_name: lastName,
-          phone: "0000000000",
-          id_number: "0000",
+          phone: "",
+          id_number: tempIdNumber,
           notes: "לקוח חדש - יש להשלים פרטים",
         })
         .select()

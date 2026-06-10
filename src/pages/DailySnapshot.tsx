@@ -49,8 +49,8 @@ export default function DailySnapshot() {
         const { data: nc, error: ce } = await supabase.from("customers").insert({
           first_name: parts[0] || bookingData.customer_name,
           last_name: parts.slice(1).join(" ") || "-",
-          phone: "0000000000",
-          id_number: "0000",
+          phone: "",
+          id_number: `חדש-${Date.now()}${Math.floor(Math.random() * 1000)}`,
           notes: "לקוח חדש - יש להשלים פרטים",
         }).select().single();
         if (ce) throw ce;

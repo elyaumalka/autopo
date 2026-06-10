@@ -183,12 +183,21 @@ export default function Bookings() {
       if (error) throw error;
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
       setIsOpen(false);
       resetForm();
-      toast({ title: "ההזמנה נוצרה בהצלחה" });
+      // ביטול: מחיקת ההזמנה שנוצרה
+      if (result?.id) {
+        registerUndo("יצירת הזמנה", async () => {
+          await supabase.from("bookings").delete().eq("id", result.id);
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
+        });
+      } else {
+        toast({ title: "ההזמנה נוצרה בהצלחה" });
+      }
     },
     onError: (error) => {
       toast({ title: "שגיאה ביצירת הזמנה", description: error.message, variant: "destructive" });
@@ -197,6 +206,8 @@ export default function Bookings() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<Booking> }) => {
+      // שמירת המצב הקודם לצורך ביטול (Ctrl+Z)
+      const prevBooking = bookings.find((b) => b.id === id);
       const { error } = await supabase
         .from("bookings")
         .update(data as any)
@@ -232,8 +243,9 @@ export default function Bookings() {
           await supabase.from("rentals").update(rentalUpdate).eq("id", linkedRental.id);
         }
       }
+      return { prevBooking };
     },
-    onSuccess: () => {
+    onSuccess: (result: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["bookings-week"] });
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
@@ -242,7 +254,20 @@ export default function Bookings() {
       queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
       setIsOpen(false);
       resetForm();
-      toast({ title: "ההזמנה עודכנה בהצלחה" });
+      // ביטול: שחזור הערכים הקודמים של השדות שהשתנו
+      const prev = result?.prevBooking as Booking | undefined;
+      const changedData = variables?.data as Partial<Booking> | undefined;
+      if (prev && changedData) {
+        const restore: any = {};
+        Object.keys(changedData).forEach((k) => { restore[k] = (prev as any)[k]; });
+        registerUndo("עדכון הזמנה", async () => {
+          await supabase.from("bookings").update(restore).eq("id", prev.id);
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          queryClient.invalidateQueries({ queryKey: ["rentals"] });
+        });
+      } else {
+        toast({ title: "ההזמנה עודכנה בהצלחה" });
+      }
     },
     onError: (error) => {
       toast({ title: "שגיאה בעדכון הזמנה", description: error.message, variant: "destructive" });

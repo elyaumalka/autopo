@@ -12,3 +12,8 @@ ALTER TABLE public.maintenance_tasks
 ALTER TABLE public.customers
   ADD COLUMN IF NOT EXISTS license_issue_date date,
   ADD COLUMN IF NOT EXISTS license_expiry date;
+
+-- הגדרות תחנת השכרה פר-הזמנה (חובה לתפיסת מסגרת / תשלום מראש)
+ALTER TABLE public.bookings
+  ADD COLUMN IF NOT EXISTS require_credit_hold boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS prepay_mode text NOT NULL DEFAULT 'optional';

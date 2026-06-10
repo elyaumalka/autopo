@@ -541,8 +541,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
             </tr>
           </thead>
           <tbody>
-            {vehicles.map((vehicle) => (
-              <tr key={vehicle.id} className="hover:bg-muted/20">
+            {vehicles.map((vehicle, vIdx) => (
+              <tr key={vehicle.id} className={cn(vIdx % 2 === 1 ? "bg-slate-100" : "bg-white", "hover:bg-cyan-50/40")}>
                 {weekDays.map((day) => {
                   const amSlot = getSlotStatus(vehicle, day, "am");
                   const pmSlot = getSlotStatus(vehicle, day, "pm");
@@ -589,7 +589,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                             )}
                             title={`${slotData.event.customerName} - ${slotData.event.status}${timeStr ? ` - ${timeStr}` : ""}`}
                           >
-                            <span className="truncate w-full text-center leading-tight">{slotData.event.customerName}</span>
+                            <span className="truncate w-full text-center leading-tight font-semibold">{slotData.event.customerName}</span>
                             {timeStr && <span className="text-[8px] opacity-70 leading-tight">{timeStr}</span>}
                           </div>
                         </td>
@@ -618,7 +618,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                                   style={{ right: `${rightPct}%`, width: `${widthPct}%` }}
                                   title={`${ev.customerName} - ${ev.status}${ev.timeLabel ? ` - ${ev.timeLabel}` : ""}`}
                                 >
-                                  <span className="truncate leading-tight w-full text-center">{ev.customerName.trim().split(" ").slice(-1)[0]}</span>
+                                  <span className="truncate leading-tight w-full text-center font-semibold">{ev.customerName.trim().split(" ").slice(-1)[0]}</span>
                                   {ev.timeLabel && <span className="text-[7px] opacity-70 leading-none">{ev.timeLabel}</span>}
                                 </div>
                               );
@@ -642,7 +642,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                           )}
                           title={`${slotData.event.customerName} - ${slotData.event.status}`}
                         >
-                          <span className="truncate leading-tight">{slotData.event.customerName.trim().split(" ").slice(-1)[0]}</span>
+                          <span className="truncate leading-tight font-semibold">{slotData.event.customerName.trim().split(" ").slice(-1)[0]}</span>
                           {slotData.timeLabel && <span className="text-[7px] opacity-70 leading-none">{slotData.timeLabel}</span>}
                         </div>
                       );
@@ -694,10 +694,10 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
                   );
                 })}
                 {/* Vehicle Info */}
-                <td className="border-2 border-foreground/20 p-1 sticky right-0 bg-white">
+                <td className={cn("border-2 border-foreground/20 p-1 sticky right-0", vIdx % 2 === 1 ? "bg-slate-100" : "bg-white")}>
                   <div className="text-right">
-                    <div className="font-medium text-xs">{vehicle.license_plate}</div>
-                    <div className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                    <div className="font-bold text-base tracking-wide">{vehicle.license_plate}</div>
+                    <div className="text-xs text-muted-foreground truncate max-w-[120px]">
                       {vehicle.manufacturer} {vehicle.model}
                     </div>
                   </div>

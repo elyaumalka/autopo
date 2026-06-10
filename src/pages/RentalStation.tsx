@@ -26,12 +26,6 @@ export default function RentalStation() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6">
       <div className="max-w-5xl mx-auto">
-        {/* כפתור הגדרות מנהל */}
-        <div className="flex justify-start mb-2">
-          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)} className="text-gray-500">
-            <Settings className="w-4 h-4 ml-1" /> הגדרות מנהל
-          </Button>
-        </div>
         {/* Logo and Title */}
         <div className="text-center mb-12">
           <div className="flex justify-center mb-6">
@@ -91,15 +85,6 @@ export default function RentalStation() {
           </Card>
         </div>
 
-        {/* Dashboard Link */}
-        <div className="text-center mt-12">
-          <button
-            onClick={() => navigate("/dashboard")}
-            className="text-gray-500 underline-offset-4 hover:text-primary hover:underline text-lg"
-          >
-            כניסה לממשק הניהול המלא
-          </button>
-        </div>
       </div>
 
       {/* הגדרות מנהל לתחנת ההשכרה */}

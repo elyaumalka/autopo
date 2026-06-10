@@ -64,6 +64,11 @@ const App = () => (
                 <RentalStation />
               </ProtectedRoute>
             } />
+            <Route path="/rental-station" element={
+              <ProtectedRoute requireRole>
+                <RentalStation />
+              </ProtectedRoute>
+            } />
             <Route path="/today-departures" element={
               <ProtectedRoute requireRole>
                 <TodayDepartures />

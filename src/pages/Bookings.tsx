@@ -1652,6 +1652,34 @@ export default function Bookings() {
                   </div>
                 </div>
 
+                {/* הגדרות תחנת השכרה (פר-השכרה) */}
+                <div className="grid grid-cols-2 gap-4 p-3 border rounded-lg bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="require_credit_hold"
+                      className="h-4 w-4"
+                      checked={(formData as any).require_credit_hold !== false}
+                      onChange={(e) => setFormData({ ...formData, require_credit_hold: e.target.checked } as any)}
+                    />
+                    <Label htmlFor="require_credit_hold" className="cursor-pointer">חובה לתפוס מסגרת בתחנה</Label>
+                  </div>
+                  <div>
+                    <Label>תשלום מראש בתחנה</Label>
+                    <Select
+                      value={(formData as any).prepay_mode || "optional"}
+                      onValueChange={(v: any) => setFormData({ ...formData, prepay_mode: v } as any)}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="optional">אופציונלי</SelectItem>
+                        <SelectItem value="mandatory">חובה (תשלום מלא)</SelectItem>
+                        <SelectItem value="partial">חובה חלקית</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div>
                   <Label>הערות</Label>
                   <Textarea

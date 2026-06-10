@@ -13,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { CustomerSearchSelect } from "@/components/shared/CustomerSearchSelect";
 import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
+import RentalStartWizard from "@/components/bookings/RentalStartWizard";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths, isToday, isSameMonth } from "date-fns";
 import { he } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
@@ -31,6 +32,7 @@ export default function DailySnapshot() {
   // סעיף 21 - לחיצה על ריבוע רכב פותחת חלון לפי מצב הרכב
   const [detailRental, setDetailRental] = useState<Rental | null>(null);
   const [quickBookVehicle, setQuickBookVehicle] = useState<Vehicle | null>(null);
+  const [startWizardBooking, setStartWizardBooking] = useState<Booking | null>(null);
   const queryClient = useQueryClient();
 
   // פתיחת רכב תפוס -> חלון השכרה פעילה
@@ -294,7 +296,7 @@ export default function DailySnapshot() {
                   <Card className="p-6 text-center text-muted-foreground">אין רכבים שחוזרים היום</Card>
                 ) : (
                   returningVehicles.map((rental) => (
-                    <Card key={rental.id} className="p-4 border-r-4 border-r-destructive">
+                    <Card key={rental.id} className="p-4 border-r-4 border-r-destructive cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetailRental(rental)} title="לחץ לניהול ההשכרה">
                       <div className="flex justify-between items-start mb-2">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
@@ -337,7 +339,7 @@ export default function DailySnapshot() {
                   <Card className="p-6 text-center text-muted-foreground">אין רכבים שיוצאים היום</Card>
                 ) : (
                   departingVehicles.map((booking) => (
-                    <Card key={booking.id} className="p-4 border-r-4 border-r-green-500">
+                    <Card key={booking.id} className="p-4 border-r-4 border-r-green-500 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setStartWizardBooking(booking)} title="לחץ להתחלת השכרה">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -359,10 +361,10 @@ export default function DailySnapshot() {
                             <span>{booking.start_time || "-"}</span>
                           </div>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => openReassignDialog(booking)} className="text-blue-600 h-7 w-7 p-0">
+                            <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openReassignDialog(booking); }} className="text-blue-600 h-7 w-7 p-0">
                               <Users className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDeleteBooking(booking)} className="text-destructive h-7 w-7 p-0">
+                            <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); handleDeleteBooking(booking); }} className="text-destructive h-7 w-7 p-0">
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
@@ -570,6 +572,27 @@ export default function DailySnapshot() {
         vehicle={quickBookVehicle}
         customers={customers}
       />
+
+      {/* התחלת השכרה מהזמנה משוריינת (סעיף 21) */}
+      {startWizardBooking && (
+        <Dialog open={!!startWizardBooking} onOpenChange={(o) => { if (!o) setStartWizardBooking(null); }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>תחילת השכרה</DialogTitle></DialogHeader>
+            <RentalStartWizard
+              booking={startWizardBooking}
+              customer={customers.find((c) => c.id === startWizardBooking.customer_id) || null}
+              vehicle={vehicles.find((v) => v.id === startWizardBooking.vehicle_id) || null}
+              onComplete={() => {
+                setStartWizardBooking(null);
+                queryClient.invalidateQueries({ queryKey: ["bookings"] });
+                queryClient.invalidateQueries({ queryKey: ["rentals"] });
+                queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+              }}
+              onCancel={() => setStartWizardBooking(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

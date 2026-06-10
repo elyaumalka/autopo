@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Calendar, User, Car, ArrowRight } from "lucide-react";
+import { Calendar, User, Car, ArrowRight, Banknote } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 import { PaymentButton } from "@/components/payments/PaymentButton";
@@ -50,6 +50,10 @@ export default function TodayReturns() {
     paid_now: 0,
     payment_method: "מזומן" as string,
   });
+  const [returnStep, setReturnStep] = useState<"km" | "toll" | "damage" | "fuel" | "pay">("km");
+  const [tollSides, setTollSides] = useState(0); // מספר צדדים בכבישי אגרה (₪50 לצד)
+  const [cashDialogOpen, setCashDialogOpen] = useState(false);
+  const [cashAmount, setCashAmount] = useState("");
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [invoiceData, setInvoiceData] = useState<{ name: string; amount: number; method: string; vehicle: string; period: string; rentalId: string } | null>(null);
   const today = format(new Date(), "yyyy-MM-dd");
@@ -106,7 +110,19 @@ export default function TodayReturns() {
       paid_now: 0,
       payment_method: "מזומן",
     });
+    setTollSides(0);
+    setReturnStep("km");
+    setCashAmount("");
     setEndRentalOpen(true);
+  };
+
+  const confirmReturnCash = () => {
+    const amt = Number(cashAmount) || 0;
+    if (amt <= 0) { toast({ title: "נא להזין סכום", variant: "destructive" }); return; }
+    setEndRentalData((p) => ({ ...p, paid_now: Number(p.paid_now || 0) + amt, payment_method: "מזומן" }));
+    setCashDialogOpen(false);
+    setCashAmount("");
+    toast({ title: "התקבל תשלום מזומן", description: `₪${amt.toLocaleString()} — נא לוודא שהונח בקופה` });
   };
 
   const handleEndRental = async () => {
@@ -120,7 +136,7 @@ export default function TodayReturns() {
       const extraKmCost = extraKm * (vehicle?.extra_km_price || 0);
 
       // חיובי שאלון ההחזרה
-      const tollCharge = endRentalData.drove_toll ? Number(endRentalData.toll_amount || 0) : 0;
+      const tollCharge = tollSides * 50;
       const damageCharge = endRentalData.had_damage ? Number(endRentalData.damage_amount || 0) : 0;
       const fuelCharge = !endRentalData.full_fuel ? Number(endRentalData.fuel_amount || 0) : 0;
       const questionnaireCharges = tollCharge + damageCharge + fuelCharge;
@@ -243,7 +259,7 @@ export default function TodayReturns() {
     const kmDiff = endRentalData.end_km - (selectedRental.start_km || 0);
     const extraKm = Math.max(0, kmDiff - (returnVehicle?.km_limit || 0));
     const extraKmCost = extraKm * (returnVehicle?.extra_km_price || 0);
-    const toll = endRentalData.drove_toll ? Number(endRentalData.toll_amount || 0) : 0;
+    const toll = tollSides * 50;
     const damage = endRentalData.had_damage ? Number(endRentalData.damage_amount || 0) : 0;
     const fuel = !endRentalData.full_fuel ? Number(endRentalData.fuel_amount || 0) : 0;
     return (selectedRental.base_cost || 0) + extraKmCost + (endRentalData.additional_charges || 0) + toll + damage + fuel;
@@ -388,221 +404,118 @@ export default function TodayReturns() {
           </DialogHeader>
           {selectedRental && (
             <div className="space-y-4">
-              <Card className="p-4 bg-gray-50">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">לקוח:</span>
-                    <span className="font-medium">
-                      {selectedRental.customer_name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">רכב:</span>
-                    <span className="font-medium">
-                      {selectedRental.vehicle_details}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">ק"מ התחלה:</span>
-                    <span className="font-medium">
-                      {selectedRental.start_km?.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
+              <Card className="p-3 bg-gray-50 text-sm">
+                <div className="flex justify-between"><span className="text-gray-600">לקוח:</span><span className="font-medium">{selectedRental.customer_name}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">רכב:</span><span className="font-medium">{selectedRental.vehicle_details}</span></div>
+                <div className="flex justify-between"><span className="text-gray-600">ק"מ התחלה:</span><span className="font-medium">{selectedRental.start_km?.toLocaleString()}</span></div>
               </Card>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>תאריך סיום</Label>
-                  <Input
-                    type="date"
-                    value={endRentalData.actual_end_date}
-                    onChange={(e) =>
-                      setEndRentalData({
-                        ...endRentalData,
-                        actual_end_date: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>שעת סיום</Label>
-                  <Input
-                    type="time"
-                    value={endRentalData.actual_end_time}
-                    onChange={(e) =>
-                      setEndRentalData({
-                        ...endRentalData,
-                        actual_end_time: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label>ק"מ סיום *</Label>
-                <Input
-                  type="number"
-                  value={endRentalData.end_km}
-                  onChange={(e) =>
-                    setEndRentalData({
-                      ...endRentalData,
-                      end_km: parseInt(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-
-              <div>
-                <Label>חיובים נוספים</Label>
-                <Input
-                  type="number"
-                  value={endRentalData.additional_charges}
-                  onChange={(e) =>
-                    setEndRentalData({
-                      ...endRentalData,
-                      additional_charges: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="סכום"
-                />
-              </div>
-
-              <div>
-                <Label>פירוט חיובים נוספים</Label>
-                <Textarea
-                  value={endRentalData.additional_charges_details}
-                  onChange={(e) =>
-                    setEndRentalData({
-                      ...endRentalData,
-                      additional_charges_details: e.target.value,
-                    })
-                  }
-                  placeholder="נזקים, איחורים, דוחות..."
-                />
-              </div>
-
-              {/* שאלון החזרה */}
-              <Card className="p-4 space-y-3 border-blue-200">
-                <h3 className="font-semibold text-sm">שאלון החזרה</h3>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">נסע בכביש 6 / כבישי אגרה?</Label>
-                  <Switch checked={endRentalData.drove_toll} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, drove_toll: v })} />
-                </div>
-                {endRentalData.drove_toll && (
-                  <Input type="number" placeholder="סכום אגרה (₪)" value={endRentalData.toll_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, toll_amount: parseFloat(e.target.value) || 0 })} />
-                )}
-
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">היה נזק לרכב?</Label>
-                  <Switch checked={endRentalData.had_damage} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, had_damage: v })} />
-                </div>
-                {endRentalData.had_damage && (
-                  <div className="space-y-2">
-                    <Input type="number" placeholder="סכום נזק (₪)" value={endRentalData.damage_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, damage_amount: parseFloat(e.target.value) || 0 })} />
-                    <Input placeholder="תיאור הנזק" value={endRentalData.damage_desc} onChange={(e) => setEndRentalData({ ...endRentalData, damage_desc: e.target.value })} />
+              {/* שלב 1: קילומטראז' */}
+              {returnStep === "km" && (
+                <div className="space-y-4">
+                  <div>
+                    <Label>ק"מ בהחזרה *</Label>
+                    <Input type="number" value={endRentalData.end_km} onChange={(e) => setEndRentalData({ ...endRentalData, end_km: parseInt(e.target.value) || 0 })} autoFocus />
                   </div>
-                )}
-
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">הוחזר עם דלק מלא?</Label>
-                  <Switch checked={endRentalData.full_fuel} onCheckedChange={(v) => setEndRentalData({ ...endRentalData, full_fuel: v })} />
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => setReturnStep("toll")}>המשך</Button>
                 </div>
-                {!endRentalData.full_fuel && (
-                  <Input type="number" placeholder="חיוב דלק (₪)" value={endRentalData.fuel_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, fuel_amount: parseFloat(e.target.value) || 0 })} />
-                )}
-              </Card>
+              )}
 
-              <Card className="p-4 bg-blue-50">
-                <h3 className="font-semibold mb-2">סיכום עלויות</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>עלות בסיס:</span>
-                    <span>₪{selectedRental.base_cost?.toLocaleString()}</span>
+              {/* שלב 2: כבישי אגרה */}
+              {returnStep === "toll" && (
+                <div className="space-y-4">
+                  <p className="font-semibold text-center">נסעת בכביש 6 / כבישי אגרה?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant={!endRentalData.drove_toll ? "default" : "outline"} onClick={() => { setEndRentalData({ ...endRentalData, drove_toll: false }); setTollSides(0); }}>לא</Button>
+                    <Button variant={endRentalData.drove_toll ? "default" : "outline"} onClick={() => { setEndRentalData({ ...endRentalData, drove_toll: true }); if (tollSides === 0) setTollSides(1); }}>כן</Button>
                   </div>
-                  {(() => {
-                    const vehicle = vehicles.find(
-                      (v) => v.id === selectedRental.vehicle_id
-                    );
-                    const kmDiff =
-                      endRentalData.end_km - (selectedRental.start_km || 0);
-                    const kmLimit = vehicle?.km_limit || 0;
-                    const extraKm = Math.max(0, kmDiff - kmLimit);
-                    const extraKmCost = extraKm * (vehicle?.extra_km_price || 0);
-
-                    return (
-                      extraKm > 0 && (
-                        <div className="flex justify-between text-orange-600">
-                          <span>ק"מ נוסף ({extraKm}):</span>
-                          <span>₪{extraKmCost.toLocaleString()}</span>
-                        </div>
-                      )
-                    );
-                  })()}
-                  {endRentalData.additional_charges > 0 && (
-                    <div className="flex justify-between text-orange-600">
-                      <span>חיובים נוספים:</span>
-                      <span>
-                        ₪{endRentalData.additional_charges.toLocaleString()}
-                      </span>
+                  {endRentalData.drove_toll && (
+                    <div className="p-3 border rounded-lg space-y-2">
+                      <Label className="text-sm">כמה צדדים? (₪50 לכל צד)</Label>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4].map((n) => (
+                          <Button key={n} size="sm" variant={tollSides === n ? "default" : "outline"} onClick={() => setTollSides(n)}>{n}</Button>
+                        ))}
+                        <Input type="number" className="w-20" value={tollSides} onChange={(e) => setTollSides(parseInt(e.target.value) || 0)} />
+                      </div>
+                      <p className="text-sm font-medium text-orange-600">חיוב אגרה: ₪{(tollSides * 50).toLocaleString()}</p>
                     </div>
                   )}
-                  {endRentalData.drove_toll && endRentalData.toll_amount > 0 && (
-                    <div className="flex justify-between text-orange-600"><span>כבישי אגרה:</span><span>₪{endRentalData.toll_amount.toLocaleString()}</span></div>
-                  )}
-                  {endRentalData.had_damage && endRentalData.damage_amount > 0 && (
-                    <div className="flex justify-between text-orange-600"><span>נזק:</span><span>₪{endRentalData.damage_amount.toLocaleString()}</span></div>
-                  )}
-                  {!endRentalData.full_fuel && endRentalData.fuel_amount > 0 && (
-                    <div className="flex justify-between text-orange-600"><span>דלק חסר:</span><span>₪{endRentalData.fuel_amount.toLocaleString()}</span></div>
-                  )}
-                  <div className="flex justify-between font-bold pt-2 border-t">
-                    <span>סה"כ:</span>
-                    <span>₪{returnTotalCost.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-green-700">
-                    <span>שולם קודם:</span>
-                    <span>₪{(selectedRental.paid_amount || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-red-600">
-                    <span>נותר לתשלום:</span>
-                    <span>₪{Math.max(0, returnTotalCost - (selectedRental.paid_amount || 0) - Number(endRentalData.paid_now || 0)).toLocaleString()}</span>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setReturnStep("km")}>הקודם</Button>
+                    <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => setReturnStep("damage")}>המשך</Button>
                   </div>
                 </div>
-              </Card>
+              )}
 
-              {/* תשלום */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>תשלום עכשיו (₪)</Label>
-                  <Input type="number" value={endRentalData.paid_now || ""} onChange={(e) => setEndRentalData({ ...endRentalData, paid_now: parseFloat(e.target.value) || 0 })} />
+              {/* שלב 3: נזק */}
+              {returnStep === "damage" && (
+                <div className="space-y-4">
+                  <p className="font-semibold text-center">האם נגרם נזק לרכב?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant={!endRentalData.had_damage ? "default" : "outline"} onClick={() => setEndRentalData({ ...endRentalData, had_damage: false, damage_amount: 0, damage_desc: "" })}>לא</Button>
+                    <Button variant={endRentalData.had_damage ? "default" : "outline"} onClick={() => setEndRentalData({ ...endRentalData, had_damage: true })}>כן</Button>
+                  </div>
+                  {endRentalData.had_damage && (
+                    <div className="p-3 border rounded-lg space-y-2">
+                      <Input type="number" placeholder="סכום חיוב על הנזק (₪)" value={endRentalData.damage_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, damage_amount: parseFloat(e.target.value) || 0 })} />
+                      <Textarea placeholder="פירוט הנזק (חובה)" value={endRentalData.damage_desc} onChange={(e) => setEndRentalData({ ...endRentalData, damage_desc: e.target.value })} />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setReturnStep("toll")}>הקודם</Button>
+                    <Button className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={endRentalData.had_damage && !endRentalData.damage_desc.trim()} onClick={() => setReturnStep("fuel")}>המשך</Button>
+                  </div>
                 </div>
-                <div>
-                  <Label>אמצעי תשלום</Label>
-                  <Select value={endRentalData.payment_method} onValueChange={(v) => setEndRentalData({ ...endRentalData, payment_method: v })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="מזומן">מזומן</SelectItem>
-                      <SelectItem value="אשראי">אשראי</SelectItem>
-                      <SelectItem value="העברה בנקאית">העברה בנקאית</SelectItem>
-                      <SelectItem value="ביט">ביט</SelectItem>
-                    </SelectContent>
-                  </Select>
+              )}
+
+              {/* שלב 4: דלק */}
+              {returnStep === "fuel" && (
+                <div className="space-y-4">
+                  <p className="font-semibold text-center">האם הרכב הוחזר עם דלק מלא?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button variant={endRentalData.full_fuel ? "default" : "outline"} onClick={() => setEndRentalData({ ...endRentalData, full_fuel: true, fuel_amount: 0 })}>כן, מלא</Button>
+                    <Button variant={!endRentalData.full_fuel ? "default" : "outline"} onClick={() => setEndRentalData({ ...endRentalData, full_fuel: false })}>לא</Button>
+                  </div>
+                  {!endRentalData.full_fuel && (
+                    <div className="p-3 border rounded-lg">
+                      <Label className="text-sm">סכום חיוב על דלק חסר (₪)</Label>
+                      <Input type="number" value={endRentalData.fuel_amount || ""} onChange={(e) => setEndRentalData({ ...endRentalData, fuel_amount: parseFloat(e.target.value) || 0 })} />
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setReturnStep("damage")}>הקודם</Button>
+                    <Button className="flex-1 bg-blue-600 hover:bg-blue-700" disabled={!endRentalData.full_fuel && !endRentalData.fuel_amount} onClick={() => setReturnStep("pay")}>המשך לתשלום</Button>
+                  </div>
                 </div>
-              </div>
-              {(() => {
+              )}
+
+              {/* שלב 5: תשלום + חשבונית */}
+              {returnStep === "pay" && (() => {
                 const cust = customers.find((c) => c.id === selectedRental.customer_id);
                 const remaining = Math.max(0, returnTotalCost - (selectedRental.paid_amount || 0) - Number(endRentalData.paid_now || 0));
                 return (
-                  <div className="rounded-lg border bg-cyan-50/50 p-3">
-                    <Label className="text-xs font-medium">גביית יתרה באשראי</Label>
-                    <div className="mt-2">
+                  <div className="space-y-4">
+                    <Card className="p-4 bg-blue-50">
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between"><span>סה"כ:</span><span className="font-semibold">₪{returnTotalCost.toLocaleString()}</span></div>
+                        <div className="flex justify-between text-green-700"><span>שולם:</span><span>₪{((selectedRental.paid_amount || 0) + Number(endRentalData.paid_now || 0)).toLocaleString()}</span></div>
+                        <div className="flex justify-between font-bold text-red-600 border-t pt-1"><span>נותר לתשלום:</span><span>₪{remaining.toLocaleString()}</span></div>
+                      </div>
+                    </Card>
+
+                    <p className="text-sm font-semibold text-center">תשלום היתרה</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" className="h-auto py-4 flex-col gap-1" onClick={() => { setCashAmount(String(remaining)); setCashDialogOpen(true); }}>
+                        <Banknote className="w-6 h-6 text-green-600" />תשלום במזומן
+                      </Button>
                       <PaymentButton
                         defaultAction="charge"
-                        label={`חיוב נותר (₪${remaining.toLocaleString()})`}
+                        label="תשלום באשראי"
                         amount={remaining}
                         description={`החזרת רכב - ${selectedRental.vehicle_details || ""}`}
+                        variant="outline"
+                        className="w-full h-auto py-4"
                         rentalId={selectedRental.id}
                         customer={cust ? { id: cust.id, name: `${cust.first_name} ${cust.last_name}`, phone: cust.phone, email: cust.email || undefined, citizenId: cust.id_number, payment_token: (cust as any).payment_token, card_last4: (cust as any).card_last4, card_expiry: (cust as any).card_expiry } : { name: selectedRental.customer_name || "" }}
                         onSuccess={(r: any) => {
@@ -613,26 +526,38 @@ export default function TodayReturns() {
                         }}
                       />
                     </div>
+
+                    <div className="flex gap-2 pt-2 border-t">
+                      <Button variant="outline" onClick={() => setReturnStep("fuel")}>הקודם</Button>
+                      <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={handleEndRental}>
+                        סיום והפקת חשבונית
+                      </Button>
+                    </div>
                   </div>
                 );
               })()}
-
-              <div className="flex gap-3 pt-4">
-                <Button
-                  onClick={handleEndRental}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700"
-                >
-                  אישור וסיום
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setEndRentalOpen(false)}
-                >
-                  ביטול
-                </Button>
-              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* חלונית תשלום מזומן בהחזרה */}
+      <Dialog open={cashDialogOpen} onOpenChange={setCashDialogOpen}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader><DialogTitle>תשלום במזומן</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+              יש להניח את הכסף בקופה המיועדת ולאשר את הסכום שהונח.
+            </div>
+            <div>
+              <Label>סכום שהונח בקופה (₪)</Label>
+              <Input type="number" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} autoFocus />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={confirmReturnCash} className="flex-1 bg-green-600 hover:bg-green-700">אישור — הונח בקופה</Button>
+              <Button variant="outline" onClick={() => setCashDialogOpen(false)}>ביטול</Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

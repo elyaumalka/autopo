@@ -73,6 +73,7 @@ export default function RentalStartWizard({
   // תשלום בתחנה
   const totalCost = Number(booking.rental_cost || 0);
   const [holdCaptured, setHoldCaptured] = useState(!!(booking as any).sumit_auth_number);
+  const [holdAuthNumber, setHoldAuthNumber] = useState<string | null>((booking as any).sumit_auth_number || null);
   const [paidAmount, setPaidAmount] = useState(Number(booking.deposit_amount || 0));
   const sessionPaidRef = useRef(0); // כמה נגבה בתחנה (לרישום הכנסה)
   const [stationPaymentMethod, setStationPaymentMethod] = useState<string>("");
@@ -350,7 +351,11 @@ export default function RentalStartWizard({
         rental_type: booking.rental_type as any,
         notes,
         status: "פעיל",
-      }).select().single();
+        // העברת תפיסת המסגרת להשכרה כדי שניתן יהיה לצפות/לשחרר אותה בחלון ההשכרה הפעילה
+        sumit_auth_number: holdAuthNumber,
+        sumit_authorized_amount: holdAuthNumber ? Number(booking.credit_hold || totalCost) : null,
+        sumit_authorized_at: holdAuthNumber ? new Date().toISOString() : null,
+      } as any).select().single();
       if (rentalError) throw rentalError;
 
       // רישום הכנסה על מה שנגבה בתחנה
@@ -518,7 +523,7 @@ export default function RentalStartWizard({
                 variant="default"
                 bookingId={booking.id}
                 customer={customerForPay}
-                onSuccess={(r: any) => { if (r?.action === "authorize" && r?.success) setHoldCaptured(true); }}
+                onSuccess={(r: any) => { if (r?.action === "authorize" && r?.success) { setHoldCaptured(true); if (r?.authNumber) setHoldAuthNumber(String(r.authNumber)); } }}
               />
               <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setHoldCaptured(true)}>
                 סמן שנתפסה ידנית / דלג

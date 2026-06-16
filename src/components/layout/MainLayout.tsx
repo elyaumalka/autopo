@@ -42,6 +42,7 @@ const menuItems = [
     submenu: [
       { name: "תזרים", page: "/cash-flow" },
       { name: "חשבוניות", page: "/invoices" },
+      { name: "תפיסות מסגרת", page: "/credit-holds" },
       { name: "רווחיות רכבים", page: "/vehicle-financials" },
       { name: "הכנסות", page: "/incomes" },
       { name: "הוצאות", page: "/expenses" },

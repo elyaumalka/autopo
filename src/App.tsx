@@ -27,6 +27,7 @@ import Incomes from "@/pages/Incomes";
 import Expenses from "@/pages/Expenses";
 import CashFlow from "@/pages/CashFlow";
 import Invoices from "@/pages/Invoices";
+import CreditHolds from "@/pages/CreditHolds";
 import VehicleFinancials from "@/pages/VehicleFinancials";
 import MaintenanceTasks from "@/pages/MaintenanceTasks";
 import CollectionTasks from "@/pages/CollectionTasks";
@@ -91,6 +92,7 @@ const App = () => (
             <Route path="/expenses" element={<ProtectedRoute requireRole><MainLayout><Expenses /></MainLayout></ProtectedRoute>} />
             <Route path="/cash-flow" element={<ProtectedRoute requireRole><MainLayout><CashFlow /></MainLayout></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute requireRole><MainLayout><Invoices /></MainLayout></ProtectedRoute>} />
+            <Route path="/credit-holds" element={<ProtectedRoute requireRole><MainLayout><CreditHolds /></MainLayout></ProtectedRoute>} />
             <Route path="/vehicle-financials" element={<ProtectedRoute requireRole><MainLayout><VehicleFinancials /></MainLayout></ProtectedRoute>} />
             <Route path="/maintenance-tasks" element={<ProtectedRoute requireRole><MainLayout><MaintenanceTasks /></MainLayout></ProtectedRoute>} />
             <Route path="/collection-tasks" element={<ProtectedRoute requireRole><MainLayout><CollectionTasks /></MainLayout></ProtectedRoute>} />

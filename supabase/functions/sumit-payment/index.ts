@@ -440,15 +440,11 @@ Deno.serve(async (req) => {
       VATIncluded: true,
       Credentials: creds,
     };
-    let r: Awaited<ReturnType<typeof sumitFetch>>;
+    // תפיסת מסגרת (J5) לפי תיעוד סומיט: שולחים AutoCapture=false ל-Charge (החיוב בפועל יבוצע מאוחר יותר)
     if (isAuthorize) {
-      // Use Sumit billing endpoint with AuthoriseOnly so the transaction is recorded in Sumit dashboard
-      // (CreditGuy gateway holds funds at the bank but does NOT show up in the Sumit panel)
-      payload.AuthoriseOnly = true;
-      r = await sumitFetch("/billing/payments/charge/", payload);
-    } else {
-      r = await sumitFetch("/billing/payments/charge/", payload);
+      payload.AutoCapture = false;
     }
+    const r = await sumitFetch("/billing/payments/charge/", payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
     // מספר אישור: אם סומיט לא מחזירה AuthNumber (קורה ב-J5 דרך billing), משתמשים ב-Payment.ID כמזהה

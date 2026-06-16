@@ -177,16 +177,20 @@ serve(async (req) => {
           .single();
 
         if (existing) {
-          // Update rental details but keep existing status
-          await supabase
-            .from("document_signatures")
-            .update({
-              rental_details: rentalDetails,
-              customer_name: rentalDetails.customer_name,
-              vehicle_details: booking.vehicle_details,
-            })
-            .eq("id", existing.id);
-          results.push(existing);
+          // מרעננים את נתוני החוזה רק אם עוד לא נחתם (לא לדרוס מסמך חתום)
+          if (existing.status !== "signed") {
+            await supabase
+              .from("document_signatures")
+              .update({
+                rental_details: rentalDetails,
+                customer_name: rentalDetails.customer_name,
+                vehicle_details: booking.vehicle_details,
+              })
+              .eq("id", existing.id);
+            results.push({ ...existing, rental_details: rentalDetails, customer_name: rentalDetails.customer_name, vehicle_details: booking.vehicle_details });
+          } else {
+            results.push(existing);
+          }
         } else {
           const { data: newDoc, error } = await supabase
             .from("document_signatures")

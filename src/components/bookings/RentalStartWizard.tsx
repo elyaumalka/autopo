@@ -142,19 +142,8 @@ export default function RentalStartWizard({
   const loadAndAutoGenerate = async () => {
     setLoadingDocs(true);
     try {
-      const { data, error } = await supabase
-        .from("document_signatures")
-        .select("*")
-        .eq("booking_id", booking.id);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        await generateDocuments();
-      } else {
-        const sorted = sortDocs(data);
-        setDocuments(sorted);
-        const firstUnsigned = sorted.findIndex((d: any) => d.status !== "signed");
-        setCurrentDocIndex(firstUnsigned >= 0 ? firstUnsigned : sorted.length);
-      }
+      // תמיד מרעננים את המסמכים עם נתוני ההזמנה הנוכחיים (כולל שעת לקיחה מעודכנת)
+      await generateDocuments();
     } catch (e) {
       console.error("Error loading documents:", e);
     } finally {
@@ -177,9 +166,15 @@ export default function RentalStartWizard({
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      const sorted = sortDocs(Array.isArray(data) ? data : []);
+      // קוראים מחדש מה-DB כדי לקבל את נתוני החוזה המעודכנים (ה-edge מעדכן את ה-DB אך עשוי להחזיר נתונים ישנים)
+      const { data: fresh } = await supabase
+        .from("document_signatures")
+        .select("*")
+        .eq("booking_id", booking.id);
+      const sorted = sortDocs((fresh && fresh.length ? fresh : (Array.isArray(data) ? data : [])) as any[]);
       setDocuments(sorted);
-      setCurrentDocIndex(0);
+      const firstUnsigned = sorted.findIndex((d: any) => d.status !== "signed");
+      setCurrentDocIndex(firstUnsigned >= 0 ? firstUnsigned : sorted.length);
     } catch (e: any) {
       console.error("Error generating documents:", e);
       toast({ title: "שגיאה ביצירת מסמכים", variant: "destructive" });

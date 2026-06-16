@@ -543,22 +543,34 @@ export default function Bookings() {
     setShowVehicleSwap(false);
   };
 
-  const isVehicleAvailable = (vehicleId: string, startDate: string, endDate: string, excludeBookingId?: string) => {
+  const isVehicleAvailable = (
+    vehicleId: string,
+    startDate: string,
+    endDate: string,
+    excludeBookingId?: string,
+    startTime?: string | null,
+    endTime?: string | null,
+  ) => {
+    // השוואה מודעת-שעות. כשאין שעת סיום מניחים סוף יום, כדי שהזמנות באותו יום ייחשבו כחפיפה.
+    const aStart = new Date(`${startDate}T${(startTime || "00:00").toString().slice(0, 5)}`);
+    const aEnd = new Date(`${endDate}T${(endTime || "23:59").toString().slice(0, 5)}`);
     const hasOverlap = bookings.some(b => {
       if (b.id === excludeBookingId) return false;
       if (b.vehicle_id !== vehicleId) return false;
       if (b.status === "בוטל" || b.status === "הושלם") return false;
-      return startDate < b.end_date && endDate > b.start_date;
+      const bStart = new Date(`${b.start_date}T${(b.start_time || "00:00").toString().slice(0, 5)}`);
+      const bEnd = new Date(`${b.end_date}T${(b.end_time || "23:59").toString().slice(0, 5)}`);
+      return aStart < bEnd && aEnd > bStart;
     });
     return !hasOverlap;
   };
 
   const getAvailableVehicles = () => {
     if (!formData.start_date || !formData.end_date) return [];
-    return vehicles.filter(v => 
-      v.status !== "נמכר" && 
+    return vehicles.filter(v =>
+      v.status !== "נמכר" &&
       v.status !== "לא פעיל" &&
-      isVehicleAvailable(v.id, formData.start_date!, formData.end_date!, selectedBooking?.id)
+      isVehicleAvailable(v.id, formData.start_date!, formData.end_date!, selectedBooking?.id, formData.start_time, formData.end_time)
     );
   };
 
@@ -571,6 +583,13 @@ export default function Bookings() {
         toast({ title: "שגיאה בתאריכים", description: "תאריך/שעת ההחזרה לא יכולים להיות לפני תאריך/שעת הלקיחה", variant: "destructive" });
         return;
       }
+    }
+
+    // חסימה: הרכב כבר תפוס בטווח התאריכים/שעות שנבחר
+    if (formData.vehicle_id && formData.start_date && formData.end_date &&
+        !isVehicleAvailable(formData.vehicle_id, formData.start_date, formData.end_date, selectedBooking?.id, formData.start_time, formData.end_time)) {
+      toast({ title: "הרכב תפוס", description: "הרכב כבר מושכר/משוריין בתאריכים ובשעות שנבחרו.", variant: "destructive" });
+      return;
     }
 
     const customer = customers.find(c => c.id === formData.customer_id);
@@ -1688,6 +1707,15 @@ export default function Bookings() {
                       onChange={(e) => setFormData({ ...formData, require_credit_hold: e.target.checked } as any)}
                     />
                     <Label htmlFor="require_credit_hold" className="cursor-pointer">חובה לתפוס מסגרת בתחנה</Label>
+                  </div>
+                  <div>
+                    <Label>סכום המסגרת לתפיסה (₪)</Label>
+                    <Input
+                      type="number"
+                      value={formData.credit_hold || ""}
+                      onChange={(e) => setFormData({ ...formData, credit_hold: Number(e.target.value) })}
+                      placeholder="ברירת מחדל: עלות ההשכרה"
+                    />
                   </div>
                   <div>
                     <Label>תשלום מראש בתחנה</Label>

@@ -29,6 +29,7 @@ import { format, differenceInDays } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
 import RentalEditDialog from "@/components/rentals/RentalEditDialog";
+import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Rental = Tables<"rentals">;
@@ -74,6 +75,32 @@ export default function Rentals() {
       return data as Vehicle[];
     },
   });
+
+  // חשבוניות סומיט לפי השכרה (לצפייה/הדפסה)
+  const { data: sumitInvoices = [] } = useQuery({
+    queryKey: ["sumit_invoices"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("sumit_invoices").select("*").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as Tables<"sumit_invoices">[];
+    },
+  });
+  const invoiceByRental = new Map<string, Tables<"sumit_invoices">>();
+  sumitInvoices.forEach((inv) => { if (inv.rental_id && !invoiceByRental.has(inv.rental_id)) invoiceByRental.set(inv.rental_id, inv); });
+
+  const [invoiceRental, setInvoiceRental] = useState<Rental | null>(null);
+
+  const openInvoicePdf = async (inv: Tables<"sumit_invoices">) => {
+    if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }
+    try {
+      const { data, error } = await supabase.functions.invoke("sumit-payment", { body: { action: "get_pdf", documentId: inv.document_id } });
+      if (error) throw error;
+      const url = (data as any)?.pdfUrl;
+      if (url) window.open(url, "_blank"); else throw new Error("לא נמצא PDF");
+    } catch (e: any) {
+      toast({ title: "שגיאה בפתיחת החשבונית", description: e.message, variant: "destructive" });
+    }
+  };
 
   // Auto-open edit dialog from URL params (e.g. from calendar)
   useEffect(() => {
@@ -286,13 +313,24 @@ export default function Rentals() {
     },
     {
       header: "חשבונית",
-      cell: (row: Rental) => (
-        row.invoice_number ? (
-          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">✓ הופקה</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">—</span>
-        )
-      ),
+      cell: (row: Rental) => {
+        const inv = invoiceByRental.get(row.id);
+        if (inv) {
+          return (
+            <Button size="sm" variant="outline" className="h-7 text-xs text-green-700 border-green-300 hover:bg-green-50" onClick={() => openInvoicePdf(inv)}>
+              <Eye className="w-3.5 h-3.5 ml-1" /> צפה/הדפס
+            </Button>
+          );
+        }
+        if (row.invoice_number) {
+          return <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-0.5 rounded">✓ הופקה</span>;
+        }
+        return (
+          <Button size="sm" variant="ghost" className="h-7 text-xs text-cyan-700" onClick={() => setInvoiceRental(row)}>
+            הפק חשבונית
+          </Button>
+        );
+      },
     },
     {
       header: "סטטוס",
@@ -436,6 +474,20 @@ export default function Rentals() {
         isOpen={!!editingRental}
         onClose={() => setEditingRental(null)}
       />
+
+      {/* הפקת חשבונית מהרשימה */}
+      {invoiceRental && (
+        <InvoiceDialog
+          open={!!invoiceRental}
+          onOpenChange={(o) => { if (!o) setInvoiceRental(null); }}
+          rentalId={invoiceRental.id}
+          defaultCustomerName={invoiceRental.customer_name || ""}
+          defaultAmount={Number(invoiceRental.total_cost ?? invoiceRental.base_cost ?? 0)}
+          defaultVehicleDetails={invoiceRental.vehicle_details || ""}
+          defaultPeriod={`${invoiceRental.start_date || ""} - ${invoiceRental.actual_end_date || invoiceRental.planned_end_date || ""}`}
+          onIssued={() => { setInvoiceRental(null); queryClient.invalidateQueries({ queryKey: ["sumit_invoices"] }); queryClient.invalidateQueries({ queryKey: ["rentals"] }); }}
+        />
+      )}
 
       {/* End Rental Dialog */}
       <Dialog open={endRentalDialog} onOpenChange={setEndRentalDialog}>

@@ -86,7 +86,27 @@ export default function RentalStartWizard({
   const [missingOpen, setMissingOpen] = useState(false);
   const [editPhone, setEditPhone] = useState(customer?.phone && customer.phone !== "0000000000" ? customer.phone : "");
   const [editIdNumber, setEditIdNumber] = useState(customer?.id_number && !customer.id_number.startsWith("חדש-") ? customer.id_number : "");
+  const [licenseFront, setLicenseFront] = useState<string>(customer?.license_front_url || "");
+  const [licenseBack, setLicenseBack] = useState<string>(customer?.license_back_url || "");
+  const [uploadingLic, setUploadingLic] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
+
+  const uploadLicense = async (file: File, side: "front" | "back") => {
+    setUploadingLic(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const name = `licenses/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("customer-documents").upload(name, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from("customer-documents").getPublicUrl(name);
+      if (side === "front") setLicenseFront(publicUrl); else setLicenseBack(publicUrl);
+      toast({ title: `צילום רישיון (${side === "front" ? "קדמי" : "אחורי"}) הועלה` });
+    } catch (e: any) {
+      toast({ title: "שגיאה בהעלאת רישיון", description: e.message, variant: "destructive" });
+    } finally {
+      setUploadingLic(false);
+    }
+  };
 
   const [startKm, setStartKm] = useState<number>(vehicle?.current_km || 0);
   const [startTime, setStartTime] = useState(format(new Date(), "HH:mm"));
@@ -242,6 +262,8 @@ export default function RentalStartWizard({
       const update: any = {};
       if (editPhone.trim()) update.phone = editPhone.trim();
       if (editIdNumber.trim()) update.id_number = editIdNumber.trim();
+      if (licenseFront) update.license_front_url = licenseFront;
+      if (licenseBack) update.license_back_url = licenseBack;
       if (Object.keys(update).length > 0) {
         const { error } = await supabase.from("customers").update(update).eq("id", customer.id);
         if (error) throw error;
@@ -470,6 +492,9 @@ export default function RentalStartWizard({
                 customer={customerForPay}
                 onSuccess={(r: any) => { if (r?.action === "authorize" && r?.success) setHoldCaptured(true); }}
               />
+              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setHoldCaptured(true)}>
+                סמן שנתפסה ידנית / דלג
+              </Button>
             </div>
           )}
         </div>
@@ -620,9 +645,27 @@ export default function RentalStartWizard({
               <Label>תעודת זהות</Label>
               <Input value={editIdNumber} onChange={(e) => setEditIdNumber(e.target.value)} placeholder="ת.ז" />
             </div>
-            {(missingFields.includes("צילום רישיון (קדמי)") || missingFields.includes("צילום רישיון (אחורי)") || missingFields.includes("כרטיס אשראי שמור")) && (
+
+            {/* העלאת צילומי רישיון נהיגה */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-sm">רישיון - צד קדמי</Label>
+                <input type="file" accept="image/*" className="hidden" id="lic-front" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLicense(f, "front"); }} />
+                <Button type="button" variant="outline" className="w-full mt-1" disabled={uploadingLic} onClick={() => document.getElementById("lic-front")?.click()}>
+                  {uploadingLic ? <Loader2 className="w-4 h-4 animate-spin" /> : licenseFront ? "הועלה ✓" : "העלה צילום"}
+                </Button>
+              </div>
+              <div>
+                <Label className="text-sm">רישיון - צד אחורי</Label>
+                <input type="file" accept="image/*" className="hidden" id="lic-back" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLicense(f, "back"); }} />
+                <Button type="button" variant="outline" className="w-full mt-1" disabled={uploadingLic} onClick={() => document.getElementById("lic-back")?.click()}>
+                  {uploadingLic ? <Loader2 className="w-4 h-4 animate-spin" /> : licenseBack ? "הועלה ✓" : "העלה צילום"}
+                </Button>
+              </div>
+            </div>
+            {missingFields.includes("כרטיס אשראי שמור") && (
               <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
-                שים לב: חסרים גם {[missingFields.includes("צילום רישיון (קדמי)") || missingFields.includes("צילום רישיון (אחורי)") ? "צילום רישיון" : null, missingFields.includes("כרטיס אשראי שמור") ? "כרטיס אשראי" : null].filter(Boolean).join(" ו")} — ניתן להשלים בכרטיס הלקוח / בשלב תפיסת המסגרת.
+                שים לב: אין כרטיס אשראי שמור — ניתן לשמור/לתפוס מסגרת בשלב הבא.
               </div>
             )}
             <div className="flex gap-2">

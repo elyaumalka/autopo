@@ -259,9 +259,37 @@ export default function RentalStartWizard({
     if (!customer) return;
     setSavingDetails(true);
     try {
+      const newId = editIdNumber.trim();
+
+      // אם הוזנה ת.ז שכבר קיימת על לקוח אחר - לקשר את ההזמנה ללקוח הקיים (במקום ליפול על אילוץ ייחודיות)
+      if (newId && newId !== customer.id_number) {
+        const { data: existing } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("id_number", newId)
+          .neq("id", customer.id)
+          .maybeSingle();
+        if (existing) {
+          // השלמת פרטים חסרים על הלקוח הקיים
+          const exUpd: any = {};
+          if (editPhone.trim() && (!existing.phone || existing.phone === "0000000000")) exUpd.phone = editPhone.trim();
+          if (licenseFront && !existing.license_front_url) exUpd.license_front_url = licenseFront;
+          if (licenseBack && !existing.license_back_url) exUpd.license_back_url = licenseBack;
+          if (Object.keys(exUpd).length > 0) await supabase.from("customers").update(exUpd).eq("id", existing.id);
+          // קישור ההזמנה ללקוח הקיים
+          await supabase.from("bookings").update({ customer_id: existing.id, customer_name: `${existing.first_name} ${existing.last_name}` }).eq("id", booking.id);
+          queryClient.invalidateQueries({ queryKey: ["customers"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          toast({ title: "הלקוח כבר קיים במערכת", description: "ההזמנה קושרה ללקוח הקיים. מומלץ לרענן את החלון.", });
+          setMissingOpen(false);
+          setSavingDetails(false);
+          return;
+        }
+      }
+
       const update: any = {};
       if (editPhone.trim()) update.phone = editPhone.trim();
-      if (editIdNumber.trim()) update.id_number = editIdNumber.trim();
+      if (newId) update.id_number = newId;
       if (licenseFront) update.license_front_url = licenseFront;
       if (licenseBack) update.license_back_url = licenseBack;
       if (Object.keys(update).length > 0) {

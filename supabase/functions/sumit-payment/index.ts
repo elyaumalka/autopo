@@ -451,13 +451,14 @@ Deno.serve(async (req) => {
     }
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
+    // מספר אישור: אם סומיט לא מחזירה AuthNumber (קורה ב-J5 דרך billing), משתמשים ב-Payment.ID כמזהה
+    const realAuthNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
+    const authNumber = realAuthNumber || (isAuthorize && payment?.ID ? String(payment.ID) : null);
     const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
-    // For J5 (authorize), require an actual auth number from the bank
-    const sumitOk = isAuthorize ? (r.ok && data?.Success === true && !!authNumber && providerStatus === "000") : r.ok;
-    if (isAuthorize && r.ok && !authNumber) {
-      console.warn("Sumit returned success without AuthNumber:", JSON.stringify(r.data));
-    }
+    // הצלחה: סומיט מחזירה Status:0 ברמת ה-API, ו-Payment עם Status "000" ו/או ValidPayment=true
+    const topLevelOk = r.data?.Status === 0 || r.data?.Status === undefined;
+    const paymentValid = payment?.ValidPayment === true || providerStatus === "000";
+    const sumitOk = isAuthorize ? (r.ok && topLevelOk && paymentValid) : r.ok;
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
@@ -495,11 +496,7 @@ Deno.serve(async (req) => {
     }
 
     // Save transaction
-    const errorMsg = !sumitOk
-      ? (isAuthorize && r.ok && !authNumber
-          ? "סומיט החזירה הצלחה אך ללא מספר אישור — תפיסת המסגרת לא בוצעה בפועל"
-          : JSON.stringify(r.data))
-      : null;
+    const errorMsg = !sumitOk ? JSON.stringify(r.data) : null;
     await supabaseAdmin.from("payment_transactions").insert({
       transaction_type: isAuthorize ? "authorize" : (body.card?.token ? "charge_token" : "charge"),
       status: sumitOk ? "success" : "failed",

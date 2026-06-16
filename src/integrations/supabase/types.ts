@@ -126,10 +126,10 @@ export type Database = {
           occupied_slots: Json | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_status: Database["public"]["Enums"]["payment_status"] | null
-          prepay_mode: string | null
+          prepay_mode: string
           rental_cost: number | null
           rental_type: Database["public"]["Enums"]["rental_type"] | null
-          require_credit_hold: boolean | null
+          require_credit_hold: boolean
           start_date: string
           start_time: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -166,10 +166,10 @@ export type Database = {
           occupied_slots?: Json | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
-          prepay_mode?: string | null
+          prepay_mode?: string
           rental_cost?: number | null
           rental_type?: Database["public"]["Enums"]["rental_type"] | null
-          require_credit_hold?: boolean | null
+          require_credit_hold?: boolean
           start_date: string
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -206,10 +206,10 @@ export type Database = {
           occupied_slots?: Json | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
-          prepay_mode?: string | null
+          prepay_mode?: string
           rental_cost?: number | null
           rental_type?: Database["public"]["Enums"]["rental_type"] | null
-          require_credit_hold?: boolean | null
+          require_credit_hold?: boolean
           start_date?: string
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]

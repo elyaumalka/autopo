@@ -514,7 +514,7 @@ export default function RentalStartWizard({
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">יש לתפוס מסגרת אשראי בסך ₪{Number(booking.credit_hold || totalCost).toLocaleString()} לפני המשך התהליך.</p>
+              <p className="text-sm text-muted-foreground">חובה לתפוס מסגרת אשראי בסך ₪{Number(booking.credit_hold || totalCost).toLocaleString()} לפני המשך התהליך. לא ניתן להמשיך ללא תפיסה.</p>
               <PaymentButton
                 defaultAction="authorize"
                 label="תפיסת מסגרת אשראי"
@@ -525,9 +525,6 @@ export default function RentalStartWizard({
                 customer={customerForPay}
                 onSuccess={(r: any) => { if (r?.action === "authorize" && r?.success) { setHoldCaptured(true); if (r?.authNumber) setHoldAuthNumber(String(r.authNumber)); } }}
               />
-              <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setHoldCaptured(true)}>
-                סמן שנתפסה ידנית / דלג
-              </Button>
             </div>
           )}
         </div>

@@ -61,6 +61,8 @@ interface BookingData {
   collection_date?: string | null;
   collection_frequency?: string | null;
   future_payment_method?: string | null;
+  require_credit_hold?: boolean;
+  credit_hold?: number;
 }
 
 export default function QuickBookingDialog({ 
@@ -91,6 +93,8 @@ export default function QuickBookingDialog({
   const [collectionDate, setCollectionDate] = useState("");
   const [collectionFrequency, setCollectionFrequency] = useState("");
   const [futurePaymentMethod, setFuturePaymentMethod] = useState("");
+  const [requireHold, setRequireHold] = useState(true);
+  const [creditHold, setCreditHold] = useState("");
 
   const filteredCustomers = customers.filter(c => {
     if (!customerSearch) return true;
@@ -236,6 +240,8 @@ export default function QuickBookingDialog({
       collection_date: collectionDateType === "תאריך מסוים" ? (collectionDate || null) : null,
       collection_frequency: collectionFrequency || null,
       future_payment_method: futurePaymentMethod || null,
+      require_credit_hold: requireHold,
+      credit_hold: creditHold ? parseFloat(creditHold) : 0,
     };
   };
 
@@ -276,6 +282,8 @@ export default function QuickBookingDialog({
     setCollectionDate("");
     setCollectionFrequency("");
     setFuturePaymentMethod("");
+    setRequireHold(true);
+    setCreditHold("");
   };
 
   const isFormValid = () => {
@@ -377,6 +385,31 @@ export default function QuickBookingDialog({
               value={rentalCost}
               onChange={(e) => handleRentalCostChange(e.target.value)}
             />
+          </div>
+
+          {/* תפיסת מסגרת בתחנת השכרה */}
+          <div className="p-3 border rounded-lg bg-muted/30 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="quick_require_hold"
+                className="h-4 w-4"
+                checked={requireHold}
+                onChange={(e) => setRequireHold(e.target.checked)}
+              />
+              <Label htmlFor="quick_require_hold" className="cursor-pointer">חובה לתפוס מסגרת אשראי בתחנה</Label>
+            </div>
+            {requireHold && (
+              <div>
+                <Label className="text-sm">סכום המסגרת לתפיסה (₪)</Label>
+                <Input
+                  type="number"
+                  placeholder="ברירת מחדל: עלות ההשכרה"
+                  value={creditHold}
+                  onChange={(e) => setCreditHold(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Billing Rate Type */}

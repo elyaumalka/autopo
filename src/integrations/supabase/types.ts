@@ -707,6 +707,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           due_km: number | null
+          end_date: string | null
           end_time: string | null
           id: string
           notes: string | null
@@ -725,6 +726,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_km?: number | null
+          end_date?: string | null
           end_time?: string | null
           id?: string
           notes?: string | null
@@ -743,6 +745,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           due_km?: number | null
+          end_date?: string | null
           end_time?: string | null
           id?: string
           notes?: string | null

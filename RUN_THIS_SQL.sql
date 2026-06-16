@@ -17,3 +17,7 @@ ALTER TABLE public.customers
 ALTER TABLE public.bookings
   ADD COLUMN IF NOT EXISTS require_credit_hold boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS prepay_mode text NOT NULL DEFAULT 'optional';
+
+-- שריון לטיפול כרשומה אחת שנפרשת על טווח תאריכים
+ALTER TABLE public.maintenance_tasks
+  ADD COLUMN IF NOT EXISTS end_date date;

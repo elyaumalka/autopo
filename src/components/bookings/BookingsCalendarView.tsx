@@ -65,7 +65,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         queryClient.invalidateQueries({ queryKey: ["rentals-active"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "maintenance_tasks" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["maintenance-tasks"] });
+        queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "vehicles" }, () => {
         queryClient.invalidateQueries({ queryKey: ["vehicles-all"] });
@@ -304,11 +304,13 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       return candidates[0].result;
     }
 
-    // Check maintenance tasks
+    // Check maintenance tasks - רשומה אחת נפרשת על טווח [due_date .. end_date]
+    const dayStr = format(day, "yyyy-MM-dd");
     const maintenance = maintenanceTasks.find(m => {
       if (m.vehicle_id !== vehicle.id) return false;
       if (!m.due_date) return false;
-      return isSameDay(day, parseISO(m.due_date));
+      const endStr = (m as any).end_date || m.due_date;
+      return dayStr >= m.due_date && dayStr <= endStr;
     });
 
     if (maintenance) {
@@ -323,11 +325,9 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         endTime: mEndTime,
         startTime: mStartTime,
       };
-      // שריון לטיפול לחצי יום / שעות - אם הוגדרו שעות, נחשב רק את ה-slot הרלוונטי (משאיר את השאר פנוי)
+      // אם הוגדרו שעות - הן חלות על כל יום בטווח, נחשב רק את ה-slot הרלוונטי של היום הנוכחי
       if (mStartTime || mEndTime) {
-        const mDay = parseISO(maintenance.due_date!);
-        const result = computeSlot(day, slot, mDay, mDay, parseHour(mStartTime), parseHour(mEndTime), baseEvent);
-        return result;
+        return computeSlot(day, slot, day, day, parseHour(mStartTime), parseHour(mEndTime), baseEvent);
       }
       return { status: "full", event: baseEvent };
     }

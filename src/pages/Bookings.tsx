@@ -98,7 +98,7 @@ export default function Bookings() {
   const [maintenanceActionTask, setMaintenanceActionTask] = useState<MaintenanceTask | null>(null);
   const [maintenanceActionOpen, setMaintenanceActionOpen] = useState(false);
   const [maintenanceEditOpen, setMaintenanceEditOpen] = useState(false);
-  const [maintenanceEditData, setMaintenanceEditData] = useState({ type: "", description: "", notes: "", end_date: "" });
+  const [maintenanceEditData, setMaintenanceEditData] = useState({ type: "", description: "", notes: "", due_date: "", end_date: "", start_time: "", end_time: "" });
   const [docsViewerOpen, setDocsViewerOpen] = useState(false);
   const [docsViewerBookingId, setDocsViewerBookingId] = useState<string | null>(null);
   const [docsViewerCustomerName, setDocsViewerCustomerName] = useState<string | null>(null);
@@ -393,35 +393,27 @@ export default function Bookings() {
       if (!maintenanceVehicle) throw new Error("לא נבחר רכב");
       if (!maintenanceData.due_date) throw new Error("יש לבחור תאריך התחלה");
 
-      const startDate = parseISO(maintenanceData.due_date);
-      const endDate = parseISO(maintenanceData.end_date || maintenanceData.due_date);
+      const startStr = maintenanceData.due_date;
+      const endStr = maintenanceData.end_date || maintenanceData.due_date;
 
-      if (isAfter(startDate, endDate)) {
+      if (parseISO(startStr) > parseISO(endStr)) {
         throw new Error("תאריך הסיום חייב להיות אחרי תאריך ההתחלה");
       }
 
-      const dates: string[] = [];
-      let cursor = startDate;
-      while (!isAfter(cursor, endDate)) {
-        dates.push(format(cursor, "yyyy-MM-dd"));
-        cursor = addDays(cursor, 1);
-      }
-
       const vehicle = maintenanceVehicle;
-      // שעות שריון נשמרות תמיד (גם לרב-יומי - השעות חלות על כל יום)
-      const rows = dates.map((date) => ({
+      // רשומה אחת שנפרשת על הטווח (כמו הזמנה), לא שורה לכל יום
+      const { error } = await supabase.from("maintenance_tasks").insert({
         vehicle_id: vehicle.id,
         vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
         type: maintenanceData.type as any,
-        due_date: date,
+        due_date: startStr,
+        end_date: endStr,
         start_time: maintenanceData.start_time || null,
         end_time: maintenanceData.end_time || null,
         description: maintenanceData.description || null,
         notes: maintenanceData.notes || null,
         status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
-      }));
-
-      const { error } = await supabase.from("maintenance_tasks").insert(rows as any);
+      } as any);
       if (error) throw error;
 
       if (maintenanceData.activate_now) {
@@ -2221,30 +2213,16 @@ export default function Bookings() {
                       type: maintenanceActionTask.type,
                       description: maintenanceActionTask.description || "",
                       notes: maintenanceActionTask.notes || "",
-                      end_date: maintenanceActionTask.due_date || "",
+                      due_date: maintenanceActionTask.due_date || "",
+                      end_date: (maintenanceActionTask as any).end_date || maintenanceActionTask.due_date || "",
+                      start_time: (maintenanceActionTask as any).start_time || "",
+                      end_time: (maintenanceActionTask as any).end_time || "",
                     });
                     setMaintenanceEditOpen(true);
                   }}
                 >
                   <Edit className="w-4 h-4 ml-2" />
-                  ערוך
-                </Button>
-
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    setMaintenanceEditData({
-                      type: maintenanceActionTask.type,
-                      description: maintenanceActionTask.description || "",
-                      notes: maintenanceActionTask.notes || "",
-                      end_date: "",
-                    });
-                    setMaintenanceEditOpen(true);
-                  }}
-                >
-                  <CalendarIcon className="w-4 h-4 ml-2" />
-                  הארך שריון
+                  ערוך שריון (תאריכים / שעות)
                 </Button>
 
                 <Button
@@ -2292,13 +2270,42 @@ export default function Bookings() {
                 </Select>
               </div>
 
-              <div>
-                <Label>הארך עד תאריך</Label>
-                <Input
-                  type="date"
-                  value={maintenanceEditData.end_date}
-                  onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, end_date: e.target.value })}
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>תאריך התחלה</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceEditData.due_date}
+                    onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, due_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>תאריך סיום</Label>
+                  <Input
+                    type="date"
+                    value={maintenanceEditData.end_date}
+                    min={maintenanceEditData.due_date}
+                    onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, end_date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">שעות (אופציונלי - ריק = יום מלא)</Label>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 text-xs"
+                    onClick={() => setMaintenanceEditData({ ...maintenanceEditData, start_time: "", end_time: "" })}>נקה</Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">משעה</Label>
+                    <Input type="time" value={maintenanceEditData.start_time} onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, start_time: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">עד שעה</Label>
+                    <Input type="time" value={maintenanceEditData.end_time} onChange={(e) => setMaintenanceEditData({ ...maintenanceEditData, end_time: e.target.value })} />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -2322,42 +2329,23 @@ export default function Bookings() {
                   className="flex-1"
                   disabled={maintenanceUpdateMutation.isPending}
                   onClick={async () => {
-                    // Update current task
+                    if (maintenanceEditData.due_date && maintenanceEditData.end_date && maintenanceEditData.end_date < maintenanceEditData.due_date) {
+                      toast({ title: "תאריך הסיום לפני ההתחלה", variant: "destructive" });
+                      return;
+                    }
+                    // עדכון הרשומה האחת - תאריכים, שעות, סוג, תיאור, הערות
                     await maintenanceUpdateMutation.mutateAsync({
                       id: maintenanceActionTask.id,
                       data: {
                         type: maintenanceEditData.type as any,
+                        due_date: maintenanceEditData.due_date || maintenanceActionTask.due_date,
+                        end_date: maintenanceEditData.end_date || maintenanceEditData.due_date || null,
+                        start_time: maintenanceEditData.start_time || null,
+                        end_time: maintenanceEditData.end_time || null,
                         description: maintenanceEditData.description || null,
                         notes: maintenanceEditData.notes || null,
-                      }
+                      } as any
                     });
-
-                    // If extending, create new tasks for extra days
-                    if (maintenanceEditData.end_date && maintenanceEditData.end_date > (maintenanceActionTask.due_date || "")) {
-                      const vehicle = vehicles.find(v => v.id === maintenanceActionTask.vehicle_id);
-                      if (vehicle) {
-                        let cursor = addDays(parseISO(maintenanceActionTask.due_date || ""), 1);
-                        const endDate = parseISO(maintenanceEditData.end_date);
-                        const newRows: any[] = [];
-                        while (!isAfter(cursor, endDate)) {
-                          newRows.push({
-                            vehicle_id: vehicle.id,
-                            vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
-                            type: maintenanceEditData.type as any,
-                            due_date: format(cursor, "yyyy-MM-dd"),
-                            description: maintenanceEditData.description || null,
-                            notes: maintenanceEditData.notes || null,
-                            status: maintenanceActionTask.status,
-                          });
-                          cursor = addDays(cursor, 1);
-                        }
-                        if (newRows.length > 0) {
-                          await supabase.from("maintenance_tasks").insert(newRows);
-                          queryClient.invalidateQueries({ queryKey: ["maintenance_tasks"] });
-                        }
-                      }
-                    }
-
                     setMaintenanceEditOpen(false);
                     setMaintenanceActionOpen(false);
                     setMaintenanceActionTask(null);

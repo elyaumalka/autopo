@@ -246,14 +246,13 @@ export default function RentalStartWizard({
 
   const allDocsSigned = documents.length > 0 && documents.every((d) => d.status === "signed");
 
-  // השלמת פרטי לקוח חסרים
+  // השלמת פרטי לקוח חסרים (כרטיס אשראי לא נכלל כאן - הוא נתפס/נשמר בשלב המסגרת)
   const missingFields: string[] = [];
   if (customer) {
     if (!customer.phone || customer.phone === "0000000000") missingFields.push("טלפון");
     if (!customer.id_number || customer.id_number.startsWith("חדש-")) missingFields.push("תעודת זהות");
     if (!customer.license_front_url) missingFields.push("צילום רישיון (קדמי)");
     if (!customer.license_back_url) missingFields.push("צילום רישיון (אחורי)");
-    if (!(customer as any).payment_token) missingFields.push("כרטיס אשראי שמור");
   }
 
   const saveMissingDetails = async () => {
@@ -666,17 +665,22 @@ export default function RentalStartWizard({
         <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader><DialogTitle>השלמת פרטי לקוח</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">חסרים פרטים ללקוח. נא להשלים:</p>
-            <div>
-              <Label>טלפון</Label>
-              <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="050-0000000" />
-            </div>
-            <div>
-              <Label>תעודת זהות</Label>
-              <Input value={editIdNumber} onChange={(e) => setEditIdNumber(e.target.value)} placeholder="ת.ז" />
-            </div>
+            <p className="text-sm text-muted-foreground">חסר: {missingFields.join(", ")}. נא להשלים רק את החסר:</p>
+            {missingFields.includes("טלפון") && (
+              <div>
+                <Label>טלפון</Label>
+                <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="050-0000000" />
+              </div>
+            )}
+            {missingFields.includes("תעודת זהות") && (
+              <div>
+                <Label>תעודת זהות</Label>
+                <Input value={editIdNumber} onChange={(e) => setEditIdNumber(e.target.value)} placeholder="ת.ז" />
+              </div>
+            )}
 
-            {/* העלאת צילומי רישיון נהיגה */}
+            {/* העלאת צילומי רישיון נהיגה - רק אם חסר */}
+            {(missingFields.includes("צילום רישיון (קדמי)") || missingFields.includes("צילום רישיון (אחורי)")) && (
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-sm">רישיון - צד קדמי</Label>
@@ -693,10 +697,6 @@ export default function RentalStartWizard({
                 </Button>
               </div>
             </div>
-            {missingFields.includes("כרטיס אשראי שמור") && (
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
-                שים לב: אין כרטיס אשראי שמור — ניתן לשמור/לתפוס מסגרת בשלב הבא.
-              </div>
             )}
             <div className="flex gap-2">
               <Button onClick={saveMissingDetails} disabled={savingDetails} className="flex-1">

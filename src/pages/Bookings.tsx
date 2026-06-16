@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon, Receipt } from "lucide-react";
+import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon, Receipt, CreditCard } from "lucide-react";
 import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
 import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
@@ -1041,6 +1041,21 @@ export default function Bookings() {
                     >
                       <Edit className="w-4 h-4 ml-2" />
                       ערוך הזמנה
+                    </Button>
+                    {/* החלפה מהירה: חובה לתפוס מסגרת / לא נדרשת */}
+                    <Button
+                      variant="outline"
+                      className={`w-full ${(calendarActionBooking as any).require_credit_hold === false ? "text-gray-600" : "text-cyan-700 border-cyan-300"}`}
+                      onClick={async () => {
+                        const newVal = (calendarActionBooking as any).require_credit_hold === false;
+                        await supabase.from("bookings").update({ require_credit_hold: newVal } as any).eq("id", calendarActionBooking.id);
+                        setCalendarActionBooking({ ...calendarActionBooking, require_credit_hold: newVal } as any);
+                        queryClient.invalidateQueries({ queryKey: ["bookings"] });
+                        toast({ title: newVal ? "תפיסת מסגרת הוגדרה כחובה" : "תפיסת מסגרת בוטלה להזמנה זו" });
+                      }}
+                    >
+                      <CreditCard className="w-4 h-4 ml-2" />
+                      תפיסת מסגרת: {(calendarActionBooking as any).require_credit_hold === false ? "לא נדרשת (לחץ להפעלה)" : "חובה ✓ (לחץ לביטול)"}
                     </Button>
                     <Button
                       variant="destructive"

@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Car, User, Search, CheckCircle, ArrowLeft, Eye, FileText, CalendarDays, Plus, Trash2, XCircle, Wrench, Edit, Calendar as CalendarIcon, Receipt } from "lucide-react";
 import { InvoiceDialog } from "@/components/invoices/InvoiceDialog";
+import RentalDetailsDialog from "@/components/rentals/RentalDetailsDialog";
 import BookingsCalendarView from "@/components/bookings/BookingsCalendarView";
 import QuickBookingDialog from "@/components/bookings/QuickBookingDialog";
 import RentalStartWizard from "@/components/bookings/RentalStartWizard";
@@ -73,6 +74,7 @@ export default function Bookings() {
   const [showVehicleSwap, setShowVehicleSwap] = useState(false);
   const [deleteConfirmBooking, setDeleteConfirmBooking] = useState<Booking | null>(null);
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
+  const [detailsRental, setDetailsRental] = useState<Rental | null>(null);
   const [endDialogBooking, setEndDialogBooking] = useState<Booking | null>(null);
   const [endDialogRental, setEndDialogRental] = useState<Rental | null>(null);
   const [endDialogOpen, setEndDialogOpen] = useState(false);
@@ -1056,6 +1058,18 @@ export default function Bookings() {
 
                 {(calendarActionRental?.status || calendarActionBooking.status) === "פעיל" && (
                   <>
+                    {calendarActionRental && (
+                      <Button
+                        className="w-full bg-cyan-600 hover:bg-cyan-700"
+                        onClick={() => {
+                          setCalendarActionOpen(false);
+                          setDetailsRental(calendarActionRental);
+                        }}
+                      >
+                        <FileText className="w-4 h-4 ml-2" />
+                        פרטי השכרה מלאים (תשלומים, חשבונית, החלפת רכב)
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
@@ -1949,6 +1963,13 @@ export default function Bookings() {
           />
         );
       })()}
+
+      {/* חלון פרטי השכרה מלא (מתוך הלוח) */}
+      <RentalDetailsDialog
+        rental={detailsRental}
+        isOpen={!!detailsRental}
+        onClose={() => setDetailsRental(null)}
+      />
 
       {/* Rental Start Wizard Dialog */}
       <Dialog open={rentalWizardOpen} onOpenChange={(open) => { if (!open) { setRentalWizardOpen(false); setWizardBooking(null); } }}>

@@ -120,7 +120,15 @@ export function SumitPaymentDialog({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // הפונקציה החזירה שגיאה (non-2xx) - מחלצים את הסיבה האמיתית מסומיט מגוף התגובה
+        let detail = error.message;
+        try {
+          const body = await (error as any).context?.json?.();
+          detail = body?.raw?.UserErrorMessage || body?.raw?.TechnicalErrorDetails || body?.error || JSON.stringify(body?.raw || body) || detail;
+        } catch { /* ignore */ }
+        throw new Error(detail);
+      }
       if (!data?.success) {
         throw new Error(data?.raw?.UserErrorMessage || data?.raw?.TechnicalErrorDetails || "שגיאה בסליקה");
       }

@@ -79,18 +79,20 @@ export async function downloadSignedDocument(doc: any) {
     const pdf = new jsPDF("p", "mm", "a4");
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const margin = 5; // שוליים קטנים
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+    const fullHeight = (canvas.height * usableWidth) / canvas.width;
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    if (fullHeight <= usableHeight) {
+      // נכנס לעמוד אחד כמו שהוא
+      pdf.addImage(imgData, "PNG", margin, margin, usableWidth, fullHeight);
+    } else {
+      // מקטינים את כל המסמך כך שייכנס לעמוד אחד שלם - בלי לחתוך באמצע
+      const scaledHeight = usableHeight;
+      const scaledWidth = (canvas.width * scaledHeight) / canvas.height;
+      const x = (pageWidth - scaledWidth) / 2;
+      pdf.addImage(imgData, "PNG", x, margin, scaledWidth, scaledHeight);
     }
 
     const label = DOC_LABELS[doc.document_type] || "מסמך";

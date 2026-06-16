@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileText, DollarSign, Calendar, Car, User, ScrollText, ArrowRightLeft, Plus, Trash2, Receipt, Check } from "lucide-react";
+import { FileText, DollarSign, Calendar, Car, User, ScrollText, ArrowRightLeft, Plus, Trash2, Receipt, Check, Pencil, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,8 +59,25 @@ export default function RentalDetailsDialog({
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
 
   // Payment entries
-  const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [newPayment, setNewPayment] = useState({ description: "", amount: "", method: "" });
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPaymentData, setEditPaymentData] = useState({ amount: "", method: "", notes: "" });
+
+  // רשימת התשלומים של ההשכרה (נשמרים כהכנסות)
+  const { data: payments = [] } = useQuery({
+    queryKey: ["rental-payments", rental?.id],
+    queryFn: async () => {
+      if (!rental?.id) return [];
+      const { data, error } = await supabase
+        .from("incomes")
+        .select("*")
+        .eq("rental_id", rental.id)
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isOpen && !!rental?.id,
+  });
 
   const { data: vehicles = [] } = useQuery({
     queryKey: ["vehicles-available"],
@@ -137,10 +154,54 @@ export default function RentalDetailsDialog({
 
       queryClient.invalidateQueries({ queryKey: ["rentals"] });
       queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      queryClient.invalidateQueries({ queryKey: ["rental-payments", rental.id] });
       toast({ title: `תשלום ₪${amount.toLocaleString()} נוסף בהצלחה` });
       setNewPayment({ description: "", amount: "", method: "" });
     } catch (error) {
       toast({ title: "שגיאה בהוספת תשלום", variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // מחיקת תשלום - מסיר את ההכנסה ומפחית מהסכום ששולם
+  const handleDeletePayment = async (p: any) => {
+    setIsUpdating(true);
+    try {
+      const { error } = await supabase.from("incomes").delete().eq("id", p.id);
+      if (error) throw error;
+      const newPaid = Math.max(0, (rental.paid_amount || 0) - Number(p.amount || 0));
+      const totalCost = rental.total_cost || rental.base_cost || 0;
+      await supabase.from("rentals").update({ paid_amount: newPaid, remaining_payment: Math.max(0, totalCost - newPaid) } as any).eq("id", rental.id);
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      queryClient.invalidateQueries({ queryKey: ["rental-payments", rental.id] });
+      toast({ title: "התשלום נמחק" });
+    } catch (e: any) {
+      toast({ title: "שגיאה במחיקת תשלום", description: e.message, variant: "destructive" });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // שמירת עריכת תשלום - מעדכן את ההכנסה ומיישר את הסכום ששולם לפי ההפרש
+  const handleSavePaymentEdit = async (p: any) => {
+    const newAmount = parseFloat(editPaymentData.amount);
+    if (isNaN(newAmount) || newAmount < 0) { toast({ title: "סכום לא תקין", variant: "destructive" }); return; }
+    setIsUpdating(true);
+    try {
+      const delta = newAmount - Number(p.amount || 0);
+      await supabase.from("incomes").update({ amount: newAmount, payment_method: (editPaymentData.method as any) || null, notes: editPaymentData.notes } as any).eq("id", p.id);
+      const newPaid = Math.max(0, (rental.paid_amount || 0) + delta);
+      const totalCost = rental.total_cost || rental.base_cost || 0;
+      await supabase.from("rentals").update({ paid_amount: newPaid, remaining_payment: Math.max(0, totalCost - newPaid) } as any).eq("id", rental.id);
+      queryClient.invalidateQueries({ queryKey: ["rentals"] });
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      queryClient.invalidateQueries({ queryKey: ["rental-payments", rental.id] });
+      setEditingPaymentId(null);
+      toast({ title: "התשלום עודכן" });
+    } catch (e: any) {
+      toast({ title: "שגיאה בעדכון תשלום", description: e.message, variant: "destructive" });
     } finally {
       setIsUpdating(false);
     }
@@ -594,6 +655,54 @@ export default function RentalDetailsDialog({
                 <Plus className="h-3.5 w-3.5 ml-1" />
                 הוסף תשלום
               </Button>
+            </div>
+
+            {/* רשימת התשלומים שבוצעו */}
+            <div className="rounded-lg border p-4 space-y-2">
+              <Label className="font-medium">תשלומים שבוצעו ({payments.length})</Label>
+              {payments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">לא נרשמו תשלומים עדיין.</p>
+              ) : (
+                payments.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between gap-2 border-b last:border-0 py-2 text-sm">
+                    {editingPaymentId === p.id ? (
+                      <div className="flex items-center gap-2 w-full flex-wrap">
+                        <Input type="number" className="h-8 w-24" value={editPaymentData.amount} onChange={(e) => setEditPaymentData({ ...editPaymentData, amount: e.target.value })} />
+                        <Select value={editPaymentData.method} onValueChange={(v) => setEditPaymentData({ ...editPaymentData, method: v })}>
+                          <SelectTrigger className="h-8 w-28"><SelectValue placeholder="אמצעי" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="מזומן">מזומן</SelectItem>
+                            <SelectItem value="אשראי">אשראי</SelectItem>
+                            <SelectItem value="ביט">ביט</SelectItem>
+                            <SelectItem value="העברה בנקאית">העברה</SelectItem>
+                            <SelectItem value="צ׳ק">צ׳ק</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input className="h-8 flex-1 min-w-[100px]" placeholder="מהות" value={editPaymentData.notes} onChange={(e) => setEditPaymentData({ ...editPaymentData, notes: e.target.value })} />
+                        <Button size="icon" className="h-8 w-8 bg-green-600 hover:bg-green-700" onClick={() => handleSavePaymentEdit(p)} disabled={isUpdating}><Check className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingPaymentId(null)}><X className="h-4 w-4" /></Button>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <span className="font-semibold">₪{Number(p.amount || 0).toLocaleString()}</span>
+                          <span className="text-muted-foreground"> · {p.payment_method || "—"}</span>
+                          {p.notes && <span className="text-muted-foreground"> · {p.notes}</span>}
+                          <div className="text-xs text-muted-foreground">{p.date}</div>
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditingPaymentId(p.id); setEditPaymentData({ amount: String(p.amount || ""), method: p.payment_method || "", notes: p.notes || "" }); }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => handleDeletePayment(p)} disabled={isUpdating}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </TabsContent>
 

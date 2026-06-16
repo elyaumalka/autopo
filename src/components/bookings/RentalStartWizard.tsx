@@ -168,6 +168,10 @@ export default function RentalStartWizard({
   const generateDocuments = async () => {
     setGeneratingDocs(true);
     try {
+      // עדכון שעת הלקיחה בפועל על ההזמנה לפני יצירת החוזה (כדי שהחוזה יציג את שעת הלקיחה ולא את שעת השריון)
+      if (startTime) {
+        await supabase.from("bookings").update({ start_time: startTime }).eq("id", booking.id);
+      }
       const { data, error } = await supabase.functions.invoke("sign-document", {
         body: { action: "create", booking_id: booking.id },
       });

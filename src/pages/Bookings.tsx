@@ -408,15 +408,14 @@ export default function Bookings() {
       }
 
       const vehicle = maintenanceVehicle;
-      // שעות שריון רלוונטיות רק לשריון של יום בודד (חצי יום / טווח שעות)
-      const isSingleDay = dates.length === 1;
+      // שעות שריון נשמרות תמיד (גם לרב-יומי - השעות חלות על כל יום)
       const rows = dates.map((date) => ({
         vehicle_id: vehicle.id,
         vehicle_details: `${vehicle.manufacturer} ${vehicle.model} - ${vehicle.license_plate}`,
         type: maintenanceData.type as any,
         due_date: date,
-        start_time: isSingleDay ? (maintenanceData.start_time || null) : null,
-        end_time: isSingleDay ? (maintenanceData.end_time || null) : null,
+        start_time: maintenanceData.start_time || null,
+        end_time: maintenanceData.end_time || null,
         description: maintenanceData.description || null,
         notes: maintenanceData.notes || null,
         status: maintenanceData.activate_now ? "בתהליך" as any : "ממתין" as any,
@@ -2058,11 +2057,14 @@ export default function Bookings() {
                 </div>
               </div>
 
-              {/* שעות שריון - לשריון חצי יום / טווח שעות (כשהשריון ליום בודד) */}
-              {maintenanceData.due_date === maintenanceData.end_date && (
+              {/* שעות שריון - חצי יום / טווח שעות (גם לשריון רב-יומי - השעות חלות על כל יום) */}
+              {true && (
                 <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm">שעות שריון (אופציונלי - ריק = יום מלא)</Label>
+                    <Label className="text-sm">
+                      שעות שריון (אופציונלי - ריק = יום מלא)
+                      {maintenanceData.due_date !== maintenanceData.end_date && <span className="text-xs text-muted-foreground"> · חל על כל יום</span>}
+                    </Label>
                     <div className="flex gap-1">
                       <Button type="button" variant="outline" size="sm" className="h-7 text-xs"
                         onClick={() => setMaintenanceData({ ...maintenanceData, start_time: "09:00", end_time: "13:00" })}>

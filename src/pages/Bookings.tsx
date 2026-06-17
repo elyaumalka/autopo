@@ -544,16 +544,22 @@ export default function Bookings() {
     startTime?: string | null,
     endTime?: string | null,
   ) => {
-    // השוואה מודעת-שעות. כשאין שעת סיום מניחים סוף יום, כדי שהזמנות באותו יום ייחשבו כחפיפה.
-    const aStart = new Date(`${startDate}T${(startTime || "00:00").toString().slice(0, 5)}`);
-    const aEnd = new Date(`${endDate}T${(endTime || "23:59").toString().slice(0, 5)}`);
+    // טווח זמן של הזמנה. שעת סיום ריקה => יום ההחזרה פנוי להשכרה חדשה (handoff),
+    // אבל הזמנה ליום בודד ללא שעות נחשבת כתופסת את כל היום (כדי לחסום כפילות אמיתית).
+    const t = (x: any) => (x ? x.toString().slice(0, 5) : null);
+    const span = (sd: string, st: any, ed: string, et: any) => {
+      const start = new Date(`${sd}T${t(st) || "00:00"}`);
+      let end = new Date(`${ed}T${t(et) || "00:00"}`);
+      if (end.getTime() <= start.getTime()) end = new Date(`${ed}T23:59`);
+      return { start, end };
+    };
+    const a = span(startDate, startTime, endDate, endTime);
     const hasOverlap = bookings.some(b => {
       if (b.id === excludeBookingId) return false;
       if (b.vehicle_id !== vehicleId) return false;
       if (b.status === "בוטל" || b.status === "הושלם") return false;
-      const bStart = new Date(`${b.start_date}T${(b.start_time || "00:00").toString().slice(0, 5)}`);
-      const bEnd = new Date(`${b.end_date}T${(b.end_time || "23:59").toString().slice(0, 5)}`);
-      return aStart < bEnd && aEnd > bStart;
+      const bb = span(b.start_date, b.start_time, b.end_date, b.end_time);
+      return a.start.getTime() < bb.end.getTime() && a.end.getTime() > bb.start.getTime();
     });
     return !hasOverlap;
   };

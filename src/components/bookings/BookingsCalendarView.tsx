@@ -319,7 +319,8 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
       const baseEvent = {
         type: "booking" as const,
         id: maintenance.id,
-        customerName: maintenance.type || "טיפול",
+        // בקוביה מציגים "שירות" בלבד; סוג הטיפול האמיתי נראה בלחיצה על הקוביה
+        customerName: "שירות",
         status: "בטיפול",
         rentalType: "daily",
         endTime: mEndTime,

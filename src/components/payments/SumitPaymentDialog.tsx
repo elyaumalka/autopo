@@ -185,6 +185,13 @@ export function SumitPaymentDialog({
           </TabsList>
 
           <TabsContent value={action} className="space-y-4 mt-4">
+            {declineError && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive space-y-1">
+                <p className="font-bold">❌ העסקה לא עברה — לא נגבה כסף</p>
+                <p className="text-destructive/90">{declineError}</p>
+                <p className="text-xs text-destructive/80">אין להמשיך בתהליך כאילו שולם. יש לנסות כרטיס אחר או אמצעי תשלום אחר.</p>
+              </div>
+            )}
             {requiresAmount && (
               <div className="grid grid-cols-2 gap-3">
                 <div>

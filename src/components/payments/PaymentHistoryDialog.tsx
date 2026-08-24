@@ -121,17 +121,31 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
 
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
           <div>
-            <h4 className="font-semibold mb-2">עסקאות אשראי</h4>
-            {txs.length === 0 ? (
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-semibold">
+                עסקאות אשראי
+                {failedCount > 0 && (
+                  <span className="text-destructive text-xs font-normal mr-2">
+                    ({failedCount} נכשלו)
+                  </span>
+                )}
+              </h4>
+              <Button size="sm" variant={onlyFailed ? "destructive" : "outline"} onClick={() => setOnlyFailed(v => !v)}>
+                {onlyFailed ? "הצג הכל" : "הצג רק שנכשלו"}
+              </Button>
+            </div>
+            {visibleTxs.length === 0 ? (
               <p className="text-sm text-muted-foreground">אין עסקאות</p>
             ) : (
               <div className="space-y-2">
-                {txs.map(t => (
-                  <div key={t.id} className="border rounded-lg p-3 text-sm">
+                {visibleTxs.map(t => {
+                  const failed = t.status !== "success";
+                  return (
+                  <div key={t.id} className={`border rounded-lg p-3 text-sm ${failed ? "border-destructive/50 bg-destructive/5" : ""}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge variant={t.status === "success" ? "default" : "destructive"}>
-                          {t.status === "success" ? "הצליח" : "נכשל"}
+                        <Badge variant={failed ? "destructive" : "default"}>
+                          {failed ? "נכשל — לא נגבה" : "אושר"}
                         </Badge>
                         <span className="font-medium">{typeLabel[t.transaction_type] || t.transaction_type}</span>
                         {t.amount != null && <span className="text-muted-foreground">₪{t.amount}</span>}
@@ -143,13 +157,14 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
                       {t.auth_number && <span>אישור: {t.auth_number}</span>}
                       {t.customer_name && <span>{t.customer_name}</span>}
                     </div>
-                    {(t.error_message || t.raw_response?.UserErrorMessage) && (
-                      <div className="text-xs text-destructive mt-1">
-                        {t.raw_response?.UserErrorMessage || t.error_message}
+                    {failed && declineReason(t) && (
+                      <div className="text-xs text-destructive mt-1 font-medium">
+                        סיבת הסירוב: {declineReason(t)}
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

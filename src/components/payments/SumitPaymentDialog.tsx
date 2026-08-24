@@ -121,16 +121,28 @@ export function SumitPaymentDialog({
       });
 
       if (error) {
-        // הפונקציה החזירה שגיאה (non-2xx) - מחלצים את הסיבה האמיתית מסומיט מגוף התגובה
+        // הפונקציה החזירה שגיאה (non-2xx) - מחלצים את סיבת הסירוב האמיתית מסומיט
         let detail = error.message;
         try {
           const body = await (error as any).context?.json?.();
-          detail = body?.raw?.UserErrorMessage || body?.raw?.TechnicalErrorDetails || body?.error || JSON.stringify(body?.raw || body) || detail;
+          detail = body?.declineReason
+            || body?.error
+            || body?.raw?.Data?.Payment?.StatusDescription
+            || body?.raw?.UserErrorMessage
+            || body?.raw?.TechnicalErrorDetails
+            || detail;
         } catch { /* ignore */ }
         throw new Error(detail);
       }
       if (!data?.success) {
-        throw new Error(data?.raw?.UserErrorMessage || data?.raw?.TechnicalErrorDetails || "שגיאה בסליקה");
+        throw new Error(
+          data?.declineReason
+          || data?.error
+          || data?.raw?.Data?.Payment?.StatusDescription
+          || data?.raw?.UserErrorMessage
+          || data?.raw?.TechnicalErrorDetails
+          || "העסקה נדחתה על ידי חברת האשראי"
+        );
       }
 
       toast({
@@ -144,7 +156,8 @@ export function SumitPaymentDialog({
       // Reset
       setCardNumber(""); setCvv(""); setExpMonth(""); setExpYear("");
     } catch (err: any) {
-      toast({ title: "שגיאת סליקה", description: err.message, variant: "destructive" });
+      setDeclineError(err.message || "העסקה נדחתה");
+      toast({ title: "❌ החיוב לא עבר", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }

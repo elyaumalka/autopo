@@ -71,6 +71,22 @@ export function PaymentHistoryDialog({ open, onOpenChange, customerId, bookingId
   const [busyId, setBusyId] = useState<string | null>(null);
   const [emailDoc, setEmailDoc] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState(customerEmail || "");
+  const [onlyFailed, setOnlyFailed] = useState(false);
+
+  const failedCount = txs.filter(t => t.status !== "success").length;
+  const visibleTxs = onlyFailed ? txs.filter(t => t.status !== "success") : txs;
+
+  // סיבת הסירוב האמיתית מחברת האשראי
+  const declineReason = (t: Tx): string | null => {
+    let parsed: any = null;
+    try { parsed = t.error_message ? JSON.parse(t.error_message) : null; } catch { /* ignore */ }
+    return parsed?.reason
+      || t.raw_response?.Data?.Payment?.StatusDescription
+      || t.raw_response?.UserErrorMessage
+      || t.raw_response?.TechnicalErrorDetails
+      || t.error_message
+      || null;
+  };
 
   const openPdf = async (inv: Inv) => {
     if (inv.pdf_url) { window.open(inv.pdf_url, "_blank"); return; }

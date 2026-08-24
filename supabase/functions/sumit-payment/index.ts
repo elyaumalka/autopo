@@ -538,12 +538,14 @@ Deno.serve(async (req) => {
     }
 
     // Save transaction
-    const errorMsg = !sumitOk ? JSON.stringify(r.data) : null;
+    const errorMsg = !sumitOk
+      ? JSON.stringify({ reason: verdict.reason, code: verdict.code, response: r.data })
+      : null;
     await supabaseAdmin.from("payment_transactions").insert({
       transaction_type: isAuthorize ? "authorize" : (body.card?.token ? "charge_token" : "charge"),
       status: sumitOk ? "success" : "failed",
       amount: body.amount,
-      auth_number: authNumber,
+      auth_number: sumitOk ? authNumber : null,
       card_last4: last4,
       card_mask: cardMask,
       customer_id: body.customer?.id || null,
@@ -569,9 +571,12 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: sumitOk,
-      authNumber,
-      documentId: docId,
-      documentNumber: docNumber,
+      error: sumitOk ? undefined : (verdict.reason || "העסקה נדחתה"),
+      declineCode: verdict.code,
+      declineReason: verdict.reason,
+      authNumber: sumitOk ? authNumber : null,
+      documentId: sumitOk ? docId : null,
+      documentNumber: sumitOk ? docNumber : null,
       invoiceId,
       cardLast4: last4,
       raw: r.data,

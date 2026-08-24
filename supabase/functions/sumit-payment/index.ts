@@ -147,6 +147,50 @@ function isParamJError(data: any) {
   return msg.includes("paramj") || msg.includes("param j") || msg.includes("transaction type");
 }
 
+/**
+ * מקור אמת יחיד להצלחת עסקת אשראי.
+ * עסקה נחשבת מוצלחת רק אם ה-API החזיר Status:0 וגם חברת האשראי אישרה בפועל
+ * (ValidPayment === true וקוד תשובה "000"), וגם התקבל מספר אישור / מסמך.
+ * כל מצב אחר = כשל, עם סיבת הסירוב המקורית.
+ */
+function evaluatePaymentResult(opts: {
+  httpOk: boolean;
+  raw: any;
+  requireAuthNumber: boolean;
+  authNumber?: string | null;
+  documentId?: string | number | null;
+}): { ok: boolean; code: string | null; reason: string | null } {
+  const { httpOk, raw, requireAuthNumber, authNumber, documentId } = opts;
+  const data = raw?.Data || {};
+  const payment = data?.Payment || {};
+  const code = payment?.Status != null
+    ? String(payment.Status)
+    : (data?.ResultCode != null ? String(data.ResultCode) : null);
+  const statusDescription = payment?.StatusDescription || null;
+  const apiError = raw?.UserErrorMessage || raw?.TechnicalErrorDetails || null;
+
+  const fail = (reason: string) => ({ ok: false, code, reason });
+
+  if (!httpOk) return fail(apiError || statusDescription || "שגיאת תקשורת מול סומיט");
+  if (raw?.Status !== 0 && raw?.Status !== undefined) {
+    return fail(apiError || statusDescription || `שגיאת API (Status ${raw?.Status})`);
+  }
+  // חייב אישור בפועל מחברת האשראי
+  if (payment?.ValidPayment !== true) {
+    return fail(statusDescription || apiError || `העסקה נדחתה על ידי חברת האשראי${code ? ` (קוד ${code})` : ""}`);
+  }
+  if (code && code !== "000") {
+    return fail(statusDescription || `העסקה נדחתה על ידי חברת האשראי (קוד ${code})`);
+  }
+  if (requireAuthNumber && !authNumber) {
+    return fail(statusDescription || "לא התקבל מספר אישור מחברת האשראי");
+  }
+  if (!requireAuthNumber && !authNumber && !documentId) {
+    return fail("לא התקבל מספר אישור ולא הופק מסמך — לא ניתן לאשר את התשלום");
+  }
+  return { ok: true, code, reason: null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 

@@ -50,6 +50,7 @@ export function SumitPaymentDialog({
   const [amount, setAmount] = useState(initialAmount?.toString() || "");
   const [payments, setPayments] = useState("1");
   const [useToken, setUseToken] = useState(!!customer?.payment_token);
+  const [declineError, setDeclineError] = useState<string | null>(null);
 
   // סנכרון הסכום עם הסכום הנותר לתשלום בכל פעם שהחלון נפתח / הסכום משתנה
   useEffect(() => {
@@ -57,6 +58,7 @@ export function SumitPaymentDialog({
       setAmount(initialAmount != null ? String(initialAmount) : "");
       setAction(defaultAction);
       setUseToken(!!customer?.payment_token);
+      setDeclineError(null);
     }
   }, [open, initialAmount, defaultAction, customer?.payment_token]);
 
@@ -82,6 +84,7 @@ export function SumitPaymentDialog({
     }
 
     setLoading(true);
+    setDeclineError(null);
     try {
       let card: any;
       if (useToken && customer?.payment_token) {
@@ -121,16 +124,28 @@ export function SumitPaymentDialog({
       });
 
       if (error) {
-        // הפונקציה החזירה שגיאה (non-2xx) - מחלצים את הסיבה האמיתית מסומיט מגוף התגובה
+        // הפונקציה החזירה שגיאה (non-2xx) - מחלצים את סיבת הסירוב האמיתית מסומיט
         let detail = error.message;
         try {
           const body = await (error as any).context?.json?.();
-          detail = body?.raw?.UserErrorMessage || body?.raw?.TechnicalErrorDetails || body?.error || JSON.stringify(body?.raw || body) || detail;
+          detail = body?.declineReason
+            || body?.error
+            || body?.raw?.Data?.Payment?.StatusDescription
+            || body?.raw?.UserErrorMessage
+            || body?.raw?.TechnicalErrorDetails
+            || detail;
         } catch { /* ignore */ }
         throw new Error(detail);
       }
       if (!data?.success) {
-        throw new Error(data?.raw?.UserErrorMessage || data?.raw?.TechnicalErrorDetails || "שגיאה בסליקה");
+        throw new Error(
+          data?.declineReason
+          || data?.error
+          || data?.raw?.Data?.Payment?.StatusDescription
+          || data?.raw?.UserErrorMessage
+          || data?.raw?.TechnicalErrorDetails
+          || "העסקה נדחתה על ידי חברת האשראי"
+        );
       }
 
       toast({
@@ -144,7 +159,8 @@ export function SumitPaymentDialog({
       // Reset
       setCardNumber(""); setCvv(""); setExpMonth(""); setExpYear("");
     } catch (err: any) {
-      toast({ title: "שגיאת סליקה", description: err.message, variant: "destructive" });
+      setDeclineError(err.message || "העסקה נדחתה");
+      toast({ title: "❌ החיוב לא עבר", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -169,6 +185,13 @@ export function SumitPaymentDialog({
           </TabsList>
 
           <TabsContent value={action} className="space-y-4 mt-4">
+            {declineError && (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive space-y-1">
+                <p className="font-bold">❌ העסקה לא עברה — לא נגבה כסף</p>
+                <p className="text-destructive/90">{declineError}</p>
+                <p className="text-xs text-destructive/80">אין להמשיך בתהליך כאילו שולם. יש לנסות כרטיס אחר או אמצעי תשלום אחר.</p>
+              </div>
+            )}
             {requiresAmount && (
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -750,8 +750,8 @@ export default function EndRentalDialog({
                 bookingId={booking?.id}
                 rentalId={rental?.id}
                 onSuccess={(result: any) => {
-                  // אחרי חיוב מוצלח באשראי - מוסיפים את הסכום שנגבה לתשלום, כך שהיתרה מתעדכנת מיד
-                  if (result?.action === "charge") {
+                  // אחרי חיוב שאושר בפועל בלבד - מוסיפים את הסכום שנגבה לתשלום
+                  if (result?.success === true && result?.action === "charge") {
                     const charged = Number(result?.amount || 0);
                     if (charged > 0) {
                       setEndData((prev) => ({

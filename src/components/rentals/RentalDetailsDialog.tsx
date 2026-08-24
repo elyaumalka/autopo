@@ -573,8 +573,8 @@ export default function RentalDetailsDialog({
                   } : { name: rental.customer_name || '' }}
                   rentalId={rental.id}
                   onSuccess={async (result: any) => {
-                    // אחרי חיוב מוצלח - מעדכנים את הסכום ששולם והיתרה בהשכרה
-                    if (result?.action === "charge") {
+                    // אחרי חיוב מוצלח בלבד (אושר בפועל ע"י חברת האשראי) - מעדכנים את הסכום ששולם והיתרה
+                    if (result?.success === true && result?.action === "charge") {
                       const charged = Number(result?.amount || 0);
                       if (charged > 0) {
                         const newPaid = Number(rental.paid_amount || 0) + charged;

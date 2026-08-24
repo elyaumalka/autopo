@@ -147,6 +147,50 @@ function isParamJError(data: any) {
   return msg.includes("paramj") || msg.includes("param j") || msg.includes("transaction type");
 }
 
+/**
+ * מקור אמת יחיד להצלחת עסקת אשראי.
+ * עסקה נחשבת מוצלחת רק אם ה-API החזיר Status:0 וגם חברת האשראי אישרה בפועל
+ * (ValidPayment === true וקוד תשובה "000"), וגם התקבל מספר אישור / מסמך.
+ * כל מצב אחר = כשל, עם סיבת הסירוב המקורית.
+ */
+function evaluatePaymentResult(opts: {
+  httpOk: boolean;
+  raw: any;
+  requireAuthNumber: boolean;
+  authNumber?: string | null;
+  documentId?: string | number | null;
+}): { ok: boolean; code: string | null; reason: string | null } {
+  const { httpOk, raw, requireAuthNumber, authNumber, documentId } = opts;
+  const data = raw?.Data || {};
+  const payment = data?.Payment || {};
+  const code = payment?.Status != null
+    ? String(payment.Status)
+    : (data?.ResultCode != null ? String(data.ResultCode) : null);
+  const statusDescription = payment?.StatusDescription || null;
+  const apiError = raw?.UserErrorMessage || raw?.TechnicalErrorDetails || null;
+
+  const fail = (reason: string) => ({ ok: false, code, reason });
+
+  if (!httpOk) return fail(apiError || statusDescription || "שגיאת תקשורת מול סומיט");
+  if (raw?.Status !== 0 && raw?.Status !== undefined) {
+    return fail(apiError || statusDescription || `שגיאת API (Status ${raw?.Status})`);
+  }
+  // חייב אישור בפועל מחברת האשראי
+  if (payment?.ValidPayment !== true) {
+    return fail(statusDescription || apiError || `העסקה נדחתה על ידי חברת האשראי${code ? ` (קוד ${code})` : ""}`);
+  }
+  if (code && code !== "000") {
+    return fail(statusDescription || `העסקה נדחתה על ידי חברת האשראי (קוד ${code})`);
+  }
+  if (requireAuthNumber && !authNumber) {
+    return fail(statusDescription || "לא התקבל מספר אישור מחברת האשראי");
+  }
+  if (!requireAuthNumber && !authNumber && !documentId) {
+    return fail("לא התקבל מספר אישור ולא הופק מסמך — לא ניתן לאשר את התשלום");
+  }
+  return { ok: true, code, reason: null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -394,7 +438,12 @@ Deno.serve(async (req) => {
       const cardMask = pm?.CreditCard_CardMask || null;
       const last4 = pm?.CreditCard_LastDigits || null;
 
-      if (r.ok && token && body.customer?.id) {
+      const tokenOk = r.ok && !!token;
+      const tokenReason = tokenOk
+        ? null
+        : (r.data?.UserErrorMessage || r.data?.TechnicalErrorDetails || "שמירת הכרטיס נכשלה — לא התקבל טוקן מסומיט");
+
+      if (tokenOk && body.customer?.id) {
         await supabaseAdmin.from("customers").update({
           payment_token: token,
           card_last4: last4,
@@ -404,19 +453,25 @@ Deno.serve(async (req) => {
       }
       await supabaseAdmin.from("payment_transactions").insert({
         transaction_type: "save_token",
-        status: r.ok ? "success" : "failed",
+        status: tokenOk ? "success" : "failed",
         customer_id: body.customer?.id || null,
         customer_name: body.customer?.name || null,
         booking_id: body.bookingId || null,
         rental_id: body.rentalId || null,
         card_mask: cardMask || null,
         card_last4: last4 || null,
-        error_message: r.ok ? null : JSON.stringify(r.data),
+        error_message: tokenOk ? null : JSON.stringify({ reason: tokenReason, response: r.data }),
         raw_response: r.data,
         created_by: user.id,
       });
-      return new Response(JSON.stringify(r.data), {
-        status: r.ok ? 200 : 400,
+      return new Response(JSON.stringify({
+        success: tokenOk,
+        error: tokenOk ? undefined : tokenReason,
+        declineReason: tokenReason,
+        cardLast4: last4,
+        raw: r.data,
+      }), {
+        status: tokenOk ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -447,17 +502,19 @@ Deno.serve(async (req) => {
     const r = await sumitFetch("/billing/payments/charge/", payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    // מספר אישור: אם סומיט לא מחזירה AuthNumber (קורה ב-J5 דרך billing), משתמשים ב-Payment.ID כמזהה
-    const realAuthNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
-    const authNumber = realAuthNumber || (isAuthorize && payment?.ID ? String(payment.ID) : null);
-    const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
-    // הצלחה: סומיט מחזירה Status:0 ברמת ה-API, ו-Payment עם Status "000" ו/או ValidPayment=true
-    const topLevelOk = r.data?.Status === 0 || r.data?.Status === undefined;
-    const paymentValid = payment?.ValidPayment === true || providerStatus === "000";
-    const sumitOk = isAuthorize ? (r.ok && topLevelOk && paymentValid) : r.ok;
+    // מספר אישור אמיתי מחברת האשראי (לא נשתמש ב-Payment.ID כתחליף - זה מסתיר סירובים)
+    const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
+    const verdict = evaluatePaymentResult({
+      httpOk: r.ok,
+      raw: r.data,
+      requireAuthNumber: isAuthorize,
+      authNumber,
+      documentId: docId,
+    });
+    const sumitOk = verdict.ok;
     const token = data?.CardToken || payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
     const cardMask = data?.CardPattern || payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
     const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || (typeof cardMask === "string" ? cardMask.slice(-4) : null);
@@ -492,12 +549,14 @@ Deno.serve(async (req) => {
     }
 
     // Save transaction
-    const errorMsg = !sumitOk ? JSON.stringify(r.data) : null;
+    const errorMsg = !sumitOk
+      ? JSON.stringify({ reason: verdict.reason, code: verdict.code, response: r.data })
+      : null;
     await supabaseAdmin.from("payment_transactions").insert({
       transaction_type: isAuthorize ? "authorize" : (body.card?.token ? "charge_token" : "charge"),
       status: sumitOk ? "success" : "failed",
       amount: body.amount,
-      auth_number: authNumber,
+      auth_number: sumitOk ? authNumber : null,
       card_last4: last4,
       card_mask: cardMask,
       customer_id: body.customer?.id || null,
@@ -523,9 +582,12 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: sumitOk,
-      authNumber,
-      documentId: docId,
-      documentNumber: docNumber,
+      error: sumitOk ? undefined : (verdict.reason || "העסקה נדחתה"),
+      declineCode: verdict.code,
+      declineReason: verdict.reason,
+      authNumber: sumitOk ? authNumber : null,
+      documentId: sumitOk ? docId : null,
+      documentNumber: sumitOk ? docNumber : null,
       invoiceId,
       cardLast4: last4,
       raw: r.data,

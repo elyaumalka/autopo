@@ -438,7 +438,12 @@ Deno.serve(async (req) => {
       const cardMask = pm?.CreditCard_CardMask || null;
       const last4 = pm?.CreditCard_LastDigits || null;
 
-      if (r.ok && token && body.customer?.id) {
+      const tokenOk = r.ok && !!token;
+      const tokenReason = tokenOk
+        ? null
+        : (r.data?.UserErrorMessage || r.data?.TechnicalErrorDetails || "שמירת הכרטיס נכשלה — לא התקבל טוקן מסומיט");
+
+      if (tokenOk && body.customer?.id) {
         await supabaseAdmin.from("customers").update({
           payment_token: token,
           card_last4: last4,
@@ -448,19 +453,25 @@ Deno.serve(async (req) => {
       }
       await supabaseAdmin.from("payment_transactions").insert({
         transaction_type: "save_token",
-        status: r.ok ? "success" : "failed",
+        status: tokenOk ? "success" : "failed",
         customer_id: body.customer?.id || null,
         customer_name: body.customer?.name || null,
         booking_id: body.bookingId || null,
         rental_id: body.rentalId || null,
         card_mask: cardMask || null,
         card_last4: last4 || null,
-        error_message: r.ok ? null : JSON.stringify(r.data),
+        error_message: tokenOk ? null : JSON.stringify({ reason: tokenReason, response: r.data }),
         raw_response: r.data,
         created_by: user.id,
       });
-      return new Response(JSON.stringify(r.data), {
-        status: r.ok ? 200 : 400,
+      return new Response(JSON.stringify({
+        success: tokenOk,
+        error: tokenOk ? undefined : tokenReason,
+        declineReason: tokenReason,
+        cardLast4: last4,
+        raw: r.data,
+      }), {
+        status: tokenOk ? 200 : 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

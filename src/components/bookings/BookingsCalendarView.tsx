@@ -322,7 +322,7 @@ export default function BookingsCalendarView({ onNewBooking, onCellClick, onMain
         // בקוביה מציגים "שירות" בלבד; סוג הטיפול האמיתי נראה בלחיצה על הקוביה
         customerName: "שירות",
         status: "בטיפול",
-        rentalType: "daily",
+        rentalType: "daily" as const,
         endTime: mEndTime,
         startTime: mStartTime,
       };

@@ -50,6 +50,7 @@ export function SumitPaymentDialog({
   const [amount, setAmount] = useState(initialAmount?.toString() || "");
   const [payments, setPayments] = useState("1");
   const [useToken, setUseToken] = useState(!!customer?.payment_token);
+  const [declineError, setDeclineError] = useState<string | null>(null);
 
   // סנכרון הסכום עם הסכום הנותר לתשלום בכל פעם שהחלון נפתח / הסכום משתנה
   useEffect(() => {

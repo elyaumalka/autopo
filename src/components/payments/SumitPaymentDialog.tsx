@@ -84,6 +84,7 @@ export function SumitPaymentDialog({
     }
 
     setLoading(true);
+    setDeclineError(null);
     try {
       let card: any;
       if (useToken && customer?.payment_token) {

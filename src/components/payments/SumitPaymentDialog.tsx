@@ -58,6 +58,7 @@ export function SumitPaymentDialog({
       setAmount(initialAmount != null ? String(initialAmount) : "");
       setAction(defaultAction);
       setUseToken(!!customer?.payment_token);
+      setDeclineError(null);
     }
   }, [open, initialAmount, defaultAction, customer?.payment_token]);
 

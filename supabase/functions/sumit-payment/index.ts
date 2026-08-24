@@ -491,17 +491,19 @@ Deno.serve(async (req) => {
     const r = await sumitFetch("/billing/payments/charge/", payload);
     const data = r.data?.Data || {};
     const payment = data?.Payment || {};
-    // מספר אישור: אם סומיט לא מחזירה AuthNumber (קורה ב-J5 דרך billing), משתמשים ב-Payment.ID כמזהה
-    const realAuthNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
-    const authNumber = realAuthNumber || (isAuthorize && payment?.ID ? String(payment.ID) : null);
-    const providerStatus = String(data?.ResultCode || payment?.Status || r.data?.ResultCode || "");
-    // הצלחה: סומיט מחזירה Status:0 ברמת ה-API, ו-Payment עם Status "000" ו/או ValidPayment=true
-    const topLevelOk = r.data?.Status === 0 || r.data?.Status === undefined;
-    const paymentValid = payment?.ValidPayment === true || providerStatus === "000";
-    const sumitOk = isAuthorize ? (r.ok && topLevelOk && paymentValid) : r.ok;
+    // מספר אישור אמיתי מחברת האשראי (לא נשתמש ב-Payment.ID כתחליף - זה מסתיר סירובים)
+    const authNumber = data?.AuthNumber || payment?.AuthNumber || data?.CreditCardAuthNumber || data?.AuthorizationNumber || r.data?.AuthNumber || null;
     const docId = data?.DocumentID || data?.Document?.ID || null;
     const docNumber = data?.DocumentNumber || data?.Document?.Number || null;
     const docType = data?.DocumentType || data?.Document?.Type || null;
+    const verdict = evaluatePaymentResult({
+      httpOk: r.ok,
+      raw: r.data,
+      requireAuthNumber: isAuthorize,
+      authNumber,
+      documentId: docId,
+    });
+    const sumitOk = verdict.ok;
     const token = data?.CardToken || payment?.PaymentMethod?.CreditCard_Token || data?.PaymentMethod?.CreditCard_Token || data?.CreditCard_Token || null;
     const cardMask = data?.CardPattern || payment?.PaymentMethod?.CreditCard_CardMask || data?.PaymentMethod?.CreditCard_CardMask || data?.CreditCard_CardMask || null;
     const last4 = payment?.PaymentMethod?.CreditCard_LastDigits || data?.PaymentMethod?.CreditCard_LastDigits || data?.CreditCard_LastDigits || (typeof cardMask === "string" ? cardMask.slice(-4) : null);
